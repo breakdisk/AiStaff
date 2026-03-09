@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO drift_events (id, deployment_id, expected_hash, actual_hash)\n                 VALUES (gen_random_uuid(), $1, $2, $3)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5e8643b6a7b44e622b408b9584e420254a118aa6644337b6ca1634dcf81d999e"
+}

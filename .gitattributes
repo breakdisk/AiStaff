@@ -1,0 +1,33 @@
+# Enforce LF line endings for all text files.
+# Without this, Windows git defaults to CRLF which corrupts Dockerfile
+# and shell scripts inside the Linux container (bad interpreter errors).
+* text=auto eol=lf
+
+# Rust source
+*.rs       text eol=lf
+
+# Config / manifests
+*.toml     text eol=lf
+*.json     text eol=lf
+*.yaml     text eol=lf
+*.yml      text eol=lf
+
+# Database
+*.sql      text eol=lf
+
+# Shell / Docker
+*.sh       text eol=lf
+Dockerfile text eol=lf
+
+# Docs
+*.md       text eol=lf
+
+# Binary files — never touch line endings
+*.png      binary
+*.jpg      binary
+*.jpeg     binary
+*.gif      binary
+*.ico      binary
+*.wasm     binary
+*.gz       binary
+*.zip      binary

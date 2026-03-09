@@ -1,0 +1,93 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO unified_profiles\n                   (id, github_uid, linkedin_uid, display_name, email,\n                    trust_score, biometric_commitment, identity_tier, created_at, updated_at)\n               VALUES ($1, $2, $3, $4, $5, 0, NULL, 'SOCIAL_VERIFIED', $6, $7)\n               ON CONFLICT (github_uid) DO UPDATE SET\n                   linkedin_uid = EXCLUDED.linkedin_uid,\n                   updated_at   = EXCLUDED.updated_at\n               RETURNING\n                   id, github_uid, linkedin_uid, display_name, email,\n                   trust_score, biometric_commitment,\n                   identity_tier AS \"identity_tier: IdentityTier\",\n                   created_at, updated_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "github_uid",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "linkedin_uid",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "display_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "email",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "trust_score",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 6,
+        "name": "biometric_commitment",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "identity_tier: IdentityTier",
+        "type_info": {
+          "Custom": {
+            "name": "identity_tier",
+            "kind": {
+              "Enum": [
+                "UNVERIFIED",
+                "SOCIAL_VERIFIED",
+                "BIOMETRIC_VERIFIED"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Timestamptz",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "c0fac0eb6734cedc8e54ef6f444e81b07b2ce28b997c5c135ae602ca25eedead"
+}

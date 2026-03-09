@@ -1,0 +1,88 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE unified_profiles\n               SET biometric_commitment = $2,\n                   identity_tier        = 'BIOMETRIC_VERIFIED',\n                   updated_at           = NOW()\n               WHERE id = $1\n               RETURNING\n                   id, github_uid, linkedin_uid, display_name, email,\n                   trust_score, biometric_commitment,\n                   identity_tier AS \"identity_tier: IdentityTier\",\n                   created_at, updated_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "github_uid",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "linkedin_uid",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "display_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "email",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "trust_score",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 6,
+        "name": "biometric_commitment",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "identity_tier: IdentityTier",
+        "type_info": {
+          "Custom": {
+            "name": "identity_tier",
+            "kind": {
+              "Enum": [
+                "UNVERIFIED",
+                "SOCIAL_VERIFIED",
+                "BIOMETRIC_VERIFIED"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "76928e0e13df1399538a466ad1fc6a7be554aa636cb71a4dd11a9e43770e272f"
+}

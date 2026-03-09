@@ -1,0 +1,22 @@
+[package]
+name    = "matching-service"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+common       = { workspace = true }
+axum         = { workspace = true }
+tokio        = { workspace = true }
+sqlx         = { workspace = true }
+serde        = { workspace = true }
+serde_json   = { workspace = true }
+thiserror    = { workspace = true }
+anyhow       = { workspace = true }
+uuid         = { workspace = true }
+chrono       = { workspace = true }
+dotenvy      = { workspace = true }
+tracing      = { workspace = true }
+tracing-subscriber = { workspace = true }
+tower-http   = { workspace = true }
+reqwest      = { workspace = true }
+base64       = { workspace = true }

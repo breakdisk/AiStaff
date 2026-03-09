@@ -1,0 +1,212 @@
+version: "3.9"
+
+# ── Shared build helper ───────────────────────────────────────────────────────
+# All Rust services use the single workspace Dockerfile.
+# Set `SERVICE` build arg to the cargo crate binary name (underscored).
+x-rust-build: &rust-build
+  context: .
+  dockerfile: Dockerfile
+
+services:
+  # ── Infrastructure ─────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB:       aistaffapp
+      POSTGRES_USER:     dev
+      POSTGRES_PASSWORD: devpassword
+    ports: ["5432:5432"]
+    volumes: ["pg_data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dev -d aistaffapp"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    depends_on: [zookeeper]
+    ports: ["9092:9092"]
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Web UI
+
+  # ── Phase 1 services ───────────────────────────────────────────────────────
+  identity-service:
+    build:
+      <<: *rust-build
+      args: { SERVICE: identity_service }
+    environment:
+      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      KAFKA_BROKERS: kafka:9092
+      RUST_LOG: info
+    ports: ["3001:3001"]
+    depends_on: [postgres, kafka]
+
+  marketplace-service:
+    build:
+      <<: *rust-build
+      args: { SERVICE: marketplace_service }
+    environment:
+      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      KAFKA_BROKERS: kafka:9092
+      RUST_LOG: info
+    ports: ["3002:3002"]
+    depends_on: [postgres, kafka]
+
+  checklist-service:
+    build:
+      <<: *rust-build
+      args: { SERVICE: checklist_service }
+    environment:
+      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      KAFKA_BROKERS: kafka:9092
+      RUST_LOG: info
+    ports: ["3003:3003"]
+    depends_on: [postgres, kafka]
+
+  license-service:
+    build:
+      <<: *rust-build
+      args: { SERVICE: license_service }
+    environment:
+      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      KAFKA_BROKERS: kafka:9092
+      RUST_LOG: info
+    ports: ["3004:3004"]
+    depends_on: [postgres, kafka]
+
+  matching-service:
+    build:
+      <<: *rust-build
+      args: { SERVICE: matching_service }
+    environment:
+      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      KAFKA_BROKERS: kafka:9092
+      COMPLIANCE_SERVICE_URL: http://compliance-service:3006
+      RUST_LOG: info
+    ports: ["3005:3005"]
+    depends_on: [postgres, kafka, compliance-service]
+
+  compliance-service:
+    build:
+      <<: *rust-build
+      args: { SERVICE: compliance_service }
+    environment:
+      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      RUST_LOG: info
+    ports: ["3006:3006"]
+    depends_on: [postgres]
+
+  telemetry-service:
+    build:
+      <<: *rust-build
+      args: { SERVICE: telemetry_service }
+    environment:
+      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      KAFKA_BROKERS: kafka:9092
+      RUST_LOG: info
+    ports: ["3007:3007"]
+    depends_on: [postgres, kafka]
+
+  analytics-service:
+    build:
+      <<: *rust-build
+      args: { SERVICE: analytics_service }
+    environment:
+      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      RUST_LOG: info
+    ports: ["3008:3008"]
+    depends_on: [postgres]
+
+  reputation-service:
+    build:
+      <<: *rust-build
+      args: { SERVICE: reputation_service }
+    environment:
+      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      KAFKA_BROKERS: kafka:9092
+      PLATFORM_DID: did:aistaff:platform
+      RUST_LOG: info
+    ports: ["3009:3009"]
+    depends_on: [postgres, kafka]
+
+  payout-service:
+    build:
+      <<: *rust-build
+      args: { SERVICE: payout_service }
+    environment:
+      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      KAFKA_BROKERS: kafka:9092
+      RUST_LOG: info
+    ports: ["3010:3010"]
+    depends_on: [postgres, kafka]
+
+  # ── Kafka-only consumers (no HTTP port) ───────────────────────────────────
+  deployment-engine:
+    build:
+      <<: *rust-build
+      args: { SERVICE: deployment_engine }
+    environment:
+      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      KAFKA_BROKERS: kafka:9092
+      MCP_SERVER_URL: http://mcp-server:4040
+      RUST_LOG: info
+    depends_on: [postgres, kafka, mcp-server]
+
+  environment-orchestrator:
+    build:
+      <<: *rust-build
+      args: { SERVICE: environment_orchestrator }
+    environment:
+      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      KAFKA_BROKERS: kafka:9092
+      RUST_LOG: info
+    depends_on: [postgres, kafka]
+
+  notification-service:
+    build:
+      <<: *rust-build
+      args: { SERVICE: notification_service }
+    environment:
+      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      KAFKA_BROKERS: kafka:9092
+      SMTP_HOST: mailhog
+      SMTP_FROM: noreply@aistaff.app
+      RUST_LOG: info
+    depends_on: [postgres, kafka, mailhog]
+
+  mcp-server:
+    build:
+      <<: *rust-build
+      args: { SERVICE: mcp_server }
+    environment:
+      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      MCP_FS_ROOT: /workspace
+      RUST_LOG: info
+    ports: ["4040:4040"]
+    depends_on: [postgres]
+
+volumes:
+  pg_data:

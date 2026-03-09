@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, expected_hash, actual_hash, detected_at\n         FROM drift_events WHERE deployment_id = $1 ORDER BY detected_at DESC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "expected_hash",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "actual_hash",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "detected_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "ae5e930d8ab439feafe915c0b11c496755167f1f5f0a9f52d67d78d374ab2beb"
+}

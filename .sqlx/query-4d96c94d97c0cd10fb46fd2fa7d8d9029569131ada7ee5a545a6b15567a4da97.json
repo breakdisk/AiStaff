@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT all_passed, failed_steps, finalized_at\n         FROM dod_checklist_summaries WHERE deployment_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "all_passed",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 1,
+        "name": "failed_steps",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 2,
+        "name": "finalized_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "4d96c94d97c0cd10fb46fd2fa7d8d9029569131ada7ee5a545a6b15567a4da97"
+}

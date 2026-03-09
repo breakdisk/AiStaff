@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO dod_checklist_summaries (deployment_id, all_passed, failed_steps)\n             VALUES ($1, $2, $3)\n             ON CONFLICT (deployment_id) DO UPDATE\n             SET all_passed = EXCLUDED.all_passed, failed_steps = EXCLUDED.failed_steps,\n                 finalized_at = NOW()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bool",
+        "TextArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0891cc0e32964a9656d0b6efaaace763373b7b95d882e2e1157e79e4abb8b7f3"
+}

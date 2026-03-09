@@ -1,0 +1,95 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "npm", "run", "dev", "--prefix", "apps/web"],
+      "port": 3000
+    },
+    {
+      "name": "identity-service",
+      "runtimeExecutable": "D:\\AiStaffApp\\target\\debug\\identity_service.exe",
+      "runtimeArgs": [],
+      "port": 3001
+    },
+    {
+      "name": "checklist-service",
+      "runtimeExecutable": "D:\\AiStaffApp\\target\\debug\\checklist-service.exe",
+      "runtimeArgs": [],
+      "port": 3003
+    },
+    {
+      "name": "license-service",
+      "runtimeExecutable": "D:\\AiStaffApp\\target\\debug\\license-service.exe",
+      "runtimeArgs": [],
+      "port": 3004
+    },
+    {
+      "name": "matching-service",
+      "runtimeExecutable": "D:\\AiStaffApp\\target\\debug\\matching-service.exe",
+      "runtimeArgs": [],
+      "port": 3005
+    },
+    {
+      "name": "compliance-service",
+      "runtimeExecutable": "D:\\AiStaffApp\\target\\debug\\compliance-service.exe",
+      "runtimeArgs": [],
+      "port": 3006
+    },
+    {
+      "name": "telemetry-service",
+      "runtimeExecutable": "D:\\AiStaffApp\\target\\debug\\telemetry-service.exe",
+      "runtimeArgs": [],
+      "port": 3007
+    },
+    {
+      "name": "analytics-service",
+      "runtimeExecutable": "D:\\AiStaffApp\\target\\debug\\analytics-service.exe",
+      "runtimeArgs": [],
+      "port": 3008
+    },
+    {
+      "name": "reputation-service",
+      "runtimeExecutable": "D:\\AiStaffApp\\target\\debug\\reputation-service.exe",
+      "runtimeArgs": [],
+      "port": 3009
+    },
+    {
+      "name": "mcp-server",
+      "runtimeExecutable": "D:\\AiStaffApp\\target\\debug\\mcp_server.exe",
+      "runtimeArgs": [],
+      "port": 4040
+    },
+    {
+      "name": "marketplace-service",
+      "runtimeExecutable": "D:\\AiStaffApp\\target\\debug\\marketplace_service.exe",
+      "runtimeArgs": [],
+      "port": 0
+    },
+    {
+      "name": "deployment-engine",
+      "runtimeExecutable": "D:\\AiStaffApp\\target\\debug\\deployment_engine.exe",
+      "runtimeArgs": [],
+      "port": 0
+    },
+    {
+      "name": "payout-service",
+      "runtimeExecutable": "D:\\AiStaffApp\\target\\debug\\payout_service.exe",
+      "runtimeArgs": [],
+      "port": 0
+    },
+    {
+      "name": "notification-service",
+      "runtimeExecutable": "D:\\AiStaffApp\\target\\debug\\notification-service.exe",
+      "runtimeArgs": [],
+      "port": 0
+    },
+    {
+      "name": "environment-orchestrator",
+      "runtimeExecutable": "D:\\AiStaffApp\\target\\debug\\environment-orchestrator.exe",
+      "runtimeArgs": [],
+      "port": 0
+    }
+  ]
+}

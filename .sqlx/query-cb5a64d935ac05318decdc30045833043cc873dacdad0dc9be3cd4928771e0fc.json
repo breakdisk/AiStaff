@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT cpu_pct, mem_bytes, artifact_hash, recorded_at\n         FROM telemetry_heartbeats\n         WHERE deployment_id = $1 AND recorded_at >= $2\n         ORDER BY recorded_at ASC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "cpu_pct",
+        "type_info": "Float4"
+      },
+      {
+        "ordinal": 1,
+        "name": "mem_bytes",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "artifact_hash",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "recorded_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "cb5a64d935ac05318decdc30045833043cc873dacdad0dc9be3cd4928771e0fc"
+}

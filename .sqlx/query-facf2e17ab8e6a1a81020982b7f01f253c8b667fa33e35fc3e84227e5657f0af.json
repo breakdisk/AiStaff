@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE unified_profiles\n                 SET trust_score = LEAST(trust_score + 40, 100), updated_at = NOW()\n                 WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "facf2e17ab8e6a1a81020982b7f01f253c8b667fa33e35fc3e84227e5657f0af"
+}

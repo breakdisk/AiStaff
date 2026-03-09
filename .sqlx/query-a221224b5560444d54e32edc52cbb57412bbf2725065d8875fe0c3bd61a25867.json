@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT party_a, party_b, status::TEXT AS status FROM contracts WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "party_a",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "party_b",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "status",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "a221224b5560444d54e32edc52cbb57412bbf2725065d8875fe0c3bd61a25867"
+}

@@ -1,0 +1,55 @@
+# ── Rust build output ─────────────────────────────────────────────────────────
+/target/
+**/target/
+
+# ── Secrets — NEVER commit ────────────────────────────────────────────────────
+.env
+*.pem
+*.key
+*.p12
+*.pfx
+
+# ── SQLx — cache is committed; live DB file is not ────────────────────────────
+# .sqlx/ is intentionally tracked (offline mode)
+*.db
+*.db-shm
+*.db-wal
+
+# ── Node.js / Next.js ─────────────────────────────────────────────────────────
+node_modules/
+.next/
+.turbo/
+out/
+dist/
+.vercel/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ── OS cruft ──────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+
+# ── IDE ───────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.iml
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+cargo_check*.log
+
+# ── Wasm build artifacts (plugins committed separately via registry) ───────────
+*.wasm
+
+# ── Pentest reports — keep directory, not contents (add reports manually) ─────
+docs/pentest/*
+!docs/pentest/.gitkeep
+
+# ── Windows batch dev scripts (local only) ────────────────────────────────────
+run_build.bat
+build.bat

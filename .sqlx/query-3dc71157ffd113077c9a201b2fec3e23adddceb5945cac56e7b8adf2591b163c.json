@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO talent_skills (talent_id, tag_id, proficiency)\n             VALUES ($1, $2, $3)\n             ON CONFLICT (talent_id, tag_id) DO UPDATE SET proficiency = EXCLUDED.proficiency",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int2"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3dc71157ffd113077c9a201b2fec3e23adddceb5945cac56e7b8adf2591b163c"
+}

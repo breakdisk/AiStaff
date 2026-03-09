@@ -1,0 +1,556 @@
+"use client";
+
+import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { LogOut } from "lucide-react";
+import type { Session } from "@/lib/session";
+import { StitchingDashboard }    from "@/components/StitchingDashboard";
+import { VetoCard }               from "@/components/VetoCard";
+import { TrustScoreBadge }        from "@/components/TrustScoreBadge";
+import { VettingBadge }           from "@/components/VettingBadge";
+import { VerifiedSkillsChips }    from "@/components/VerifiedSkillsChips";
+import type { PlatformSignal, SkillTag } from "@/components/VerifiedSkillsChips";
+import MatchScoreCard             from "@/components/MatchScoreCard";
+import LicenseKeyCard             from "@/components/LicenseKeyCard";
+import AgentHealthWidget          from "@/components/AgentHealthWidget";
+import DodChecklistCard           from "@/components/DodChecklistCard";
+import ReputationBadge            from "@/components/ReputationBadge";
+import {
+  fetchRoiReport,
+  fetchMatches,
+  exportVc,
+  fetchHeartbeats,
+  fetchDriftEvents,
+  fetchChecklistSteps,
+  vetoDeployment,
+  approveDeployment,
+  type RoiReport,
+  type MatchResult,
+  type Heartbeat,
+  type ChecklistStep,
+} from "@/lib/api";
+
+// ── Demo fallback data ────────────────────────────────────────────────────────
+// Used when the corresponding service is unreachable.
+
+const DEMO_TALENT_ID = "tal-00000001-0000-0000-0000-aaaaaaaaaaaa";
+
+const DEMO_PROFILE = {
+  currentTier:         "SocialVerified" as const,
+  trustScore:          58,
+  biometricCommitment: undefined,
+  deepLinkUrl:         "openid4vp://?request_uri=https%3A%2F%2Fapi.aistaffapp.com%2Fidentity%2Fvp-request",
+  githubLogin:         "dev-user",
+  linkedinVerified:    true,
+};
+
+const DEMO_DEPLOYMENT = {
+  deploymentId:  "dep-01J9X2Z3",
+  agentName:     "DataSync Agent v2.1",
+  totalCents:    120000,
+  talentCents:   36000,
+  talentId:      DEMO_TALENT_ID,
+  vetoWindowEnd: new Date(Date.now() + 25_000),
+};
+
+const DEMO_LICENSE = {
+  licenseId:    "lic-f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  jurisdiction: "US",
+  seats:        5,
+  expiresAt:    new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString(),
+  revoked:      false,
+};
+
+const DEMO_HEARTBEATS = [
+  { cpu_pct: 12.4, mem_bytes: 128 * 1024 * 1024, artifact_hash: "sha256:a1b2c3d4e5f6", recorded_at: "" },
+  { cpu_pct: 18.1, mem_bytes: 135 * 1024 * 1024, artifact_hash: "sha256:a1b2c3d4e5f6", recorded_at: "" },
+  { cpu_pct: 14.7, mem_bytes: 131 * 1024 * 1024, artifact_hash: "sha256:a1b2c3d4e5f6", recorded_at: "" },
+  { cpu_pct: 22.3, mem_bytes: 142 * 1024 * 1024, artifact_hash: "sha256:a1b2c3d4e5f6", recorded_at: "" },
+  { cpu_pct: 19.8, mem_bytes: 138 * 1024 * 1024, artifact_hash: "sha256:a1b2c3d4e5f6", recorded_at: "" },
+];
+
+const DEMO_CHECKLIST = {
+  deploymentId: "dep-01J9X2Z3",
+  steps: [
+    { step_id: "env_preflight_passed",       step_label: "Env preflight",    passed: true  },
+    { step_id: "license_validated",          step_label: "License validated", passed: true  },
+    { step_id: "wasm_hash_verified",         step_label: "Wasm hash verified",passed: true  },
+    { step_id: "network_egress_configured",  step_label: "Network egress",    passed: true  },
+    { step_id: "smoke_test_passed",          step_label: "Smoke test",        passed: false },
+    { step_id: "client_acceptance_signed",   step_label: "Client acceptance", passed: false },
+  ],
+  finalized: false,
+  allPassed: false,
+};
+
+// Demo skill signals — keyed by mock account email
+const DEMO_SIGNALS: Record<string, PlatformSignal[]> = {
+  "client@demo.com": [
+    { id: "gh",  platform: "github",  label: "GitHub",  detail: "18 public repos · member since 2021", url: "#", verified: true  },
+    { id: "li",  platform: "linkedin", label: "LinkedIn", detail: "Product Manager · Acme Corp",        url: "#", verified: true  },
+  ],
+  "talent@demo.com": [
+    { id: "gh",  platform: "github",  label: "GitHub",  detail: "92 public repos · member since 2019", url: "#", verified: true  },
+    { id: "li",  platform: "linkedin", label: "LinkedIn", detail: "Senior Rust Engineer · remote",      url: "#", verified: true  },
+    { id: "cert",platform: "certification", label: "Wasm Systems Cert", detail: "Bytecode Alliance · 2025", verified: true },
+  ],
+  "dev@demo.com": [
+    { id: "gh",  platform: "github",  label: "GitHub",  detail: "134 public repos · member since 2018", url: "#", verified: true },
+    { id: "li",  platform: "linkedin", label: "LinkedIn", detail: "Staff Engineer · self-employed",      url: "#", verified: true },
+    { id: "fig", platform: "figma",    label: "Figma",   detail: "Portfolio: 4 published systems",       url: "#", verified: false },
+  ],
+};
+
+const DEMO_SKILLS: Record<string, SkillTag[]> = {
+  "client@demo.com": [
+    { tag: "product",   proficiency: 4, verified: true  },
+    { tag: "analytics", proficiency: 3, verified: false },
+  ],
+  "talent@demo.com": [
+    { tag: "rust",   proficiency: 5, verified: true  },
+    { tag: "wasm",   proficiency: 5, verified: true  },
+    { tag: "kafka",  proficiency: 4, verified: true  },
+    { tag: "python", proficiency: 3, verified: false },
+  ],
+  "dev@demo.com": [
+    { tag: "rust",   proficiency: 5, verified: true  },
+    { tag: "wasm",   proficiency: 5, verified: true  },
+    { tag: "kafka",  proficiency: 4, verified: true  },
+    { tag: "figma",  proficiency: 3, verified: false },
+  ],
+};
+
+const DEMO_REPUTATION = {
+  talentId:         DEMO_TALENT_ID,
+  reputationScore:  73.4,
+  totalDeployments: 12,
+  totalEarnedCents: 184500,
+  driftIncidents:   1,
+  vcIssued:         true,
+};
+
+const DEMO_MATCHES = {
+  agentId: "agt-00000001-0000-0000-0000-000000000001",
+  matches: [
+    { talent_id: "tal-00000001-0000-0000-0000-aaaaaaaaaaaa", match_score: 0.92, trust_score: 82, skill_tags: ["rust", "wasm"] },
+    { talent_id: "tal-00000002-0000-0000-0000-bbbbbbbbbbbb", match_score: 0.87, trust_score: 61, skill_tags: ["rust", "kafka"] },
+    { talent_id: "tal-00000003-0000-0000-0000-cccccccccccc", match_score: 0.74, trust_score: 45, skill_tags: ["rust"] },
+    { talent_id: "tal-00000004-0000-0000-0000-dddddddddddd", match_score: 0.51, trust_score: 30, skill_tags: ["python"] },
+  ],
+};
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function roiToReputation(roi: RoiReport) {
+  const driftRate    = roi.total_deployments > 0
+    ? roi.drift_incidents / roi.total_deployments : 0;
+  const volumeScore  = Math.min(roi.total_deployments / 20, 1.0);
+  const reputationScore =
+    0.4 * roi.avg_checklist_pass_pct +
+    0.3 * (1 - driftRate) * 100 +
+    0.2 * roi.reputation_score +
+    0.1 * volumeScore * 100;
+
+  return {
+    talentId:         roi.talent_id,
+    reputationScore:  Math.round(reputationScore * 10) / 10,
+    totalDeployments: roi.total_deployments,
+    totalEarnedCents: roi.total_earned_cents,
+    driftIncidents:   roi.drift_incidents,
+    vcIssued:         false,
+  };
+}
+
+function matchResultToProps(result: MatchResult) {
+  return {
+    agentId: result.request_id,
+    matches: result.matches.map((m) => ({
+      talent_id:   m.talent_id,
+      match_score: m.match_score,
+      trust_score: m.trust_score,
+      skill_tags:  m.skill_tags,
+    })),
+  };
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+
+export default function DashboardPage() {
+  const router = useRouter();
+  const [session, setSession] = useState<Session | null>(null);
+
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => r.ok ? r.json() : null)
+      .then(setSession)
+      .catch(() => null);
+  }, []);
+
+  async function handleLogout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+    router.refresh();
+  }
+
+  const [reputation, setReputation]   = useState(DEMO_REPUTATION);
+  const [matchData,  setMatchData]    = useState(DEMO_MATCHES);
+  const [vcExporting, setVcExporting] = useState(false);
+  const [serviceStatus, setServiceStatus] = useState<"live" | "demo" | "loading">("loading");
+  const [heartbeats,  setHeartbeats]  = useState<Heartbeat[]>(DEMO_HEARTBEATS);
+  const [driftCount,  setDriftCount]  = useState(0);
+  const [checklist,   setChecklist]   = useState<{ steps: ChecklistStep[]; finalized: boolean; allPassed: boolean }>({
+    steps:     DEMO_CHECKLIST.steps,
+    finalized: DEMO_CHECKLIST.finalized,
+    allPassed: DEMO_CHECKLIST.allPassed,
+  });
+
+  // Fetch ROI / reputation from analytics service
+  useEffect(() => {
+    fetchRoiReport(DEMO_TALENT_ID)
+      .then((roi) => {
+        setReputation({ ...roiToReputation(roi), vcIssued: false });
+        setServiceStatus("live");
+      })
+      .catch(() => setServiceStatus("demo"));
+  }, []);
+
+  // Fetch talent matches from matching service
+  useEffect(() => {
+    fetchMatches({
+      request_id:      "req-dashboard-001",
+      agent_id:        DEMO_MATCHES.agentId,
+      required_skills: ["rust", "wasm", "kafka"],
+      min_trust_score: 30,
+    })
+      .then((result) => setMatchData(matchResultToProps(result)))
+      .catch(() => {/* keep demo data */});
+  }, []);
+
+  // Fetch agent health from telemetry service
+  useEffect(() => {
+    const depId = DEMO_DEPLOYMENT.deploymentId;
+    Promise.allSettled([
+      fetchHeartbeats(depId),
+      fetchDriftEvents(depId),
+    ]).then(([hbResult, driftResult]) => {
+      if (hbResult.status === "fulfilled" && hbResult.value.length > 0) {
+        setHeartbeats(hbResult.value);
+      }
+      if (driftResult.status === "fulfilled") {
+        setDriftCount(driftResult.value.length);
+      }
+    });
+  }, []);
+
+  // Fetch DoD checklist from checklist service
+  useEffect(() => {
+    fetchChecklistSteps(DEMO_DEPLOYMENT.deploymentId)
+      .then((steps) => {
+        if (steps.length > 0) {
+          const allPassed  = steps.every((s) => s.passed);
+          const finalized  = steps.length >= 6;
+          setChecklist({ steps, finalized, allPassed });
+        }
+      })
+      .catch(() => {/* keep demo data */});
+  }, []);
+
+  const handleExportVc = useCallback(async () => {
+    setVcExporting(true);
+    try {
+      await exportVc(reputation.talentId);
+      setReputation((prev) => ({ ...prev, vcIssued: true }));
+    } catch {
+      console.error("VC export failed — service unavailable");
+    } finally {
+      setVcExporting(false);
+    }
+  }, [reputation.talentId]);
+
+  return (
+    <div className="flex flex-col lg:flex-row min-h-screen">
+      {/* Sidebar — hidden on mobile */}
+      <aside className="hidden lg:flex lg:flex-col w-56 border-r border-zinc-800 bg-zinc-950 p-4 gap-6">
+        <div className="flex items-center justify-between">
+          <span className="font-mono text-xs text-zinc-500 uppercase tracking-widest">
+            AiStaffApp
+          </span>
+          {/* Live / demo indicator */}
+          <span className={`font-mono text-[9px] px-1.5 py-0.5 rounded-sm border ${
+            serviceStatus === "live"
+              ? "border-green-800 text-green-400"
+              : serviceStatus === "demo"
+              ? "border-zinc-700 text-zinc-500"
+              : "border-zinc-800 text-zinc-700"
+          }`}>
+            {serviceStatus === "live" ? "LIVE" : serviceStatus === "demo" ? "DEMO" : "…"}
+          </span>
+        </div>
+        <nav className="flex flex-col gap-1">
+          {[
+            { label: "Dashboard",    href: "/dashboard",   active: true  },
+            { label: "Marketplace",  href: "/marketplace", active: false },
+            { label: "Leaderboard",  href: "/leaderboard", active: false },
+            { label: "Matching",     href: "/matching",    active: false },
+            { label: "Profile",      href: "/profile",     active: false },
+          ].map(({ label, href, active }) => (
+            <a
+              key={label}
+              href={href}
+              className={`px-3 py-2 rounded-sm font-mono text-xs transition-colors ${
+                active
+                  ? "text-zinc-100 bg-zinc-800"
+                  : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900"
+              }`}
+            >
+              {label}
+            </a>
+          ))}
+        </nav>
+        <div className="space-y-1">
+          <p className="font-mono text-[10px] text-zinc-700 uppercase tracking-widest px-3">AI Tools</p>
+          {[
+            { label: "Scoping",      href: "/scoping"      },
+            { label: "Outcomes",     href: "/outcomes"     },
+            { label: "Proposals",    href: "/proposals"    },
+            { label: "Pricing Tool", href: "/pricing-tool" },
+            { label: "Hybrid Match", href: "/hybrid-match" },
+          ].map(({ label, href }) => (
+            <a key={label} href={href}
+              className="block px-3 py-1.5 rounded-sm font-mono text-xs text-zinc-600 hover:text-zinc-300 hover:bg-zinc-900 transition-colors"
+            >{label}</a>
+          ))}
+        </div>
+        <div className="space-y-1">
+          <p className="font-mono text-[10px] text-zinc-700 uppercase tracking-widest px-3">Payments</p>
+          {[
+            { label: "Escrow",             href: "/escrow"             },
+            { label: "Payouts",            href: "/payouts"            },
+            { label: "Billing",            href: "/billing"            },
+            { label: "Smart Contracts",    href: "/smart-contracts"    },
+            { label: "Outcome Listings",   href: "/outcome-listings"   },
+            { label: "Pricing Calculator", href: "/pricing-calculator" },
+          ].map(({ label, href }) => (
+            <a key={label} href={href}
+              className="block px-3 py-1.5 rounded-sm font-mono text-xs text-zinc-600 hover:text-zinc-300 hover:bg-zinc-900 transition-colors"
+            >{label}</a>
+          ))}
+        </div>
+        <div className="space-y-1">
+          <p className="font-mono text-[10px] text-zinc-700 uppercase tracking-widest px-3">Workspace</p>
+          {[
+            { label: "Work Diaries",  href: "/work-diaries"  },
+            { label: "Async Collab",  href: "/async-collab"  },
+            { label: "Collaboration", href: "/collab"         },
+            { label: "Success Layer", href: "/success-layer"  },
+            { label: "Quality Gate",  href: "/quality-gate"   },
+          ].map(({ label, href }) => (
+            <a key={label} href={href}
+              className="block px-3 py-1.5 rounded-sm font-mono text-xs text-zinc-600 hover:text-zinc-300 hover:bg-zinc-900 transition-colors"
+            >{label}</a>
+          ))}
+        </div>
+        <div className="space-y-1">
+          <p className="font-mono text-[10px] text-zinc-700 uppercase tracking-widest px-3">Legal</p>
+          {[
+            { label: "Legal Toolkit",    href: "/legal-toolkit"     },
+            { label: "Tax Engine",       href: "/tax-engine"        },
+            { label: "Reputation",       href: "/reputation-export" },
+            { label: "Transparency",     href: "/transparency"      },
+          ].map(({ label, href }) => (
+            <a key={label} href={href}
+              className="block px-3 py-1.5 rounded-sm font-mono text-xs text-zinc-600 hover:text-zinc-300 hover:bg-zinc-900 transition-colors"
+            >{label}</a>
+          ))}
+        </div>
+        <div className="space-y-1">
+          <p className="font-mono text-[10px] text-zinc-700 uppercase tracking-widest px-3">Notifications</p>
+          {[
+            { label: "Alerts",    href: "/notifications"         },
+            { label: "Reminders", href: "/reminders"             },
+            { label: "Settings",  href: "/notification-settings" },
+          ].map(({ label, href }) => (
+            <a key={label} href={href}
+              className="block px-3 py-1.5 rounded-sm font-mono text-xs text-zinc-600 hover:text-zinc-300 hover:bg-zinc-900 transition-colors"
+            >{label}</a>
+          ))}
+        </div>
+        <div className="space-y-1">
+          <p className="font-mono text-[10px] text-zinc-700 uppercase tracking-widest px-3">Enterprise</p>
+          {[
+            { label: "Industry Suites", href: "/vertical"               },
+            { label: "Enterprise Hub",  href: "/enterprise"             },
+            { label: "Talent Pools",    href: "/enterprise/talent-pools" },
+            { label: "SLA Dashboard",   href: "/enterprise/sla"         },
+            { label: "Global & Access", href: "/global"                 },
+          ].map(({ label, href }) => (
+            <a key={label} href={href}
+              className="block px-3 py-1.5 rounded-sm font-mono text-xs text-zinc-600 hover:text-zinc-300 hover:bg-zinc-900 transition-colors"
+            >{label}</a>
+          ))}
+        </div>
+
+        <div className="space-y-1">
+          <p className="font-mono text-[10px] text-zinc-700 uppercase tracking-widest px-3">Trust</p>
+          {[
+            { label: "Proof of Human", href: "/proof-of-human" },
+          ].map(({ label, href }) => (
+            <a key={label} href={href}
+              className="block px-3 py-1.5 rounded-sm font-mono text-xs text-zinc-600 hover:text-zinc-300 hover:bg-zinc-900 transition-colors"
+            >{label}</a>
+          ))}
+        </div>
+
+        {/* User chip + logout */}
+        <div className="mt-auto pt-4 border-t border-zinc-800 space-y-2">
+          {session && (
+            <div className="px-2 space-y-0.5">
+              <p className="font-mono text-xs text-zinc-300 truncate">{session.name}</p>
+              <p className="font-mono text-[10px] text-zinc-600 truncate capitalize">
+                {session.roles.join(" + ")} · Tier {session.identity_tier} · {session.trust_score} pts
+              </p>
+            </div>
+          )}
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-2 w-full px-3 py-2 rounded-sm font-mono text-xs
+                       text-zinc-500 hover:text-red-400 hover:bg-red-950/30
+                       transition-colors border border-transparent hover:border-red-900/50"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            Sign out
+          </button>
+        </div>
+      </aside>
+
+      {/* Main content */}
+      <main className="flex-1 p-4 pb-20 lg:pb-4 space-y-4 max-w-2xl mx-auto w-full">
+
+        {/* Header row */}
+        <div className="flex items-center justify-between">
+          <h1 className="font-mono text-sm font-medium text-zinc-300 uppercase tracking-widest">
+            Dashboard
+          </h1>
+          <TrustScoreBadge
+            score={session?.trust_score ?? DEMO_PROFILE.trustScore}
+            biometricVerified={session ? session.identity_tier === 2 : !!DEMO_PROFILE.biometricCommitment}
+          />
+        </div>
+
+        {/* Action Required — Veto window */}
+        <section>
+          <SectionLabel>Action Required</SectionLabel>
+          <VetoCard
+            {...DEMO_DEPLOYMENT}
+            onVeto={async (id, reason) => {
+              await vetoDeployment(id, DEMO_DEPLOYMENT.talentId, reason).catch(() => {
+                console.warn("Veto API unavailable — local state only");
+              });
+            }}
+            onApprove={async (id) => {
+              await approveDeployment(id, DEMO_DEPLOYMENT.talentId).catch(() => {
+                console.warn("Approve API unavailable — local state only");
+              });
+            }}
+          />
+        </section>
+
+        {/* Talent Matches — Bot Orchestrator */}
+        <section>
+          <SectionLabel>Talent Matches</SectionLabel>
+          <MatchScoreCard {...matchData} />
+        </section>
+
+        {/* Two-column: License + Reputation */}
+        <section className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <SectionLabel>Active License</SectionLabel>
+            <LicenseKeyCard {...DEMO_LICENSE} />
+          </div>
+          <div>
+            <SectionLabel>Reputation</SectionLabel>
+            <ReputationBadge
+              {...reputation}
+              onExportVc={vcExporting ? async () => {} : handleExportVc}
+            />
+          </div>
+        </section>
+
+        {/* Agent Health */}
+        <section>
+          <SectionLabel>Agent Health</SectionLabel>
+          <AgentHealthWidget
+            deploymentId={DEMO_DEPLOYMENT.deploymentId}
+            heartbeats={heartbeats}
+            driftCount={driftCount}
+          />
+        </section>
+
+        {/* DoD Checklist */}
+        <section>
+          <SectionLabel>Installation DoD</SectionLabel>
+          <DodChecklistCard
+            deploymentId={DEMO_DEPLOYMENT.deploymentId}
+            steps={checklist.steps}
+            finalized={checklist.finalized}
+            allPassed={checklist.allPassed}
+          />
+        </section>
+
+        {/* Vetting & Credentials */}
+        <section>
+          <SectionLabel>Vetting Status</SectionLabel>
+          <VettingBadge
+            tier={(session?.identity_tier ?? 0) as 0 | 1 | 2}
+            expandable
+          />
+        </section>
+
+        {/* Verified Skills & Platform Signals */}
+        <section>
+          <SectionLabel>Verified Skills &amp; Platforms</SectionLabel>
+          <div className="border border-zinc-800 rounded-sm p-4 bg-zinc-900/60">
+            <VerifiedSkillsChips
+              signals={DEMO_SIGNALS[session?.email ?? ""] ?? DEMO_SIGNALS["talent@demo.com"]}
+              skills={DEMO_SKILLS[session?.email ?? ""]  ?? DEMO_SKILLS["talent@demo.com"]}
+            />
+          </div>
+        </section>
+
+        {/* Identity stitching */}
+        <section>
+          <SectionLabel>Identity Stitching</SectionLabel>
+          <div className="border border-zinc-800 rounded-sm p-4 bg-zinc-900">
+            <StitchingDashboard {...DEMO_PROFILE} />
+          </div>
+        </section>
+
+      </main>
+
+      {/* Bottom tab bar — mobile only */}
+      <nav
+        className="lg:hidden fixed bottom-0 left-0 right-0 z-50
+                   h-16 flex items-center border-t border-zinc-800 bg-zinc-950"
+      >
+        {[
+          { label: "Dashboard", href: "/dashboard",   active: true  },
+          { label: "Market",    href: "/marketplace", active: false },
+          { label: "Matching",  href: "/matching",    active: false },
+          { label: "Profile",   href: "/profile",     active: false },
+        ].map(({ label, href, active }) => (
+          <a key={label} href={href} className={`nav-tab ${active ? "active" : ""}`}>
+            <span className="text-[10px]">{label}</span>
+          </a>
+        ))}
+      </nav>
+    </div>
+  );
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="font-mono text-xs text-zinc-500 uppercase tracking-widest mb-2">
+      {children}
+    </p>
+  );
+}

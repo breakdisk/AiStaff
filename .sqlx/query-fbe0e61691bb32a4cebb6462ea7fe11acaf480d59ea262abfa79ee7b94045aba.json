@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE deployments SET state = 'FAILED', failure_reason = $2, updated_at = NOW()\n                 WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "fbe0e61691bb32a4cebb6462ea7fe11acaf480d59ea262abfa79ee7b94045aba"
+}

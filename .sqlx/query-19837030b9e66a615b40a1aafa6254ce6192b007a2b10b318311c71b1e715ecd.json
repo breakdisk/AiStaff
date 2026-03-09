@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE licenses\n             SET revoked_at = NOW(), revoke_reason = $2\n             WHERE id = $1 AND revoked_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "19837030b9e66a615b40a1aafa6254ce6192b007a2b10b318311c71b1e715ecd"
+}

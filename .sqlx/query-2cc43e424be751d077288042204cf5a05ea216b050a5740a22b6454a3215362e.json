@@ -1,0 +1,36 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                ts.talent_id,\n                COUNT(st.tag) FILTER (WHERE st.tag = ANY($1)) AS matched,\n                up.trust_score\n            FROM talent_skills ts\n            JOIN skill_tags st        ON ts.tag_id = st.id\n            JOIN unified_profiles up  ON ts.talent_id = up.id\n            WHERE up.trust_score >= $2\n            GROUP BY ts.talent_id, up.trust_score\n            ORDER BY matched DESC, up.trust_score DESC\n            LIMIT $3\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "talent_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "matched",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "trust_score",
+        "type_info": "Int2"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "Int2",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      null,
+      false
+    ]
+  },
+  "hash": "2cc43e424be751d077288042204cf5a05ea216b050a5740a22b6454a3215362e"
+}

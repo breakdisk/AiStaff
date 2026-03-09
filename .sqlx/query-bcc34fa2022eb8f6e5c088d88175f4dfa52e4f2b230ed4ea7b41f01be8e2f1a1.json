@@ -1,0 +1,63 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, agent_artifact_hash, escrow_amount_cents,\n                  state AS \"state: DeploymentState\", freelancer_id\n           FROM deployments\n           WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "agent_artifact_hash",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "escrow_amount_cents",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "state: DeploymentState",
+        "type_info": {
+          "Custom": {
+            "name": "deployment_status",
+            "kind": {
+              "Enum": [
+                "PENDING",
+                "PROVISIONING",
+                "INSTALLING",
+                "VERIFYING",
+                "VETO_WINDOW",
+                "BIOMETRIC_PENDING",
+                "RELEASED",
+                "VETOED",
+                "FAILED"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "freelancer_id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "bcc34fa2022eb8f6e5c088d88175f4dfa52e4f2b230ed4ea7b41f01be8e2f1a1"
+}

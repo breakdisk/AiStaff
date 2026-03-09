@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO escrow_payouts (deployment_id, recipient_id, amount_cents, reason, created_at)\n         VALUES ($1, $2, $3, $4, NOW())\n         ON CONFLICT DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b7e86751b108106ac8c5cf3609468ee0c1c8a055d29f529d6bd945a66ee6a789"
+}

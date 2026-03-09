@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO reputation_vcs (id, talent_id, vc_jwt, issued_at)\n         VALUES (gen_random_uuid(), $1, $2, NOW())\n         ON CONFLICT (talent_id) DO UPDATE SET vc_jwt = EXCLUDED.vc_jwt, issued_at = NOW()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1740f32f58853747e64a2b7ea18257e4bb3bc81f91139be7e679fb42e74b96bd"
+}

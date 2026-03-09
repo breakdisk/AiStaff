@@ -1,0 +1,20 @@
+[package]
+name    = "mcp_server"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "mcp_server"
+path = "src/main.rs"
+
+[dependencies]
+tokio.workspace        = true
+axum.workspace         = true
+serde.workspace        = true
+serde_json.workspace   = true
+anyhow.workspace       = true
+uuid.workspace         = true
+tracing.workspace      = true
+tracing-subscriber.workspace = true
+dotenvy.workspace      = true
+sqlx.workspace         = true

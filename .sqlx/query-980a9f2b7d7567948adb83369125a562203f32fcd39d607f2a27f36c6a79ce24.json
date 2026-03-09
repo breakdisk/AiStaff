@@ -1,0 +1,27 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE unified_profiles\n                   SET trust_score = $2, identity_tier = $3, updated_at = NOW()\n                   WHERE github_uid = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int2",
+        {
+          "Custom": {
+            "name": "identity_tier",
+            "kind": {
+              "Enum": [
+                "UNVERIFIED",
+                "SOCIAL_VERIFIED",
+                "BIOMETRIC_VERIFIED"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "980a9f2b7d7567948adb83369125a562203f32fcd39d607f2a27f36c6a79ce24"
+}

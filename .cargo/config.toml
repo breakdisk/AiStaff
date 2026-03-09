@@ -1,0 +1,27 @@
+# Workspace-level Cargo configuration
+# Applies to all crates in the workspace.
+
+[build]
+# Keep incremental compilation on in dev for fast rebuilds.
+# Release profile disables it automatically via codegen-units=1.
+incremental = true
+
+[cargo-new]
+# Default edition for `cargo new` inside this workspace.
+edition = "2021"
+
+[env]
+# Ensure SQLx never attempts a live DB connection during local check/CI.
+# Override per-command when running `sqlx migrate run` (which needs a live DB).
+SQLX_OFFLINE = { value = "true", force = false }
+
+[net]
+# Retry transient network errors during `cargo fetch` (CI-friendly).
+retry = 3
+
+[term]
+# Coloured output even when piped (useful in CI logs).
+color = "always"
+# Show progress bar for downloads.
+progress.when    = "auto"
+progress.width   = 80

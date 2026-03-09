@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO telemetry_heartbeats\n                 (id, deployment_id, artifact_hash, cpu_pct, mem_bytes, recorded_at)\n             VALUES (gen_random_uuid(), $1, $2, $3, $4, $5)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Float4",
+        "Int8",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "914d92b2e2b4cad9d4cf53da0fb5ec92cccd167c215f79787037d64bb0ea8ae4"
+}

@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE contracts SET status = 'SIGNED', signed_at = NOW() WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c472d018948d5f154fc7d8218669ea692ad7a8c0126e9787203ce9b9b9a917dc"
+}

@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT step_id, passed FROM dod_checklist_steps WHERE deployment_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "step_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "passed",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "98011c14c6774385f284f742914deba5be99b41ba85719c3f7340c5803a07cc1"
+}

@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO skill_tags (id, tag, domain)\n             VALUES (gen_random_uuid(), $1, $2)\n             ON CONFLICT (tag) DO UPDATE SET domain = EXCLUDED.domain\n             RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "583ea0a01321e78b14bbb824c829455c4b6c096d90babbb26ff968de8249721d"
+}

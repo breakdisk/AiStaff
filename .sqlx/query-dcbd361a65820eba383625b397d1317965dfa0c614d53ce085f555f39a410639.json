@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO notifications (id, recipient, channel, subject, body)\n             VALUES ($1, $2, 'EMAIL', $3, $4)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "dcbd361a65820eba383625b397d1317965dfa0c614d53ce085f555f39a410639"
+}

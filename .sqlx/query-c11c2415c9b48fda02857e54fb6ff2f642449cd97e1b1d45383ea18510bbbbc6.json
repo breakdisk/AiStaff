@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO contracts\n                 (id, contract_type, party_a, party_b, deployment_id, document_hash)\n             VALUES ($1, $2, $3, $4, $5, $6)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c11c2415c9b48fda02857e54fb6ff2f642449cd97e1b1d45383ea18510bbbbc6"
+}

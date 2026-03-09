@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT st.tag, st.domain, ts.proficiency\n         FROM talent_skills ts\n         JOIN skill_tags st ON ts.tag_id = st.id\n         WHERE ts.talent_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "tag",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "domain",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "proficiency",
+        "type_info": "Int2"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "d027fc82ff224490f9948da7bf56d082be467c2ed17b4abf7d75c1073d7bf68e"
+}
