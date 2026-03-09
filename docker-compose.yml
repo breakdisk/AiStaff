@@ -163,6 +163,17 @@ services:
     ports: ["3010:3010"]
     depends_on: [postgres, kafka]
 
+  community-service:
+    build:
+      <<: *rust-build
+      args: { SERVICE: community_service }
+    environment:
+      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      KAFKA_BROKERS: kafka:9092
+      RUST_LOG: info
+    ports: ["3011:3011"]
+    depends_on: [postgres, kafka]
+
   # ── Kafka-only consumers (no HTTP port) ───────────────────────────────────
   deployment-engine:
     build:

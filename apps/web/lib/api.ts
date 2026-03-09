@@ -269,6 +269,244 @@ export function approveDeployment(
   });
 }
 
+// ── Community service (:3011) ─────────────────────────────────────────────
+
+export interface Hub {
+  id:           string;
+  slug:         string;
+  name:         string;
+  description:  string;
+  category:     string;
+  timezone:     string;
+  owner_id:     string;
+  member_count: number;
+  is_private:   boolean;
+  created_at:   string;
+}
+
+export interface ForumThread {
+  id:          string;
+  hub_id:      string;
+  author_id:   string;
+  title:       string;
+  body:        string;
+  reply_count: number;
+  pinned:      boolean;
+  locked:      boolean;
+  created_at:  string;
+}
+
+export interface MentorProfile {
+  id:                 string;
+  user_id:            string;
+  bio:                string;
+  specializations:    string[];
+  max_mentees:        number;
+  current_mentees:    number;
+  availability_tz:    string;
+  accepting_requests: boolean;
+  session_rate_cents: number;
+  created_at:         string;
+}
+
+export interface MentorshipPair {
+  id:           string;
+  mentor_id:    string;
+  mentee_id:    string;
+  status:       string;
+  goal:         string;
+  started_at:   string;
+  completed_at: string | null;
+}
+
+export interface CohortGroup {
+  id:             string;
+  name:           string;
+  description:    string;
+  cohort_type:    string;
+  max_members:    number;
+  member_count:   number;
+  facilitator_id: string | null;
+  created_at:     string;
+}
+
+export interface CareerProfile {
+  id:              string;
+  user_id:         string;
+  current_tier:    number;
+  target_role:     string | null;
+  bio:             string;
+  total_xp:        number;
+  milestone_count: number;
+  created_at:      string;
+  updated_at:      string;
+}
+
+export interface CareerMilestone {
+  id:            string;
+  milestone_key: string;
+  label:         string;
+  xp_awarded:    number;
+  achieved_at:   string;
+}
+
+export interface SkillGap {
+  id:             string;
+  skill_tag:      string;
+  current_level:  number;
+  required_level: number;
+  gap_score:      number;
+  detected_at:    string;
+}
+
+export interface LearningPath {
+  id:           string;
+  title:        string;
+  description:  string;
+  skill_target: string;
+  steps:        unknown[];
+  progress_pct: number;
+  assigned_at:  string;
+  completed_at: string | null;
+}
+
+export interface Checkin {
+  id:            string;
+  mood_score:    number;
+  energy_score:  number;
+  stress_score:  number;
+  notes:         string | null;
+  checked_in_at: string;
+}
+
+export interface BurnoutSignal {
+  id:             string;
+  risk_level:     "low" | "medium" | "high" | "critical";
+  risk_score:     number;
+  avg_stress_7d:  number | null;
+  avg_mood_7d:    number | null;
+  checkin_streak: number;
+  computed_at:    string;
+}
+
+export interface CarbonFootprint {
+  id:               string;
+  total_kg_offset:  number;
+  total_kg_emitted: number;
+  net_kg:           number;
+  updated_at:       string;
+}
+
+// Hubs
+export function fetchHubs(category?: string): Promise<{ hubs: Hub[] }> {
+  const qs = category ? `?category=${category}` : "";
+  return apiFetch(`/api/community/hubs${qs}`);
+}
+
+export function joinHub(hubId: string, userId: string): Promise<{ ok: boolean }> {
+  return apiFetch(`/api/community/hubs/${hubId}/join`, {
+    method: "POST",
+    body:   JSON.stringify({ user_id: userId }),
+  });
+}
+
+export function fetchHubThreads(hubId: string): Promise<{ threads: ForumThread[] }> {
+  return apiFetch(`/api/community/hubs/${hubId}/threads`);
+}
+
+export function createThread(
+  hubId: string,
+  data:  { author_id: string; title: string; body: string },
+): Promise<{ thread_id: string }> {
+  return apiFetch(`/api/community/hubs/${hubId}/threads`, {
+    method: "POST",
+    body:   JSON.stringify(data),
+  });
+}
+
+// Mentors
+export function fetchMentors(): Promise<{ mentors: MentorProfile[] }> {
+  return apiFetch("/api/community/mentors");
+}
+
+export function requestMentorship(data: {
+  mentor_id: string;
+  mentee_id: string;
+  goal?:     string;
+}): Promise<{ pair_id: string }> {
+  return apiFetch("/api/community/mentorship/request", {
+    method: "POST",
+    body:   JSON.stringify(data),
+  });
+}
+
+export function fetchMentorshipPairs(userId: string): Promise<{ pairs: MentorshipPair[] }> {
+  return apiFetch(`/api/community/mentorship/pairs?user_id=${userId}`);
+}
+
+// Cohorts
+export function fetchCohorts(): Promise<{ cohorts: CohortGroup[] }> {
+  return apiFetch("/api/community/cohorts");
+}
+
+export function joinCohort(cohortId: string, userId: string): Promise<{ ok: boolean }> {
+  return apiFetch(`/api/community/cohorts/${cohortId}/join`, {
+    method: "POST",
+    body:   JSON.stringify({ user_id: userId }),
+  });
+}
+
+// Career
+export function fetchCareerProfile(userId: string): Promise<CareerProfile> {
+  return apiFetch(`/api/community/career/${userId}`);
+}
+
+export function fetchMilestones(userId: string): Promise<{ milestones: CareerMilestone[] }> {
+  return apiFetch(`/api/community/career/${userId}/milestones`);
+}
+
+export function fetchSkillGaps(userId: string): Promise<{ gaps: SkillGap[] }> {
+  return apiFetch(`/api/community/career/${userId}/gaps`);
+}
+
+export function fetchLearningPaths(userId: string): Promise<{ paths: LearningPath[] }> {
+  return apiFetch(`/api/community/career/${userId}/paths`);
+}
+
+// Wellbeing
+export function submitCheckin(
+  userId: string,
+  data:   { mood_score: number; energy_score: number; stress_score: number; notes?: string },
+): Promise<{ checkin_id: string }> {
+  return apiFetch(`/api/community/wellbeing/${userId}/checkin`, {
+    method: "POST",
+    body:   JSON.stringify(data),
+  });
+}
+
+export function fetchCheckins(userId: string): Promise<{ checkins: Checkin[] }> {
+  return apiFetch(`/api/community/wellbeing/${userId}/checkins`);
+}
+
+export function fetchBurnoutSignal(userId: string): Promise<BurnoutSignal> {
+  return apiFetch(`/api/community/wellbeing/${userId}/burnout`);
+}
+
+// Carbon
+export function logCarbonOffset(
+  userId: string,
+  data:   { offset_kg: number; activity_type?: string; provider?: string; certificate_url?: string },
+): Promise<{ offset_id: string }> {
+  return apiFetch(`/api/community/carbon/${userId}/log`, {
+    method: "POST",
+    body:   JSON.stringify(data),
+  });
+}
+
+export function fetchCarbonFootprint(userId: string): Promise<CarbonFootprint> {
+  return apiFetch(`/api/community/carbon/${userId}/footprint`);
+}
+
 // ── Health checks ──────────────────────────────────────────────────────────
 
 const SERVICE_PORTS: Record<string, string> = {
@@ -281,6 +519,7 @@ const SERVICE_PORTS: Record<string, string> = {
   telemetry:   "/api/telemetry/health",
   analytics:   "/api/analytics/health",
   reputation:  "/api/reputation/health",
+  community:   "/api/community/health",
 };
 
 export async function checkServiceHealth(): Promise<Record<string, boolean>> {

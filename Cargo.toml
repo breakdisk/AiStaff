@@ -17,6 +17,8 @@ members = [
     "crates/telemetry_service",
     "crates/analytics_service",
     "crates/reputation_service",
+    # Feature 08 — Community & Growth
+    "crates/community_service",
 ]
 
 [workspace.package]

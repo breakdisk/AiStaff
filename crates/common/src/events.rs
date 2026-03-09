@@ -217,3 +217,50 @@ pub struct ReputationExported {
     pub vc_jwt:    String,
     pub issued_at: DateTime<Utc>,
 }
+
+// ── Community & Growth events (Feature 08) ────────────────────────────────────
+pub const TOPIC_COMMUNITY_EVENTS: &str = "community.events";
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct MentorshipPaired {
+    pub pair_id:   Uuid,
+    pub mentor_id: Uuid,
+    pub mentee_id: Uuid,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CohortCreated {
+    pub cohort_id:   Uuid,
+    pub name:        String,
+    pub cohort_type: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CareerMilestoneReached {
+    pub user_id:       Uuid,
+    pub milestone_key: String,
+    pub label:         String,
+    pub xp_awarded:    u32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct LearningPathAssigned {
+    pub user_id:      Uuid,
+    pub path_id:      Uuid,
+    pub skill_target: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BurnoutAlertRaised {
+    pub user_id:    Uuid,
+    pub risk_level: String,
+    pub risk_score: i16,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CarbonOffsetLogged {
+    pub user_id:       Uuid,
+    pub offset_id:     Uuid,
+    pub offset_kg:     f64,
+    pub activity_type: String,
+}

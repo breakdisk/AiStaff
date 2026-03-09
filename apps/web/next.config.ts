@@ -14,6 +14,7 @@ const nextConfig: NextConfig = {
       { source: "/api/analytics/:path*",  destination: "http://localhost:3008/:path*" },
       { source: "/api/reputation/:path*", destination: "http://localhost:3009/:path*" },
       { source: "/api/payout/:path*",     destination: "http://localhost:3010/:path*" },
+      { source: "/api/community/:path*", destination: "http://localhost:3011/:path*" },
     ];
   },
 };
