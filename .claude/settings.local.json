@@ -123,7 +123,14 @@
       "Bash(powershell -Command \"Set-Location ''D:\\\\AiStaffApp''; git status --short\")",
       "Bash(for f in D:/AiStaffApp/crates/*/src/*.rs)",
       "Bash(do wc -l \"$f\")",
-      "Bash(xargs wc -l)"
+      "Bash(xargs wc -l)",
+      "Bash(Select-String '\\\\.next')",
+      "Bash(powershell -Command \"Set-Location ''D:\\\\AiStaffApp''; git ls-files --cached ''apps/web/.next'' | ForEach-Object { git rm --cached $_2>$null }; Write-Host \\(''After: '' + \\(git diff --cached --name-only | Measure-Object\\).Count\\)\")",
+      "Bash(powershell -File:*)",
+      "Bash(powershell -ExecutionPolicy Bypass -File \"D:\\\\AiStaffApp\\\\cleanup_index.ps1\")",
+      "Bash(powershell -ExecutionPolicy Bypass -File \"D:\\\\AiStaffApp\\\\do_commit.ps1\")",
+      "Bash(powershell -ExecutionPolicy Bypass -Command \"Set-Location ''D:\\\\AiStaffApp''; git diff .claude/settings.local.json\")",
+      "Bash(powershell -ExecutionPolicy Bypass -File \"D:\\\\AiStaffApp\\\\do_commit2.ps1\")"
     ]
   }
 }
