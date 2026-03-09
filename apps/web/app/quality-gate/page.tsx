@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -26,7 +26,6 @@ const AI_TOOLS_NAV = [
   { href: "/outcomes",     label: "Outcomes",        icon: Target },
   { href: "/proposals",    label: "Proposals",       icon: GitMerge },
   { href: "/pricing-tool", label: "Pricing",         icon: TrendingUp },
-  { href: "/hybrid-match", label: "Hybrid Match",    icon: Shuffle },
 ];
 
 const PAYMENTS_NAV = [

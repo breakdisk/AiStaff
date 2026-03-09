@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
@@ -57,7 +57,6 @@ const AI_TOOLS_NAV = [
   { label: "Proposals",    href: "/proposals"     },
   { label: "Draft Proposal", href: "/proposals/draft", active: true },
   { label: "Pricing Tool", href: "/pricing-tool"  },
-  { label: "Hybrid Match", href: "/hybrid-match"  },
 ];
 
 // ── BriefPanel ─────────────────────────────────────────────────────────────

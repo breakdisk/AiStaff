@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import {
@@ -566,7 +566,6 @@ const AI_TOOLS_NAV = [
   { label: "Outcomes",     href: "/outcomes"     },
   { label: "Proposals",    href: "/proposals"    },
   { label: "Pricing Tool", href: "/pricing-tool" },
-  { label: "Hybrid Match", href: "/hybrid-match" },
 ];
 
 const PAYMENTS_NAV = [

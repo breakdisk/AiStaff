@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { Trophy, AlertTriangle, TrendingUp } from "lucide-react";
@@ -175,7 +175,6 @@ export default function LeaderboardPage() {
             { label: "Outcomes",     href: "/outcomes"     },
             { label: "Proposals",    href: "/proposals"    },
             { label: "Pricing Tool", href: "/pricing-tool" },
-            { label: "Hybrid Match", href: "/hybrid-match" },
           ].map(({ label, href }) => (
             <a key={label} href={href}
               className="block px-3 py-1.5 rounded-sm font-mono text-xs text-zinc-600 hover:text-zinc-300 hover:bg-zinc-900 transition-colors"

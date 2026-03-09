@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -87,7 +87,6 @@ const AI_TOOLS_NAV = [
   { label: "Outcomes",     href: "/outcomes"      },
   { label: "Proposals",    href: "/proposals"     },
   { label: "Pricing Tool", href: "/pricing-tool", active: true },
-  { label: "Hybrid Match", href: "/hybrid-match"  },
 ];
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

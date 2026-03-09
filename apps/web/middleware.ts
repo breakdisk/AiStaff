@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE } from "@/lib/session";
 
 // Routes that require a valid session
 const PROTECTED = [
   "/dashboard", "/marketplace", "/leaderboard", "/deployments", "/profile",
-  "/matching", "/scoping", "/outcomes", "/proposals", "/pricing-tool", "/hybrid-match",
+  "/matching", "/scoping", "/outcomes", "/proposals", "/pricing-tool",
   "/escrow", "/payouts", "/billing", "/smart-contracts", "/outcome-listings", "/pricing-calculator",
   "/work-diaries", "/async-collab", "/collab", "/success-layer", "/quality-gate",
   "/legal-toolkit", "/tax-engine", "/reputation-export", "/transparency",
