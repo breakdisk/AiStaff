@@ -507,6 +507,106 @@ export function fetchCarbonFootprint(userId: string): Promise<CarbonFootprint> {
   return apiFetch(`/api/community/carbon/${userId}/footprint`);
 }
 
+// ── Notification service (:3012) ─────────────────────────────────────────
+
+export interface InAppNotification {
+  id:         string;
+  user_id:    string;
+  title:      string;
+  body:       string;
+  event_type: string;
+  priority:   string;
+  read_at:    string | null;
+  created_at: string;
+}
+
+export interface NotifPrefs {
+  email_enabled:     boolean;
+  sms_enabled:       boolean;
+  push_enabled:      boolean;
+  in_app_enabled:    boolean;
+  whatsapp_enabled:  boolean;
+  slack_enabled:     boolean;
+  teams_enabled:     boolean;
+  quiet_hours_start: string | null;
+  quiet_hours_end:   string | null;
+  quiet_hours_tz:    string;
+  digest_mode:       string;
+}
+
+export interface IntegrationStatus {
+  provider:      string;
+  status:        string;
+  display_name:  string | null;
+  connected_at:  string | null;
+}
+
+export interface InitWhatsAppResponse {
+  qr_url: string;
+  nonce:  string;
+}
+
+export function fetchInAppNotifications(unreadOnly = false, userId = "demo-user"): Promise<InAppNotification[]> {
+  return apiFetch(`/api/notifications?user_id=${userId}${unreadOnly ? "&unread=true" : ""}`);
+}
+
+export function fetchUnreadCount(userId = "demo-user"): Promise<{ count: number }> {
+  return apiFetch(`/api/notifications/count?user_id=${userId}`);
+}
+
+export function markNotificationRead(id: string, userId = "demo-user"): Promise<{ ok: boolean }> {
+  return apiFetch(`/api/notifications/${id}/read?user_id=${userId}`, { method: "PATCH" });
+}
+
+export function markAllNotificationsRead(userId = "demo-user"): Promise<{ ok: boolean }> {
+  return apiFetch("/api/notifications/read-all", {
+    method: "POST",
+    body:   JSON.stringify({ user_id: userId }),
+  });
+}
+
+export function fetchNotificationPreferences(userId = "demo-user"): Promise<NotifPrefs> {
+  return apiFetch(`/api/notification-preferences?user_id=${userId}`);
+}
+
+export function saveNotificationPreferences(prefs: NotifPrefs & { user_id: string }): Promise<{ ok: boolean }> {
+  return apiFetch("/api/notification-preferences", {
+    method: "POST",
+    body:   JSON.stringify(prefs),
+  });
+}
+
+export function registerDeviceToken(
+  userId: string, token: string, platform: "web" | "android" | "ios",
+): Promise<{ ok: boolean }> {
+  return apiFetch("/api/device-tokens", {
+    method: "POST",
+    body:   JSON.stringify({ user_id: userId, token, platform }),
+  });
+}
+
+export function fetchIntegrationsStatus(userId = "demo-user"): Promise<IntegrationStatus[]> {
+  return apiFetch(`/api/integrations/status?user_id=${userId}`);
+}
+
+export function initWhatsAppConnect(userId = "demo-user"): Promise<InitWhatsAppResponse> {
+  return apiFetch("/api/integrations/whatsapp/init", {
+    method: "POST",
+    body:   JSON.stringify({ user_id: userId }),
+  });
+}
+
+export function saveTeamsWebhook(userId: string, webhookUrl: string): Promise<{ ok: boolean }> {
+  return apiFetch("/api/integrations/teams/webhook", {
+    method: "POST",
+    body:   JSON.stringify({ user_id: userId, webhook_url: webhookUrl }),
+  });
+}
+
+export function disconnectIntegration(provider: string, userId = "demo-user"): Promise<{ ok: boolean }> {
+  return apiFetch(`/api/integrations/${provider}?user_id=${userId}`, { method: "DELETE" });
+}
+
 // ── Health checks ──────────────────────────────────────────────────────────
 
 const SERVICE_PORTS: Record<string, string> = {

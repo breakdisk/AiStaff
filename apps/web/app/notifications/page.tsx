@@ -1,10 +1,22 @@
-﻿"use client";
+"use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Bell, BellOff, Check, CheckCheck, ChevronDown, ChevronRight,
   Zap, Clock, AlertTriangle, Info, Users, ExternalLink,
 } from "lucide-react";
+import {
+  fetchInAppNotifications,
+  fetchUnreadCount,
+  markNotificationRead,
+  markAllNotificationsRead,
+  type InAppNotification,
+} from "../../lib/api";
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const DEMO_USER_ID = "00000000-0000-0000-0000-000000000001";
+const UNREAD_POLL_MS = 30_000;
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -33,7 +45,57 @@ interface Notification {
   severity?: "critical" | "warning" | "info";
 }
 
-// ── Demo data ─────────────────────────────────────────────────────────────────
+// ── Mapping helpers ───────────────────────────────────────────────────────────
+
+function eventTypeToKind(event_type: string, priority: string): { kind: NotifKind; severity?: "critical" | "warning" | "info" } {
+  switch (event_type) {
+    case "DriftDetected":
+    case "WarrantyClaimed":
+      return { kind: "alert", severity: "critical" };
+    case "PayoutVeto":
+      return { kind: "alert", severity: "warning" };
+    case "MatchResult":
+    case "MatchFound":
+    case "MentorshipPaired":
+      return { kind: "proposal" };
+    case "LicenseIssued":
+    case "LicenseRevoked":
+    case "EnvironmentReady":
+    case "EscrowRelease":
+      return { kind: "system", severity: "info" };
+    default:
+      return priority === "high"
+        ? { kind: "alert", severity: "warning" }
+        : { kind: "system", severity: "info" };
+  }
+}
+
+function formatRelativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins  = Math.floor(diff / 60_000);
+  const hours = Math.floor(diff / 3_600_000);
+  const days  = Math.floor(diff / 86_400_000);
+  if (mins  < 1)   return "just now";
+  if (mins  < 60)  return `${mins} min ago`;
+  if (hours < 24)  return `${hours} hr ago`;
+  if (days  < 2)   return "Yesterday";
+  return `${days} days ago`;
+}
+
+function mapApiNotification(n: InAppNotification): Notification {
+  const { kind, severity } = eventTypeToKind(n.event_type, n.priority);
+  return {
+    id:        n.id,
+    kind,
+    severity,
+    title:     n.title,
+    body:      n.body,
+    timestamp: formatRelativeTime(n.created_at),
+    read:      n.read_at !== null,
+  };
+}
+
+// ── Demo fallback data ────────────────────────────────────────────────────────
 
 const DEMO_NOTIFICATIONS: Notification[] = [
   {
@@ -230,7 +292,7 @@ function NotificationRow({
           {/* Full body */}
           <p className="font-mono text-xs text-zinc-400">{notif.body}</p>
 
-          {/* Proposal details */}
+          {/* Proposal details (demo data only — API notifications show CTA link instead) */}
           {notif.proposals && notif.proposals.length > 0 && (
             <div className="border border-zinc-800 rounded-sm">
               <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-800">
@@ -250,6 +312,16 @@ function NotificationRow({
                 </a>
               </div>
             </div>
+          )}
+
+          {/* Match CTA (API notifications without embedded proposals) */}
+          {notif.kind === "proposal" && !notif.proposals && (
+            <a
+              href="/matching"
+              className="inline-flex items-center gap-1.5 font-mono text-xs text-amber-400 hover:text-amber-300 transition-colors"
+            >
+              View matches in Matching <ExternalLink className="w-3 h-3" />
+            </a>
           )}
 
           {/* Alert body extras */}
@@ -282,9 +354,54 @@ function NotificationRow({
 
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>(DEMO_NOTIFICATIONS);
-  const [filter, setFilter] = useState<FilterTab>("all");
+  const [filter, setFilter]               = useState<FilterTab>("all");
+  const [liveUnread, setLiveUnread]       = useState<number | null>(null);
+  const [isLoading, setIsLoading]         = useState(true);
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  // ── Load notifications on mount ───────────────────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+    fetchInAppNotifications(DEMO_USER_ID)
+      .then((items) => {
+        if (cancelled || items.length === 0) return;
+        setNotifications(items.map(mapApiNotification));
+      })
+      .catch(() => { /* keep demo data */ })
+      .finally(() => { if (!cancelled) setIsLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  // ── Poll unread count every 30s ───────────────────────────────────────────
+  const refreshUnreadCount = useCallback(() => {
+    fetchUnreadCount(DEMO_USER_ID)
+      .then((count) => setLiveUnread(count))
+      .catch(() => { /* ignore */ });
+  }, []);
+
+  useEffect(() => {
+    refreshUnreadCount();
+    const id = setInterval(refreshUnreadCount, UNREAD_POLL_MS);
+    return () => clearInterval(id);
+  }, [refreshUnreadCount]);
+
+  // ── Actions ───────────────────────────────────────────────────────────────
+  function markRead(id: string) {
+    // Optimistic update
+    setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, read: true } : n));
+    setLiveUnread((prev) => (prev !== null ? Math.max(0, prev - 1) : null));
+    // Persist to backend (silent — local state already updated)
+    markNotificationRead(id).catch(() => { /* rollback not needed; will re-sync on next poll */ });
+  }
+
+  function markAllRead() {
+    // Optimistic update
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    setLiveUnread(0);
+    markAllNotificationsRead(DEMO_USER_ID).catch(() => { /* ignore */ });
+  }
+
+  // ── Derived state ─────────────────────────────────────────────────────────
+  const unreadCount = liveUnread ?? notifications.filter((n) => !n.read).length;
 
   const filtered = notifications.filter((n) => {
     if (filter === "all")       return true;
@@ -293,14 +410,6 @@ export default function NotificationsPage() {
     if (filter === "system")    return n.kind === "system" || n.kind === "alert";
     return true;
   });
-
-  function markRead(id: string) {
-    setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, read: true } : n));
-  }
-
-  function markAllRead() {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-  }
 
   const FILTERS: { key: FilterTab; label: string; count?: number }[] = [
     { key: "all",       label: "All",       count: notifications.length },
@@ -413,6 +522,9 @@ export default function NotificationsPage() {
               <span className="font-mono text-[10px] px-1.5 py-0.5 rounded-sm border border-amber-900 bg-amber-950 text-amber-400">
                 {unreadCount} unread
               </span>
+            )}
+            {isLoading && (
+              <span className="font-mono text-[10px] text-zinc-600 animate-pulse">syncing…</span>
             )}
           </div>
           {unreadCount > 0 && (

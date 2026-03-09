@@ -200,11 +200,29 @@ services:
     build:
       <<: *rust-build
       args: { SERVICE: notification_service }
+    ports: ["3012:3012"]
     environment:
       DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
       KAFKA_BROKERS: kafka:9092
       SMTP_HOST: mailhog
       SMTP_FROM: noreply@aistaff.app
+      NOTIFICATION_HTTP_PORT: "3012"
+      BASE_URL: http://localhost:3012
+      # Twilio (SMS + WhatsApp)
+      TWILIO_ACCOUNT_SID:     ${TWILIO_ACCOUNT_SID:-dev_placeholder}
+      TWILIO_AUTH_TOKEN:      ${TWILIO_AUTH_TOKEN:-dev_placeholder}
+      TWILIO_FROM_NUMBER:     ${TWILIO_FROM_NUMBER:-+15550000000}
+      TWILIO_WHATSAPP_NUMBER: ${TWILIO_WHATSAPP_NUMBER:-+14155238886}
+      # Firebase Cloud Messaging
+      FCM_SERVER_KEY:         ${FCM_SERVER_KEY:-dev_placeholder}
+      # Slack OAuth
+      SLACK_CLIENT_ID:        ${SLACK_CLIENT_ID:-dev_placeholder}
+      SLACK_CLIENT_SECRET:    ${SLACK_CLIENT_SECRET:-dev_placeholder}
+      # Google Calendar OAuth
+      GOOGLE_CLIENT_ID:       ${GOOGLE_CLIENT_ID:-dev_placeholder}
+      GOOGLE_CLIENT_SECRET:   ${GOOGLE_CLIENT_SECRET:-dev_placeholder}
+      # AES-256 key for encrypting OAuth tokens at rest (32-byte base64)
+      INTEGRATION_TOKEN_ENCRYPTION_KEY: ${INTEGRATION_TOKEN_ENCRYPTION_KEY:-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=}
       RUST_LOG: info
     depends_on: [postgres, kafka, mailhog]
 

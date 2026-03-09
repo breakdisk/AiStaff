@@ -14,7 +14,13 @@ const nextConfig: NextConfig = {
       { source: "/api/analytics/:path*",  destination: "http://localhost:3008/:path*" },
       { source: "/api/reputation/:path*", destination: "http://localhost:3009/:path*" },
       { source: "/api/payout/:path*",     destination: "http://localhost:3010/:path*" },
-      { source: "/api/community/:path*", destination: "http://localhost:3011/:path*" },
+      { source: "/api/community/:path*",               destination: "http://localhost:3011/:path*" },
+      { source: "/api/notifications/:path*",            destination: "http://localhost:3012/notifications/:path*" },
+      { source: "/api/notification-preferences/:path*", destination: "http://localhost:3012/notification-preferences/:path*" },
+      { source: "/api/notification-preferences",        destination: "http://localhost:3012/notification-preferences" },
+      { source: "/api/device-tokens/:path*",            destination: "http://localhost:3012/device-tokens/:path*" },
+      { source: "/api/device-tokens",                   destination: "http://localhost:3012/device-tokens" },
+      { source: "/api/integrations/:path*",             destination: "http://localhost:3012/integrations/:path*" },
     ];
   },
 };

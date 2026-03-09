@@ -28,6 +28,16 @@
 | `OAUTH_GITHUB_CLIENT_SECRET` | identity_service | GitHub OAuth app client secret | 90 days |
 | `OAUTH_LINKEDIN_CLIENT_ID` | identity_service | LinkedIn OAuth app client ID | On app rotation |
 | `OAUTH_LINKEDIN_CLIENT_SECRET` | identity_service | LinkedIn OAuth app client secret | 90 days |
+| `TWILIO_ACCOUNT_SID` | notification_service | Twilio account SID for SMS + WhatsApp | On account change |
+| `TWILIO_AUTH_TOKEN` | notification_service | Twilio auth token | 90 days |
+| `TWILIO_FROM_NUMBER` | notification_service | Twilio SMS sender number (E.164) | On number change |
+| `TWILIO_WHATSAPP_NUMBER` | notification_service | Twilio WhatsApp sender number (E.164) | On number change |
+| `FCM_SERVER_KEY` | notification_service | Firebase Cloud Messaging server key for push notifications | 90 days |
+| `SLACK_CLIENT_ID` | notification_service | Slack OAuth app client ID for workspace integration | On app rotation |
+| `SLACK_CLIENT_SECRET` | notification_service | Slack OAuth app client secret | 90 days |
+| `GOOGLE_CLIENT_ID` | notification_service | Google OAuth client ID (Calendar / Meet integration) | On app rotation |
+| `GOOGLE_CLIENT_SECRET` | notification_service | Google OAuth client secret | 90 days |
+| `INTEGRATION_TOKEN_ENCRYPTION_KEY` | notification_service | AES-256-GCM key for encrypting OAuth tokens at rest (base64, 32 bytes) | Quarterly |
 
 ---
 
