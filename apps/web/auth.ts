@@ -121,7 +121,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
     async session({ session, token }) {
       session.user.profileId    = token.profileId    as string;
-      session.user.identityTier = token.identityTier as string;
+      session.user.identityTier = (token.identityTier as "UNVERIFIED" | "SOCIAL_VERIFIED" | "BIOMETRIC_VERIFIED") ?? "UNVERIFIED";
       session.user.trustScore   = token.trustScore   as number;
       session.user.provider     = token.provider     as string;
       session.user.roles        = (token.roles       as string[]) ?? ["talent"];

@@ -57,21 +57,23 @@ const GraphState = Annotation.Root({
 
 export type CopilotStateType = typeof GraphState.State;
 
-// ── LLM instances ──────────────────────────────────────────────────────────
+// ── LLM instances (lazy — created on first use to avoid build-time key check) ─
 
-const intakeLlm = new ChatAnthropic({
-  model:     "claude-haiku-4-5-20251001",
-  maxTokens: 300,
-});
+let _intakeLlm: ChatAnthropic | null = null;
+function getIntakeLlm() {
+  if (!_intakeLlm) _intakeLlm = new ChatAnthropic({ model: "claude-haiku-4-5-20251001", maxTokens: 300 });
+  return _intakeLlm;
+}
 
-const draftLlm = new ChatAnthropic({
-  model:     "claude-sonnet-4-6",
-  maxTokens: 2000,
-});
-
-const draftLlmStructured = draftLlm.withStructuredOutput(ProposalSchema, {
-  name: "generate_proposal",
-});
+function buildDraftLlm() {
+  return new ChatAnthropic({ model: "claude-sonnet-4-6", maxTokens: 2000 })
+    .withStructuredOutput(ProposalSchema, { name: "generate_proposal" });
+}
+let _draftLlmStructured: ReturnType<typeof buildDraftLlm> | null = null;
+function getDraftLlmStructured() {
+  if (!_draftLlmStructured) _draftLlmStructured = buildDraftLlm();
+  return _draftLlmStructured;
+}
 
 // ── Helper ─────────────────────────────────────────────────────────────────
 
@@ -122,7 +124,7 @@ export async function intake_node(
         .map((a, i) => `Answer ${i + 1}: ${a}`)
         .join("\n")}\n\nYou have asked ${state.question_count} question(s). Ask your next question. Do not repeat topics already covered.`;
 
-  const response = await intakeLlm.invoke([
+  const response = await getIntakeLlm().invoke([
     new SystemMessage(INTAKE_SYSTEM),
     ...state.messages,
     new HumanMessage(userPrompt),
@@ -160,7 +162,7 @@ export async function generate_draft_node(
     .map((a, i) => `Freelancer answer ${i + 1}: ${a}`)
     .join("\n");
 
-  const draft = (await draftLlmStructured.invoke([
+  const draft = (await getDraftLlmStructured().invoke([
     new SystemMessage(DRAFT_SYSTEM),
     new HumanMessage(
       `Job brief:\n${briefText}\n\nFreelancer background (from intake):\n${answersText}\n\nGenerate a complete proposal draft.`,

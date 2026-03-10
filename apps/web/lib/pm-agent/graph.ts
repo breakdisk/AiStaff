@@ -50,21 +50,23 @@ const GraphState = Annotation.Root({
 
 export type GraphStateType = typeof GraphState.State;
 
-// ── LLM instances ──────────────────────────────────────────────────────────
+// ── LLM instances (lazy — created on first use to avoid build-time key check) ─
 
-const intakeLlm = new ChatAnthropic({
-  model:     "claude-haiku-4-5-20251001",
-  maxTokens: 350,
-});
+let _intakeLlm: ChatAnthropic | null = null;
+function getIntakeLlm() {
+  if (!_intakeLlm) _intakeLlm = new ChatAnthropic({ model: "claude-haiku-4-5-20251001", maxTokens: 350 });
+  return _intakeLlm;
+}
 
-const sowLlm = new ChatAnthropic({
-  model:     "claude-sonnet-4-6",
-  maxTokens: 2000,
-});
-
-const sowLlmStructured = sowLlm.withStructuredOutput(SowSchema, {
-  name: "generate_sow",
-});
+let _sowLlmStructured: ReturnType<typeof buildSowLlm> | null = null;
+function buildSowLlm() {
+  return new ChatAnthropic({ model: "claude-sonnet-4-6", maxTokens: 2000 })
+    .withStructuredOutput(SowSchema, { name: "generate_sow" });
+}
+function getSowLlmStructured() {
+  if (!_sowLlmStructured) _sowLlmStructured = buildSowLlm();
+  return _sowLlmStructured;
+}
 
 // ── Helper: extract text from AIMessage content ────────────────────────────
 
@@ -108,7 +110,7 @@ ${state.answers.map((a, i) => `Answer ${i + 1}: ${a}`).join("\n")}
 
 You have asked ${state.question_count} question(s). Ask your next discovery question. Do not revisit topics already answered.`;
 
-  const response = await intakeLlm.invoke([
+  const response = await getIntakeLlm().invoke([
     new SystemMessage(INTAKE_SYSTEM),
     ...state.messages,
     new HumanMessage(userPrompt),
@@ -146,7 +148,7 @@ export async function generate_sow_node(
     .map((a, i) => `Discovery Answer ${i + 1}: ${a}`)
     .join("\n");
 
-  const sow = (await sowLlmStructured.invoke([
+  const sow = (await getSowLlmStructured().invoke([
     new SystemMessage(SOW_SYSTEM),
     new HumanMessage(
       `Project Brief: ${state.brief}\n\nDiscovery Conversation:\n${conversationText}\n\nGenerate a complete SOW with exactly 4 milestone phases.`,

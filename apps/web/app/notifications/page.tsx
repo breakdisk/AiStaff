@@ -361,7 +361,7 @@ export default function NotificationsPage() {
   // ── Load notifications on mount ───────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
-    fetchInAppNotifications(DEMO_USER_ID)
+    fetchInAppNotifications(false, DEMO_USER_ID)
       .then((items) => {
         if (cancelled || items.length === 0) return;
         setNotifications(items.map(mapApiNotification));
@@ -374,7 +374,7 @@ export default function NotificationsPage() {
   // ── Poll unread count every 30s ───────────────────────────────────────────
   const refreshUnreadCount = useCallback(() => {
     fetchUnreadCount(DEMO_USER_ID)
-      .then((count) => setLiveUnread(count))
+      .then((data) => setLiveUnread(data.count))
       .catch(() => { /* ignore */ });
   }, []);
 

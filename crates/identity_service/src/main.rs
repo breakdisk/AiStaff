@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use axum::{
-    extract::State,
+    extract::{FromRef, State},
     http::StatusCode,
     response::{IntoResponse, Json},
     routing::{get, post},
@@ -10,6 +10,21 @@ use axum::{
 use dotenvy::dotenv;
 use sqlx::postgres::PgPoolOptions;
 use tracing_subscriber::{fmt, EnvFilter};
+
+/// Composite app state — lets Axum extract each field independently via `FromRef`.
+#[derive(Clone)]
+struct AppState {
+    svc:  Arc<StitchService>,
+    pool: sqlx::PgPool,
+}
+
+impl FromRef<AppState> for Arc<StitchService> {
+    fn from_ref(s: &AppState) -> Self { s.svc.clone() }
+}
+
+impl FromRef<AppState> for sqlx::PgPool {
+    fn from_ref(s: &AppState) -> Self { s.pool.clone() }
+}
 
 mod handlers;
 mod oauth_handler;
@@ -48,6 +63,8 @@ async fn main() -> anyhow::Result<()> {
     let config = Arc::new(StitchConfig { zk_verifying_key });
     let svc = Arc::new(StitchService::new(pool.clone(), config));
 
+    let state = AppState { svc, pool };
+
     let app = Router::new()
         .route("/health", get(handlers::health))
         // Legacy stitch endpoint (GitHub + LinkedIn together)
@@ -60,7 +77,7 @@ async fn main() -> anyhow::Result<()> {
         // New single-provider OAuth endpoints (migration 0016)
         .route("/identity/oauth-callback", post(oauth_callback))
         .route("/identity/connect-provider", post(connect_provider))
-        .with_state((svc, pool));
+        .with_state(state);
 
     let addr = "0.0.0.0:3001";
     tracing::info!("identity_service listening on {addr}");
@@ -73,7 +90,7 @@ async fn main() -> anyhow::Result<()> {
 // Called by Next.js auth.ts jwt callback after any OAuth provider sign-in.
 
 async fn oauth_callback(
-    State((_, pool)): State<(Arc<StitchService>, sqlx::PgPool)>,
+    State(pool): State<sqlx::PgPool>,
     Json(payload): Json<OAuthCallbackPayload>,
 ) -> impl IntoResponse {
     match oauth_handler::handle_oauth_callback(&pool, payload).await {
@@ -90,7 +107,7 @@ async fn oauth_callback(
 // Payload must include `existing_profile_id`.
 
 async fn connect_provider(
-    State((_, pool)): State<(Arc<StitchService>, sqlx::PgPool)>,
+    State(pool): State<sqlx::PgPool>,
     Json(payload): Json<OAuthCallbackPayload>,
 ) -> impl IntoResponse {
     if payload.existing_profile_id.is_none() {
