@@ -182,9 +182,19 @@ export default function DashboardPage() {
   useEffect(() => {
     fetch("/api/auth/me")
       .then((r) => r.ok ? r.json() : null)
-      .then(setSession)
+      .then((s: Session | null) => {
+        setSession(s);
+        // First-time Tier 0 users → onboarding wizard
+        if (
+          s?.identityTier === "UNVERIFIED" &&
+          typeof window !== "undefined" &&
+          !localStorage.getItem("onboarding_done")
+        ) {
+          router.replace("/onboarding");
+        }
+      })
       .catch(() => null);
-  }, []);
+  }, [router]);
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -406,7 +416,7 @@ export default function DashboardPage() {
             <div className="px-2 space-y-0.5">
               <p className="font-mono text-xs text-zinc-300 truncate">{session.name}</p>
               <p className="font-mono text-[10px] text-zinc-600 truncate capitalize">
-                {session.roles.join(" + ")} · Tier {session.identity_tier} · {session.trust_score} pts
+                {session.roles.join(" + ")} · Tier {session.identityTier} · {session.trustScore} pts
               </p>
             </div>
           )}
@@ -431,8 +441,8 @@ export default function DashboardPage() {
             Dashboard
           </h1>
           <TrustScoreBadge
-            score={session?.trust_score ?? DEMO_PROFILE.trustScore}
-            biometricVerified={session ? session.identity_tier === 2 : !!DEMO_PROFILE.biometricCommitment}
+            score={session?.trustScore ?? DEMO_PROFILE.trustScore}
+            biometricVerified={session ? session.identityTier === "BIOMETRIC_VERIFIED" : !!DEMO_PROFILE.biometricCommitment}
           />
         </div>
 
@@ -500,7 +510,7 @@ export default function DashboardPage() {
         <section>
           <SectionLabel>Vetting Status</SectionLabel>
           <VettingBadge
-            tier={(session?.identity_tier ?? 0) as 0 | 1 | 2}
+            tier={(session?.identityTier === "BIOMETRIC_VERIFIED" ? 2 : session?.identityTier === "SOCIAL_VERIFIED" ? 1 : 0) as 0 | 1 | 2}
             expandable
           />
         </section>
