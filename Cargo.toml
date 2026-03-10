@@ -52,7 +52,7 @@ anyhow    = "1"
 rdkafka = { version = "0.36", features = ["cmake-build"] }
 
 # Wasmtime
-wasmtime = { version = "30", features = ["async", "cranelift"] }
+wasmtime = { version = "42", features = ["async", "cranelift"] }
 
 # Identity / OAuth
 oauth2 = "4"

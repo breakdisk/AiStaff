@@ -88,7 +88,7 @@ pub async fn provision_sandbox(
 
     // ── Engine configuration ──────────────────────────────────────────────
     let mut config = Config::new();
-    config.async_support(true).consume_fuel(true); // fuel metering — prevents runaway agents
+    config.consume_fuel(true); // fuel metering — prevents runaway agents (async always on in v42+)
 
     let engine = Engine::new(&config).map_err(|e| DomainError::SandboxError {
         reason: e.to_string(),
@@ -296,7 +296,7 @@ impl ResourceLimiter for SandboxResourceLimiter {
         _current: usize,
         desired: usize,
         _maximum: Option<usize>,
-    ) -> Result<bool> {
+    ) -> Result<bool, wasmtime::Error> {
         const MAX_BYTES: usize = 256 * 1024 * 1024; // 256 MiB hard cap
         Ok(desired <= MAX_BYTES)
     }
@@ -306,7 +306,7 @@ impl ResourceLimiter for SandboxResourceLimiter {
         _current: usize,
         _desired: usize,
         _maximum: Option<usize>,
-    ) -> Result<bool> {
+    ) -> Result<bool, wasmtime::Error> {
         Ok(true)
     }
 }

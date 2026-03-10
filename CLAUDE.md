@@ -85,7 +85,7 @@ Format: `NNNN-short-title.md`. Include: Context · Decision · Consequences · A
 axum          = "0.8"
 tokio         = { version = "1", features = ["full"] }
 sqlx          = { version = "0.8", features = ["postgres", "uuid", "runtime-tokio-rustls", "chrono", "macros"] }
-wasmtime      = "30"
+wasmtime      = "42"
 rdkafka       = { version = "0.36", features = ["cmake-build"] }
 thiserror     = "2"
 anyhow        = "1"
@@ -272,6 +272,7 @@ Heading scale: 20/18/16/14px (h1→h4). No display fonts.
 - **Bottom Sheets**: All modal/overlay interactions on mobile use bottom sheets, not centered modals.
 - **VetoCard**: Bottom sheet, 30-second countdown, full-width. Unmissable.
 - **Tables on desktop, cards on mobile**: All list views responsive via Tailwind breakpoints.
+
 
 ### Component Constraints
 - Min touch target: 44×44px (WCAG 2.5.5 AAA).
