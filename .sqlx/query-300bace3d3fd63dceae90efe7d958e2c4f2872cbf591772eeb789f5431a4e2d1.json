@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE learning_paths\n           SET progress_pct = $2,\n               completed_at = CASE WHEN $2::INT2 = 100 THEN NOW() ELSE NULL END\n           WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int2"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "300bace3d3fd63dceae90efe7d958e2c4f2872cbf591772eeb789f5431a4e2d1"
+}

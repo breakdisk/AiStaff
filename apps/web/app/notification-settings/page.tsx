@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState, useEffect, useCallback } from "react";
 import {
   Bell, Mail, MessageSquare, Smartphone, Check, Settings,
@@ -226,10 +227,12 @@ function IntegrationRow({
       {/* Pending QR state */}
       {pending && provider.qrBased && status && (
         <div className="mt-2 flex items-start gap-3 border border-zinc-800 rounded-sm p-3">
-          <img
+          <Image
             src={qrImageUrl(status.display_name ?? "")}
             alt={`${provider.label} QR Code`}
-            width={100} height={100}
+            width={100}
+            height={100}
+            unoptimized
             className="rounded-sm border border-zinc-700 flex-shrink-0"
           />
           <div className="space-y-1.5">

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE mentorship_sessions SET status = 'completed', rating = $2 WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int2"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "dc46b61cc020e62cd4fe8ce3aa6e64c3e2cf85e435336fe7f316245bf529bac2"
+}

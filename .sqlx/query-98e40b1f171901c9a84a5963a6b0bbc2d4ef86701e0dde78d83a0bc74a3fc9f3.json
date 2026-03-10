@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, skill_tag, current_level, required_level, gap_score, detected_at\n           FROM skill_gaps WHERE user_id = $1 ORDER BY gap_score DESC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "skill_tag",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "current_level",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 3,
+        "name": "required_level",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 4,
+        "name": "gap_score",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 5,
+        "name": "detected_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "98e40b1f171901c9a84a5963a6b0bbc2d4ef86701e0dde78d83a0bc74a3fc9f3"
+}

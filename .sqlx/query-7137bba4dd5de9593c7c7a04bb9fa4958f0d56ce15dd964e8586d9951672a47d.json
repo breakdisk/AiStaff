@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, risk_level, risk_score, avg_stress_7d, avg_mood_7d,\n                  checkin_streak, last_alert_at, computed_at\n           FROM burnout_signals WHERE user_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "risk_level",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "risk_score",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 3,
+        "name": "avg_stress_7d",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 4,
+        "name": "avg_mood_7d",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 5,
+        "name": "checkin_streak",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "last_alert_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "computed_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "7137bba4dd5de9593c7c7a04bb9fa4958f0d56ce15dd964e8586d9951672a47d"
+}

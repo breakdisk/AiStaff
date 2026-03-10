@@ -1,4 +1,7 @@
-use crate::{matcher::Matcher, orchestrator::{SowOrchestrator, SOW_THRESHOLD}};
+use crate::{
+    matcher::Matcher,
+    orchestrator::{SowOrchestrator, SOW_THRESHOLD},
+};
 use axum::{
     extract::{Path, State},
     http::StatusCode,
@@ -11,7 +14,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 pub struct AppState {
-    pub matcher:      Matcher,
+    pub matcher: Matcher,
     pub orchestrator: SowOrchestrator,
 }
 
@@ -27,25 +30,29 @@ pub async fn match_talent(
     };
 
     // Bot Orchestrator: fire-and-forget SOW proposals for high-confidence matches.
-    for m in result.matches.iter().filter(|m| m.match_score >= SOW_THRESHOLD) {
-        let orch      = state.orchestrator.clone();
-        let db        = state.matcher.db.clone();
-        let agent_id  = req.agent_id;
+    for m in result
+        .matches
+        .iter()
+        .filter(|m| m.match_score >= SOW_THRESHOLD)
+    {
+        let orch = state.orchestrator.clone();
+        let db = state.matcher.db.clone();
+        let agent_id = req.agent_id;
         let talent_id = m.talent_id;
-        let score     = m.match_score;
+        let score = m.match_score;
 
         tokio::spawn(async move {
-            let dev_id: Option<uuid::Uuid> = sqlx::query_scalar(
-                "SELECT developer_id FROM agent_listings WHERE id = $1",
-            )
-            .bind(agent_id)
-            .fetch_optional(&db)
-            .await
-            .ok()
-            .flatten();
+            let dev_id: Option<uuid::Uuid> =
+                sqlx::query_scalar("SELECT developer_id FROM agent_listings WHERE id = $1")
+                    .bind(agent_id)
+                    .fetch_optional(&db)
+                    .await
+                    .ok()
+                    .flatten();
 
             if let Some(developer_id) = dev_id {
-                orch.propose_sow(agent_id, developer_id, talent_id, score).await;
+                orch.propose_sow(agent_id, developer_id, talent_id, score)
+                    .await;
             } else {
                 tracing::warn!(%agent_id, "agent not found in listings — skipping SOW proposal");
             }
@@ -57,8 +64,8 @@ pub async fn match_talent(
 
 #[derive(Deserialize)]
 pub struct SkillUpsert {
-    pub tag:         String,
-    pub domain:      String,
+    pub tag: String,
+    pub domain: String,
     pub proficiency: i16,
 }
 
@@ -100,11 +107,13 @@ pub async fn get_talent_skills(
         Ok(rows) => {
             let skills: Vec<_> = rows
                 .iter()
-                .map(|r| serde_json::json!({
-                    "tag":         r.tag,
-                    "domain":      r.domain,
-                    "proficiency": r.proficiency,
-                }))
+                .map(|r| {
+                    serde_json::json!({
+                        "tag":         r.tag,
+                        "domain":      r.domain,
+                        "proficiency": r.proficiency,
+                    })
+                })
                 .collect();
             (StatusCode::OK, Json(skills)).into_response()
         }

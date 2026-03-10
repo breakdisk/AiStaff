@@ -6,7 +6,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 pub struct LicenseIssuer {
-    pub db:       PgPool,
+    pub db: PgPool,
     pub producer: KafkaProducer,
 }
 
@@ -18,11 +18,11 @@ impl LicenseIssuer {
     /// Issues a new license. Idempotent: same `transaction_id` returns existing `license_id`.
     pub async fn issue(
         &self,
-        agent_id:       Uuid,
-        licensee_id:    Uuid,
-        jurisdiction:   String,
-        seats:          u32,
-        expires_at:     DateTime<Utc>,
+        agent_id: Uuid,
+        licensee_id: Uuid,
+        jurisdiction: String,
+        seats: u32,
+        expires_at: DateTime<Utc>,
         transaction_id: Uuid,
     ) -> Result<Uuid> {
         let existing: Option<Uuid> = sqlx::query_scalar!(

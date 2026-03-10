@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO mentorship_pairs (mentor_id, mentee_id, goal, status)\n           VALUES ($1, $2, $3, 'pending')\n           RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "cea94795e9482f756b426037fa601e64a1f2dc31f9435452cdf299d5fa7588b8"
+}

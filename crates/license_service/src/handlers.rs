@@ -14,11 +14,11 @@ pub type AppState = Arc<LicenseIssuer>;
 
 #[derive(Deserialize)]
 pub struct IssueRequest {
-    pub agent_id:       Uuid,
-    pub licensee_id:    Uuid,
-    pub jurisdiction:   String,
-    pub seats:          u32,
-    pub duration_days:  u32,
+    pub agent_id: Uuid,
+    pub licensee_id: Uuid,
+    pub jurisdiction: String,
+    pub seats: u32,
+    pub duration_days: u32,
     pub transaction_id: Uuid,
 }
 
@@ -50,17 +50,14 @@ pub async fn issue_license(
 
 #[derive(Serialize)]
 pub struct LicenseStatus {
-    pub id:           Uuid,
+    pub id: Uuid,
     pub jurisdiction: String,
-    pub seats:        i32,
-    pub expires_at:   String,
-    pub revoked:      bool,
+    pub seats: i32,
+    pub expires_at: String,
+    pub revoked: bool,
 }
 
-pub async fn get_license(
-    State(svc): State<AppState>,
-    Path(id): Path<Uuid>,
-) -> impl IntoResponse {
+pub async fn get_license(State(svc): State<AppState>, Path(id): Path<Uuid>) -> impl IntoResponse {
     let row = sqlx::query!(
         "SELECT id, jurisdiction, seats, expires_at, revoked_at
          FROM licenses WHERE id = $1",
@@ -73,11 +70,11 @@ pub async fn get_license(
         Ok(Some(r)) => (
             StatusCode::OK,
             Json(LicenseStatus {
-                id:           r.id,
+                id: r.id,
                 jurisdiction: r.jurisdiction,
-                seats:        r.seats,
-                expires_at:   r.expires_at.to_rfc3339(),
-                revoked:      r.revoked_at.is_some(),
+                seats: r.seats,
+                expires_at: r.expires_at.to_rfc3339(),
+                revoked: r.revoked_at.is_some(),
             }),
         )
             .into_response(),

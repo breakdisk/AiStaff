@@ -5,7 +5,7 @@ use common::kafka::producer::KafkaProducer;
 use sqlx::{PgPool, Row};
 
 pub struct DriftDetector {
-    pub db:       PgPool,
+    pub db: PgPool,
     pub producer: KafkaProducer,
 }
 
@@ -42,8 +42,8 @@ impl DriftDetector {
             let drift = DriftDetected {
                 deployment_id: hb.deployment_id,
                 expected_hash: expected.clone(),
-                actual_hash:   hb.artifact_hash.clone(),
-                detected_at:   Utc::now(),
+                actual_hash: hb.artifact_hash.clone(),
+                detected_at: Utc::now(),
             };
 
             sqlx::query!(
@@ -70,19 +70,15 @@ impl DriftDetector {
             .await?;
 
             // Auto-create a warranty claim on behalf of the deploying talent.
-            let dep_row = sqlx::query(
-                "SELECT freelancer_id FROM deployments WHERE id = $1",
-            )
-            .bind(hb.deployment_id)
-            .fetch_optional(&self.db)
-            .await?;
+            let dep_row = sqlx::query("SELECT freelancer_id FROM deployments WHERE id = $1")
+                .bind(hb.deployment_id)
+                .fetch_optional(&self.db)
+                .await?;
 
             if let Some(row) = dep_row {
                 let claimant_id: uuid::Uuid = row.get("freelancer_id");
-                let drift_proof = format!(
-                    "drift:expected={},actual={}",
-                    expected, hb.artifact_hash
-                );
+                let drift_proof =
+                    format!("drift:expected={},actual={}", expected, hb.artifact_hash);
                 sqlx::query(
                     "INSERT INTO warranty_claims
                          (id, deployment_id, claimant_id, drift_proof)

@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO burnout_signals (user_id, risk_level, risk_score, avg_stress_7d, avg_mood_7d, checkin_streak, computed_at)\n           VALUES ($1, $2, $3, $4, $5, $6, NOW())\n           ON CONFLICT (user_id) DO UPDATE SET\n               risk_level    = EXCLUDED.risk_level,\n               risk_score    = EXCLUDED.risk_score,\n               avg_stress_7d = EXCLUDED.avg_stress_7d,\n               avg_mood_7d   = EXCLUDED.avg_mood_7d,\n               checkin_streak= EXCLUDED.checkin_streak,\n               computed_at   = NOW()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Int2",
+        "Float8",
+        "Float8",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e6aea2367ae495dcc9b37c824ad70309853906a576deacaddc73270d93b52bab"
+}

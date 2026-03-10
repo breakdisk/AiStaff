@@ -19,7 +19,8 @@ use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct AppState {
-    pub db:     PgPool,
+    pub db: PgPool,
+    #[allow(dead_code)]
     pub fanout: Arc<Fanout>,
     pub config: Arc<AppConfig>,
 }
@@ -31,7 +32,7 @@ pub struct AppState {
 #[derive(Debug, Deserialize)]
 pub struct NotifQuery {
     pub user_id: Uuid,
-    pub unread:  Option<bool>,
+    pub unread: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -48,25 +49,25 @@ pub struct UserBody {
 pub struct SavePrefsBody {
     pub user_id: Uuid,
     #[serde(flatten)]
-    pub prefs:   prefs::NotifPrefs,
+    pub prefs: prefs::NotifPrefs,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct DeviceTokenBody {
-    pub user_id:  Uuid,
-    pub token:    String,
+    pub user_id: Uuid,
+    pub token: String,
     pub platform: String,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct TeamsWebhookBody {
-    pub user_id:     Uuid,
+    pub user_id: Uuid,
     pub webhook_url: String,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct OAuthCallbackQuery {
-    pub code:  Option<String>,
+    pub code: Option<String>,
     pub state: Option<String>,
 }
 
@@ -280,13 +281,11 @@ pub async fn unregister_device_token(
     Path(token): Path<String>,
     Query(q): Query<UserQuery>,
 ) -> impl IntoResponse {
-    let result = sqlx::query(
-        "DELETE FROM device_tokens WHERE token = $1 AND user_id = $2",
-    )
-    .bind(&token)
-    .bind(q.user_id)
-    .execute(&s.db)
-    .await;
+    let result = sqlx::query("DELETE FROM device_tokens WHERE token = $1 AND user_id = $2")
+        .bind(&token)
+        .bind(q.user_id)
+        .execute(&s.db)
+        .await;
 
     match result {
         Ok(_) => (StatusCode::OK, Json(json!({ "ok": true }))).into_response(),
@@ -307,12 +306,8 @@ pub async fn init_whatsapp(
     State(s): State<AppState>,
     Json(b): Json<UserBody>,
 ) -> impl IntoResponse {
-    match integrations::init_whatsapp_connect(
-        &s.db,
-        b.user_id,
-        &s.config.twilio_whatsapp_number,
-    )
-    .await
+    match integrations::init_whatsapp_connect(&s.db, b.user_id, &s.config.twilio_whatsapp_number)
+        .await
     {
         Ok(r) => (StatusCode::OK, Json(json!(r))).into_response(),
         Err(e) => (
@@ -324,10 +319,7 @@ pub async fn init_whatsapp(
 }
 
 /// POST /integrations/whatsapp/webhook  body: Twilio form-encoded message body
-pub async fn whatsapp_webhook(
-    State(s): State<AppState>,
-    body: String,
-) -> impl IntoResponse {
+pub async fn whatsapp_webhook(State(s): State<AppState>, body: String) -> impl IntoResponse {
     match integrations::verify_whatsapp_webhook(&s.db, &body).await {
         Ok(()) => (StatusCode::OK, Json(json!({ "ok": true }))).into_response(),
         Err(e) => {
@@ -347,13 +339,8 @@ pub async fn slack_oauth_init(
     Query(q): Query<UserQuery>,
 ) -> impl IntoResponse {
     let redirect_uri = format!("{}/integrations/slack/callback", s.config.base_url);
-    match integrations::init_slack_oauth(
-        &s.db,
-        q.user_id,
-        &s.config.slack_client_id,
-        &redirect_uri,
-    )
-    .await
+    match integrations::init_slack_oauth(&s.db, q.user_id, &s.config.slack_client_id, &redirect_uri)
+        .await
     {
         Ok(url) => (StatusCode::OK, Json(json!({ "auth_url": url }))).into_response(),
         Err(e) => (

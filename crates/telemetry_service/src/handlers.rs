@@ -19,7 +19,9 @@ pub async fn get_heartbeats(
     Path(deployment_id): Path<Uuid>,
     Query(q): Query<SinceQuery>,
 ) -> impl IntoResponse {
-    let since = q.since.unwrap_or_else(|| Utc::now() - chrono::Duration::hours(1));
+    let since = q
+        .since
+        .unwrap_or_else(|| Utc::now() - chrono::Duration::hours(1));
 
     let rows = sqlx::query!(
         "SELECT cpu_pct, mem_bytes, artifact_hash, recorded_at
@@ -36,12 +38,14 @@ pub async fn get_heartbeats(
         Ok(rows) => {
             let data: Vec<_> = rows
                 .iter()
-                .map(|r| serde_json::json!({
-                    "cpu_pct":      r.cpu_pct,
-                    "mem_bytes":    r.mem_bytes,
-                    "artifact_hash": r.artifact_hash,
-                    "recorded_at":  r.recorded_at.to_rfc3339(),
-                }))
+                .map(|r| {
+                    serde_json::json!({
+                        "cpu_pct":      r.cpu_pct,
+                        "mem_bytes":    r.mem_bytes,
+                        "artifact_hash": r.artifact_hash,
+                        "recorded_at":  r.recorded_at.to_rfc3339(),
+                    })
+                })
                 .collect();
             (StatusCode::OK, Json(data)).into_response()
         }
@@ -65,12 +69,14 @@ pub async fn get_drift_events(
         Ok(rows) => {
             let data: Vec<_> = rows
                 .iter()
-                .map(|r| serde_json::json!({
-                    "id":            r.id,
-                    "expected_hash": r.expected_hash,
-                    "actual_hash":   r.actual_hash,
-                    "detected_at":   r.detected_at.to_rfc3339(),
-                }))
+                .map(|r| {
+                    serde_json::json!({
+                        "id":            r.id,
+                        "expected_hash": r.expected_hash,
+                        "actual_hash":   r.actual_hash,
+                        "detected_at":   r.detected_at.to_rfc3339(),
+                    })
+                })
                 .collect();
             (StatusCode::OK, Json(data)).into_response()
         }

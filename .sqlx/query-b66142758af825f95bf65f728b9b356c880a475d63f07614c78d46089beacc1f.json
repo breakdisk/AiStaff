@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO career_milestones (user_id, milestone_key, label, xp_awarded)\n           VALUES ($1, $2, $3, $4)\n           ON CONFLICT (user_id, milestone_key) DO UPDATE SET label = EXCLUDED.label\n           RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "b66142758af825f95bf65f728b9b356c880a475d63f07614c78d46089beacc1f"
+}

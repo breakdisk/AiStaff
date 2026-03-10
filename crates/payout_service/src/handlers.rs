@@ -14,14 +14,14 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 pub struct AppState {
-    pub db:       PgPool,
+    pub db: PgPool,
     pub producer: KafkaProducer,
 }
 
 #[derive(Deserialize)]
 pub struct VetoBody {
     pub talent_id: Uuid,
-    pub reason:    Option<String>,
+    pub reason: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -39,7 +39,7 @@ pub async fn veto(
     let event = PayoutVeto {
         deployment_id,
         talent_id: body.talent_id,
-        reason:    body.reason.unwrap_or_else(|| "Operator veto".into()),
+        reason: body.reason.unwrap_or_else(|| "Operator veto".into()),
     };
     let env = EventEnvelope::new("PayoutVeto", &event);
 

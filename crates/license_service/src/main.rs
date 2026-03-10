@@ -20,19 +20,19 @@ async fn main() -> Result<()> {
         .with(fmt::layer().json())
         .init();
 
-    let db_url  = std::env::var("DATABASE_URL").expect("DATABASE_URL");
+    let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL");
     let brokers = std::env::var("KAFKA_BROKERS").expect("KAFKA_BROKERS");
 
-    let db       = PgPool::connect(&db_url).await?;
+    let db = PgPool::connect(&db_url).await?;
     let producer = KafkaProducer::new(&brokers)?;
-    let svc      = Arc::new(LicenseIssuer::new(db, producer));
+    let svc = Arc::new(LicenseIssuer::new(db, producer));
 
     let app = Router::new()
-        .route("/health",                  get(handlers::health))
-        .route("/licenses/issue",          post(handlers::issue_license))
-        .route("/licenses/:id",            get(handlers::get_license))
-        .route("/licenses/:id/revoke",     post(handlers::revoke_license))
-        .route("/licenses/:id/validate",   get(handlers::validate_license))
+        .route("/health", get(handlers::health))
+        .route("/licenses/issue", post(handlers::issue_license))
+        .route("/licenses/:id", get(handlers::get_license))
+        .route("/licenses/:id/revoke", post(handlers::revoke_license))
+        .route("/licenses/:id/validate", get(handlers::validate_license))
         .with_state(svc)
         .layer(TraceLayer::new_for_http());
 

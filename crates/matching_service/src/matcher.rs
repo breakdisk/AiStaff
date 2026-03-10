@@ -4,7 +4,9 @@ use sqlx::PgPool;
 
 /// Jaccard-style match score: matched_skills / required_skills (clamped 0.0–1.0).
 pub fn jaccard_score(matched: usize, required: usize) -> f32 {
-    if required == 0 { return 0.0; }
+    if required == 0 {
+        return 0.0;
+    }
     (matched as f32 / required as f32).min(1.0)
 }
 
@@ -44,10 +46,10 @@ impl Matcher {
         let matches = rows
             .into_iter()
             .map(|r| TalentMatch {
-                talent_id:   r.talent_id,
+                talent_id: r.talent_id,
                 match_score: jaccard_score(r.matched.unwrap_or(0) as usize, required_count),
                 trust_score: r.trust_score,
-                skill_tags:  req.required_skills.clone(),
+                skill_tags: req.required_skills.clone(),
             })
             .collect();
 
@@ -59,9 +61,9 @@ impl Matcher {
 
     pub async fn upsert_skill(
         &self,
-        talent_id:   uuid::Uuid,
-        tag:         &str,
-        domain:      &str,
+        talent_id: uuid::Uuid,
+        tag: &str,
+        domain: &str,
         proficiency: i16,
     ) -> Result<()> {
         // Upsert skill_tag

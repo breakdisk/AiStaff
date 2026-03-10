@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO carbon_footprints (user_id, total_kg_offset)\n           VALUES ($1, $2)\n           ON CONFLICT (user_id) DO UPDATE SET\n               total_kg_offset = carbon_footprints.total_kg_offset + EXCLUDED.total_kg_offset,\n               updated_at = NOW()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Float8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "78d7296a333368ad40cc16cb93e7a1adcdd51d80baa078d83de1402cc97c8e1e"
+}

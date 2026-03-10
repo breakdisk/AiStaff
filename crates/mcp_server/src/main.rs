@@ -19,38 +19,38 @@ mod tools;
 #[derive(Clone)]
 struct AppState {
     fs_root: PathBuf,
-    db:      sqlx::PgPool,
+    db: sqlx::PgPool,
 }
 
 #[derive(Debug, Deserialize)]
 struct JsonRpcRequest {
     #[allow(dead_code)]
     jsonrpc: String,
-    id:      serde_json::Value,
-    method:  String,
-    params:  serde_json::Value,
+    id: serde_json::Value,
+    method: String,
+    params: serde_json::Value,
 }
 
 #[derive(Debug, Serialize)]
 struct JsonRpcResponse {
     jsonrpc: &'static str,
-    id:      serde_json::Value,
+    id: serde_json::Value,
     #[serde(skip_serializing_if = "Option::is_none")]
-    result:  Option<serde_json::Value>,
+    result: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    error:   Option<JsonRpcError>,
+    error: Option<JsonRpcError>,
 }
 
 #[derive(Debug, Serialize)]
 struct JsonRpcError {
-    code:    i32,
+    code: i32,
     message: String,
 }
 
 async fn rpc_handler(
     State(state): State<Arc<AppState>>,
-    headers:      axum::http::HeaderMap,
-    Json(req):    Json<JsonRpcRequest>,
+    headers: axum::http::HeaderMap,
+    Json(req): Json<JsonRpcRequest>,
 ) -> Json<JsonRpcResponse> {
     // Extract deployment context for server-side audit trail
     let deployment_id = headers
@@ -61,17 +61,21 @@ async fn rpc_handler(
     let method = req.method.clone();
 
     let result = match req.method.as_str() {
-        "filesystem.read_file"  => tools::fs::read_file(&state.fs_root, &req.params).await,
+        "filesystem.read_file" => tools::fs::read_file(&state.fs_root, &req.params).await,
         "filesystem.write_file" => tools::fs::write_file(&state.fs_root, &req.params).await,
-        "filesystem.list_dir"   => tools::fs::list_dir(&state.fs_root, &req.params).await,
-        "database.query"        => tools::db::query(&state.db, &req.params).await,
+        "filesystem.list_dir" => tools::fs::list_dir(&state.fs_root, &req.params).await,
+        "database.query" => tools::db::query(&state.db, &req.params).await,
         unknown => Err(anyhow::anyhow!("Method not found: {unknown}")),
     };
 
     // Server-side audit log — independent of the proxy-side ALLOWED/DENIED record.
     // Fire-and-forget: audit failure never blocks the response.
     if let Some(dep_id) = deployment_id {
-        let decision = if result.is_ok() { "SERVER_EXECUTED" } else { "SERVER_ERROR" };
+        let decision = if result.is_ok() {
+            "SERVER_EXECUTED"
+        } else {
+            "SERVER_ERROR"
+        };
         let db = state.db.clone();
         tokio::spawn(async move {
             let _ = sqlx::query(
@@ -90,16 +94,16 @@ async fn rpc_handler(
     match result {
         Ok(val) => Json(JsonRpcResponse {
             jsonrpc: "2.0",
-            id:      req.id,
-            result:  Some(val),
-            error:   None,
+            id: req.id,
+            result: Some(val),
+            error: None,
         }),
         Err(e) => Json(JsonRpcResponse {
             jsonrpc: "2.0",
-            id:      req.id,
-            result:  None,
-            error:   Some(JsonRpcError {
-                code:    -32603,
+            id: req.id,
+            result: None,
+            error: Some(JsonRpcError {
+                code: -32603,
                 message: e.to_string(),
             }),
         }),
@@ -109,11 +113,13 @@ async fn rpc_handler(
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     dotenv().ok();
-    fmt().with_env_filter(EnvFilter::from_default_env()).json().init();
+    fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .json()
+        .init();
 
-    let db_url  = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    let fs_root = std::env::var("MCP_FS_ROOT")
-        .unwrap_or_else(|_| "/tmp/agent-workspace".into());
+    let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let fs_root = std::env::var("MCP_FS_ROOT").unwrap_or_else(|_| "/tmp/agent-workspace".into());
 
     let db = PgPoolOptions::new()
         .max_connections(5)

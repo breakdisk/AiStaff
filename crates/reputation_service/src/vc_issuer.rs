@@ -7,11 +7,11 @@ use uuid::Uuid;
 /// v1: Returns unsigned JSON-LD payload.
 /// v2 roadmap: Sign with platform Ed25519 DID key using `did-key` crate.
 pub fn issue_reputation_vc(
-    talent_id:             Uuid,
-    reputation_score:      f64,
+    talent_id: Uuid,
+    reputation_score: f64,
     deployments_completed: i64,
-    trust_tier:            &str,
-    platform_did:          &str,
+    trust_tier: &str,
+    platform_did: &str,
 ) -> Value {
     let now = Utc::now();
     json!({

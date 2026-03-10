@@ -13,10 +13,10 @@ pub type AppState = Arc<ChecklistService>;
 
 #[derive(Deserialize)]
 pub struct StepRequest {
-    pub step_id:    String,
+    pub step_id: String,
     pub step_label: String,
-    pub passed:     bool,
-    pub notes:      Option<String>,
+    pub passed: bool,
+    pub notes: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -30,7 +30,13 @@ pub async fn record_step(
     Json(req): Json<StepRequest>,
 ) -> impl IntoResponse {
     match svc
-        .record_step(deployment_id, req.step_id, req.step_label, req.passed, req.notes)
+        .record_step(
+            deployment_id,
+            req.step_id,
+            req.step_label,
+            req.passed,
+            req.notes,
+        )
         .await
     {
         Ok(_) => (StatusCode::OK, Json(StepResponse { recorded: true })).into_response(),

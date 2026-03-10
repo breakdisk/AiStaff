@@ -13,17 +13,17 @@ pub type AppState = Arc<ContractService>;
 
 #[derive(Deserialize)]
 pub struct CreateContractRequest {
-    pub contract_type:  String,
-    pub party_a:        Uuid,
-    pub party_b:        Uuid,
-    pub deployment_id:  Option<Uuid>,
+    pub contract_type: String,
+    pub party_a: Uuid,
+    pub party_b: Uuid,
+    pub deployment_id: Option<Uuid>,
     /// Base64-encoded document bytes.
-    pub document_b64:   String,
+    pub document_b64: String,
 }
 
 #[derive(Serialize)]
 pub struct CreateContractResponse {
-    pub contract_id:   Uuid,
+    pub contract_id: Uuid,
     pub document_hash: String,
 }
 
@@ -38,12 +38,21 @@ pub async fn create_contract(
     };
 
     match svc
-        .create_draft(&req.contract_type, req.party_a, req.party_b, req.deployment_id, &bytes)
+        .create_draft(
+            &req.contract_type,
+            req.party_a,
+            req.party_b,
+            req.deployment_id,
+            &bytes,
+        )
         .await
     {
         Ok((id, hash)) => (
             StatusCode::CREATED,
-            Json(CreateContractResponse { contract_id: id, document_hash: hash }),
+            Json(CreateContractResponse {
+                contract_id: id,
+                document_hash: hash,
+            }),
         )
             .into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
@@ -66,10 +75,7 @@ pub async fn sign_contract(
     }
 }
 
-pub async fn get_contract(
-    State(svc): State<AppState>,
-    Path(id): Path<Uuid>,
-) -> impl IntoResponse {
+pub async fn get_contract(State(svc): State<AppState>, Path(id): Path<Uuid>) -> impl IntoResponse {
     let row = sqlx::query!(
         "SELECT id, contract_type, status::TEXT AS status, document_hash, created_at, signed_at
          FROM contracts WHERE id = $1",
@@ -168,9 +174,15 @@ pub async fn resolve_warranty_claim(
     Path(id): Path<Uuid>,
     Json(req): Json<ResolveRequest>,
 ) -> impl IntoResponse {
-    let valid = matches!(req.resolution.as_str(), "REMEDIATED" | "REFUNDED" | "REJECTED");
+    let valid = matches!(
+        req.resolution.as_str(),
+        "REMEDIATED" | "REFUNDED" | "REJECTED"
+    );
     if !valid {
-        return (StatusCode::BAD_REQUEST, "resolution must be REMEDIATED, REFUNDED, or REJECTED")
+        return (
+            StatusCode::BAD_REQUEST,
+            "resolution must be REMEDIATED, REFUNDED, or REJECTED",
+        )
             .into_response();
     }
 

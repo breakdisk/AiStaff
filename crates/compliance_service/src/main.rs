@@ -19,16 +19,19 @@ async fn main() -> Result<()> {
         .init();
 
     let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL");
-    let db     = PgPool::connect(&db_url).await?;
-    let svc    = Arc::new(ContractService::new(db));
+    let db = PgPool::connect(&db_url).await?;
+    let svc = Arc::new(ContractService::new(db));
 
     let app = Router::new()
-        .route("/health",                      get(handlers::health))
-        .route("/contracts",                   post(handlers::create_contract))
-        .route("/contracts/:id",               get(handlers::get_contract))
-        .route("/contracts/:id/sign",          post(handlers::sign_contract))
-        .route("/warranty-claims",             get(handlers::list_warranty_claims))
-        .route("/warranty-claims/:id/resolve", post(handlers::resolve_warranty_claim))
+        .route("/health", get(handlers::health))
+        .route("/contracts", post(handlers::create_contract))
+        .route("/contracts/:id", get(handlers::get_contract))
+        .route("/contracts/:id/sign", post(handlers::sign_contract))
+        .route("/warranty-claims", get(handlers::list_warranty_claims))
+        .route(
+            "/warranty-claims/:id/resolve",
+            post(handlers::resolve_warranty_claim),
+        )
         .with_state(svc)
         .layer(TraceLayer::new_for_http());
 

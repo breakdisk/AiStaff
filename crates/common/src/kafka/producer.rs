@@ -22,8 +22,8 @@ impl KafkaProducer {
     #[instrument(skip(self, envelope), fields(event_type = %envelope.event_type))]
     pub async fn publish(
         &self,
-        topic:    &str,
-        key:      &str,
+        topic: &str,
+        key: &str,
         envelope: &EventEnvelope,
     ) -> anyhow::Result<()> {
         let payload = serde_json::to_string(envelope)?;

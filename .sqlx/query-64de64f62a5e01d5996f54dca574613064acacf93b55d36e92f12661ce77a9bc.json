@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, mood_score, energy_score, stress_score, notes, checked_in_at\n           FROM wellbeing_checkins\n           WHERE user_id = $1\n           ORDER BY checked_in_at DESC\n           LIMIT 30",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "mood_score",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 2,
+        "name": "energy_score",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 3,
+        "name": "stress_score",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 4,
+        "name": "notes",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "checked_in_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "64de64f62a5e01d5996f54dca574613064acacf93b55d36e92f12661ce77a9bc"
+}

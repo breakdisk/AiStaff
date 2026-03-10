@@ -13,8 +13,8 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 pub struct AppState {
-    pub db:           PgPool,
-    pub producer:     KafkaProducer,
+    pub db: PgPool,
+    pub producer: KafkaProducer,
     pub platform_did: String,
 }
 
@@ -32,7 +32,7 @@ pub async fn export_vc(
              up.identity_tier::TEXT                  AS tier
          FROM unified_profiles up
          LEFT JOIN talent_roi tr ON tr.talent_id = up.id
-         WHERE up.id = $1"
+         WHERE up.id = $1",
     )
     .bind(talent_id)
     .fetch_optional(&state.db)
@@ -44,14 +44,21 @@ pub async fn export_vc(
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     };
 
-    let total      = row.try_get::<i64, _>("total_deployments").unwrap_or(0);
-    let pass_pct   = row.try_get::<f64, _>("avg_checklist_pass_pct").unwrap_or(0.0);
-    let drift      = row.try_get::<i64, _>("drift_incidents").unwrap_or(0);
-    let trust      = row.try_get::<i16, _>("trust_score").unwrap_or(0) as f64;
-    let drift_free = if total > 0 { 1.0 - drift as f64 / total as f64 } else { 1.0 };
-    let rep_score  = reputation_score(pass_pct, drift_free, trust);
-    let tier       = row.try_get::<String, _>("tier")
-                        .unwrap_or_else(|_| "Unverified".into());
+    let total = row.try_get::<i64, _>("total_deployments").unwrap_or(0);
+    let pass_pct = row
+        .try_get::<f64, _>("avg_checklist_pass_pct")
+        .unwrap_or(0.0);
+    let drift = row.try_get::<i64, _>("drift_incidents").unwrap_or(0);
+    let trust = row.try_get::<i16, _>("trust_score").unwrap_or(0) as f64;
+    let drift_free = if total > 0 {
+        1.0 - drift as f64 / total as f64
+    } else {
+        1.0
+    };
+    let rep_score = reputation_score(pass_pct, drift_free, trust);
+    let tier = row
+        .try_get::<String, _>("tier")
+        .unwrap_or_else(|_| "Unverified".into());
 
     let vc = issue_reputation_vc(
         talent_id,

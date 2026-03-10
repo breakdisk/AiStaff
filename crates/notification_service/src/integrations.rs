@@ -14,16 +14,16 @@ use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IntegrationStatus {
-    pub provider:      String,
-    pub status:        String,
-    pub display_name:  Option<String>,
-    pub connected_at:  Option<String>,
+    pub provider: String,
+    pub status: String,
+    pub display_name: Option<String>,
+    pub connected_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InitWhatsAppResponse {
     pub qr_url: String,
-    pub nonce:  String,
+    pub nonce: String,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -31,9 +31,9 @@ pub struct InitWhatsAppResponse {
 // ─────────────────────────────────────────────────────────────────────────────
 
 pub async fn init_whatsapp_connect(
-    pool:                &PgPool,
-    user_id:             Uuid,
-    wa_business_number:  &str,
+    pool: &PgPool,
+    user_id: Uuid,
+    wa_business_number: &str,
 ) -> Result<InitWhatsAppResponse> {
     let nonce = Uuid::now_v7().to_string();
 
@@ -51,10 +51,7 @@ pub async fn init_whatsapp_connect(
     .await?;
 
     let number_digits = wa_business_number.trim_start_matches('+');
-    let qr_url = format!(
-        "https://wa.me/{}?text=connect:{}",
-        number_digits, nonce
-    );
+    let qr_url = format!("https://wa.me/{}?text=connect:{}", number_digits, nonce);
 
     Ok(InitWhatsAppResponse { qr_url, nonce })
 }
@@ -85,9 +82,9 @@ pub async fn verify_whatsapp_webhook(pool: &PgPool, from_body: &str) -> Result<(
 // ─────────────────────────────────────────────────────────────────────────────
 
 pub async fn init_slack_oauth(
-    pool:         &PgPool,
-    user_id:      Uuid,
-    client_id:    &str,
+    pool: &PgPool,
+    user_id: Uuid,
+    client_id: &str,
     redirect_uri: &str,
 ) -> Result<String> {
     let nonce = Uuid::now_v7().to_string();
@@ -117,7 +114,7 @@ pub async fn init_slack_oauth(
 #[derive(Debug, Deserialize)]
 struct SlackOAuthResponse {
     incoming_webhook: Option<SlackWebhook>,
-    team:             Option<SlackTeam>,
+    team: Option<SlackTeam>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -131,18 +128,18 @@ struct SlackTeam {
 }
 
 pub async fn complete_slack_oauth(
-    pool:          &PgPool,
-    state:         &str,
-    code:          &str,
-    client_id:     &str,
+    pool: &PgPool,
+    state: &str,
+    code: &str,
+    client_id: &str,
     client_secret: &str,
 ) -> Result<()> {
     let client = reqwest::Client::new();
     let res = client
         .post("https://slack.com/api/oauth.v2.access")
         .form(&[
-            ("code",          code),
-            ("client_id",     client_id),
+            ("code", code),
+            ("client_id", client_id),
             ("client_secret", client_secret),
         ])
         .send()
@@ -183,11 +180,7 @@ pub async fn complete_slack_oauth(
 // Microsoft Teams webhook
 // ─────────────────────────────────────────────────────────────────────────────
 
-pub async fn save_teams_webhook(
-    pool:        &PgPool,
-    user_id:     Uuid,
-    webhook_url: &str,
-) -> Result<()> {
+pub async fn save_teams_webhook(pool: &PgPool, user_id: Uuid, webhook_url: &str) -> Result<()> {
     if !webhook_url.starts_with("https://") {
         return Err(anyhow!("Teams webhook URL must use HTTPS"));
     }
@@ -214,9 +207,9 @@ pub async fn save_teams_webhook(
 // ─────────────────────────────────────────────────────────────────────────────
 
 pub async fn init_google_oauth(
-    pool:         &PgPool,
-    user_id:      Uuid,
-    client_id:    &str,
+    pool: &PgPool,
+    user_id: Uuid,
+    client_id: &str,
     redirect_uri: &str,
 ) -> Result<String> {
     let nonce = Uuid::now_v7().to_string();
@@ -253,36 +246,36 @@ pub async fn init_google_oauth(
 
 #[derive(Debug, Deserialize)]
 struct GoogleTokenResponse {
-    access_token:  String,
+    access_token: String,
     refresh_token: Option<String>,
-    expires_in:    Option<i64>,
+    expires_in: Option<i64>,
 }
 
 pub async fn complete_google_oauth(
-    pool:          &PgPool,
-    state:         &str,
-    code:          &str,
-    client_id:     &str,
+    pool: &PgPool,
+    state: &str,
+    code: &str,
+    client_id: &str,
     client_secret: &str,
-    redirect_uri:  &str,
-    enc_key:       &str,
+    redirect_uri: &str,
+    enc_key: &str,
 ) -> Result<()> {
     let client = reqwest::Client::new();
     let token_res = client
         .post("https://oauth2.googleapis.com/token")
         .form(&[
-            ("code",          code),
-            ("client_id",     client_id),
+            ("code", code),
+            ("client_id", client_id),
             ("client_secret", client_secret),
-            ("redirect_uri",  redirect_uri),
-            ("grant_type",    "authorization_code"),
+            ("redirect_uri", redirect_uri),
+            ("grant_type", "authorization_code"),
         ])
         .send()
         .await?
         .json::<GoogleTokenResponse>()
         .await?;
 
-    let access_enc  = encrypt_token(&token_res.access_token, enc_key)?;
+    let access_enc = encrypt_token(&token_res.access_token, enc_key)?;
     let refresh_enc = token_res
         .refresh_token
         .as_deref()
@@ -331,8 +324,8 @@ pub async fn get_integrations(pool: &PgPool, user_id: Uuid) -> Result<Vec<Integr
     let results = rows
         .into_iter()
         .map(|r| IntegrationStatus {
-            provider:     r.try_get("provider").unwrap_or_default(),
-            status:       r.try_get("status").unwrap_or_default(),
+            provider: r.try_get("provider").unwrap_or_default(),
+            status: r.try_get("status").unwrap_or_default(),
             display_name: r.try_get("display_name").ok().flatten(),
             connected_at: r.try_get("connected_at").ok().flatten(),
         })
@@ -341,11 +334,7 @@ pub async fn get_integrations(pool: &PgPool, user_id: Uuid) -> Result<Vec<Integr
     Ok(results)
 }
 
-pub async fn revoke_integration(
-    pool:     &PgPool,
-    user_id:  Uuid,
-    provider: &str,
-) -> Result<()> {
+pub async fn revoke_integration(pool: &PgPool, user_id: Uuid, provider: &str) -> Result<()> {
     sqlx::query(
         "UPDATE connected_integrations
          SET status        = 'revoked',

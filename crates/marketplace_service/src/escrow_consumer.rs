@@ -31,26 +31,22 @@ pub async fn run_escrow_consumer(db: PgPool, brokers: String) -> anyhow::Result<
         };
 
         match envelope.event_type.as_str() {
-            "ReleaseEscrow" => {
-                match serde_json::from_value::<ReleaseEscrow>(envelope.payload) {
-                    Ok(ev) => {
-                        if let Err(e) = process_release_escrow(&db, &ev).await {
-                            error!("process_release_escrow: {e:#}");
-                        }
+            "ReleaseEscrow" => match serde_json::from_value::<ReleaseEscrow>(envelope.payload) {
+                Ok(ev) => {
+                    if let Err(e) = process_release_escrow(&db, &ev).await {
+                        error!("process_release_escrow: {e:#}");
                     }
-                    Err(e) => warn!("Bad ReleaseEscrow payload: {e}"),
                 }
-            }
-            "EscrowRelease" => {
-                match serde_json::from_value::<EscrowRelease>(envelope.payload) {
-                    Ok(ev) => {
-                        if let Err(e) = process_escrow_release(&db, &ev).await {
-                            error!("process_escrow_release: {e:#}");
-                        }
+                Err(e) => warn!("Bad ReleaseEscrow payload: {e}"),
+            },
+            "EscrowRelease" => match serde_json::from_value::<EscrowRelease>(envelope.payload) {
+                Ok(ev) => {
+                    if let Err(e) = process_escrow_release(&db, &ev).await {
+                        error!("process_escrow_release: {e:#}");
                     }
-                    Err(e) => warn!("Bad EscrowRelease payload: {e}"),
                 }
-            }
+                Err(e) => warn!("Bad EscrowRelease payload: {e}"),
+            },
             other => info!("Ignoring unknown escrow command: {other}"),
         }
     }

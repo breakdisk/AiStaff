@@ -20,7 +20,7 @@ pub struct StitchConfig {
 }
 
 pub struct StitchService {
-    db:     PgPool,
+    db: PgPool,
     config: Arc<StitchConfig>,
 }
 
@@ -33,9 +33,9 @@ impl StitchService {
     /// Trust-score recalculation runs in a background task so the API responds immediately.
     pub async fn stitch_social(
         &self,
-        github:   GitHubIdentity,
+        github: GitHubIdentity,
         linkedin: LinkedInIdentity,
-        email:    String,
+        email: String,
     ) -> Result<UnifiedProfile> {
         let now = Utc::now();
 
@@ -90,9 +90,9 @@ impl StitchService {
     /// Raw proof bytes are verified then discarded — only the Blake3 commitment persists.
     pub async fn apply_biometric_proof(
         &self,
-        profile_id:  Uuid,
+        profile_id: Uuid,
         proof_bytes: Vec<u8>,
-        nonce:       Vec<u8>,
+        nonce: Vec<u8>,
         _issuer_did: String,
         _expires_at: DateTime<Utc>,
     ) -> Result<UnifiedProfile> {
@@ -100,12 +100,12 @@ impl StitchService {
 
         // Build ZK public inputs
         let nonce_hash_bytes = *blake3::hash(&nonce).as_bytes();
-        let commitment_raw   = hex::decode(&commitment_hex)?;
+        let commitment_raw = hex::decode(&commitment_hex)?;
         let mut commitment_arr = [0u8; 32];
         commitment_arr.copy_from_slice(&commitment_raw);
 
         let public_in = ZkPublicInputs {
-            nonce_hash:          nonce_hash_bytes,
+            nonce_hash: nonce_hash_bytes,
             liveness_commitment: commitment_arr,
         };
 

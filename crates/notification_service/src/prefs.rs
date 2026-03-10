@@ -5,17 +5,17 @@ use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct NotifPrefs {
-    pub email_enabled:     bool,
-    pub sms_enabled:       bool,
-    pub push_enabled:      bool,
-    pub in_app_enabled:    bool,
-    pub whatsapp_enabled:  bool,
-    pub slack_enabled:     bool,
-    pub teams_enabled:     bool,
+    pub email_enabled: bool,
+    pub sms_enabled: bool,
+    pub push_enabled: bool,
+    pub in_app_enabled: bool,
+    pub whatsapp_enabled: bool,
+    pub slack_enabled: bool,
+    pub teams_enabled: bool,
     pub quiet_hours_start: Option<String>, // "HH:MM"
-    pub quiet_hours_end:   Option<String>,
-    pub quiet_hours_tz:    String,
-    pub digest_mode:       String, // "realtime" | "hourly" | "daily"
+    pub quiet_hours_end: Option<String>,
+    pub quiet_hours_tz: String,
+    pub digest_mode: String, // "realtime" | "hourly" | "daily"
 }
 
 pub async fn get_prefs(pool: &PgPool, user_id: Uuid) -> Result<NotifPrefs> {
@@ -33,28 +33,26 @@ pub async fn get_prefs(pool: &PgPool, user_id: Uuid) -> Result<NotifPrefs> {
     if let Some(r) = row {
         use sqlx::Row;
         Ok(NotifPrefs {
-            email_enabled:    r.try_get("email_enabled").unwrap_or(true),
-            sms_enabled:      r.try_get("sms_enabled").unwrap_or(false),
-            push_enabled:     r.try_get("push_enabled").unwrap_or(false),
-            in_app_enabled:   r.try_get("in_app_enabled").unwrap_or(true),
+            email_enabled: r.try_get("email_enabled").unwrap_or(true),
+            sms_enabled: r.try_get("sms_enabled").unwrap_or(false),
+            push_enabled: r.try_get("push_enabled").unwrap_or(false),
+            in_app_enabled: r.try_get("in_app_enabled").unwrap_or(true),
             whatsapp_enabled: r.try_get("whatsapp_enabled").unwrap_or(false),
-            slack_enabled:    r.try_get("slack_enabled").unwrap_or(false),
-            teams_enabled:    r.try_get("teams_enabled").unwrap_or(false),
+            slack_enabled: r.try_get("slack_enabled").unwrap_or(false),
+            teams_enabled: r.try_get("teams_enabled").unwrap_or(false),
             quiet_hours_start: r.try_get("quiet_hours_start").ok().flatten(),
-            quiet_hours_end:   r.try_get("quiet_hours_end").ok().flatten(),
-            quiet_hours_tz:   r
-                .try_get("quiet_hours_tz")
-                .unwrap_or_else(|_| "UTC".into()),
-            digest_mode:      r
+            quiet_hours_end: r.try_get("quiet_hours_end").ok().flatten(),
+            quiet_hours_tz: r.try_get("quiet_hours_tz").unwrap_or_else(|_| "UTC".into()),
+            digest_mode: r
                 .try_get("digest_mode")
                 .unwrap_or_else(|_| "realtime".into()),
         })
     } else {
         Ok(NotifPrefs {
-            email_enabled:  true,
+            email_enabled: true,
             in_app_enabled: true,
             quiet_hours_tz: "UTC".into(),
-            digest_mode:    "realtime".into(),
+            digest_mode: "realtime".into(),
             ..Default::default()
         })
     }

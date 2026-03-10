@@ -9,61 +9,53 @@ use uuid::Uuid;
 /// Runtime configuration loaded from environment variables.
 #[derive(Debug, Clone)]
 pub struct AppConfig {
-    pub twilio_account_sid:     String,
-    pub twilio_auth_token:      String,
-    pub twilio_from_number:     String,
+    pub twilio_account_sid: String,
+    pub twilio_auth_token: String,
+    pub twilio_from_number: String,
     pub twilio_whatsapp_number: String,
-    pub fcm_server_key:         String,
-    pub slack_client_id:        String,
-    pub slack_client_secret:    String,
-    pub google_client_id:       String,
-    pub google_client_secret:   String,
-    pub encryption_key_b64:     String,
-    pub base_url:               String,
+    pub fcm_server_key: String,
+    pub slack_client_id: String,
+    pub slack_client_secret: String,
+    pub google_client_id: String,
+    pub google_client_secret: String,
+    pub encryption_key_b64: String,
+    pub base_url: String,
 }
 
 impl AppConfig {
     pub fn from_env() -> Self {
         Self {
-            twilio_account_sid:     std::env::var("TWILIO_ACCOUNT_SID")
-                .expect("TWILIO_ACCOUNT_SID"),
-            twilio_auth_token:      std::env::var("TWILIO_AUTH_TOKEN")
-                .expect("TWILIO_AUTH_TOKEN"),
-            twilio_from_number:     std::env::var("TWILIO_FROM_NUMBER")
-                .expect("TWILIO_FROM_NUMBER"),
+            twilio_account_sid: std::env::var("TWILIO_ACCOUNT_SID").expect("TWILIO_ACCOUNT_SID"),
+            twilio_auth_token: std::env::var("TWILIO_AUTH_TOKEN").expect("TWILIO_AUTH_TOKEN"),
+            twilio_from_number: std::env::var("TWILIO_FROM_NUMBER").expect("TWILIO_FROM_NUMBER"),
             twilio_whatsapp_number: std::env::var("TWILIO_WHATSAPP_NUMBER")
                 .expect("TWILIO_WHATSAPP_NUMBER"),
-            fcm_server_key:         std::env::var("FCM_SERVER_KEY")
-                .expect("FCM_SERVER_KEY"),
-            slack_client_id:        std::env::var("SLACK_CLIENT_ID")
-                .expect("SLACK_CLIENT_ID"),
-            slack_client_secret:    std::env::var("SLACK_CLIENT_SECRET")
-                .expect("SLACK_CLIENT_SECRET"),
-            google_client_id:       std::env::var("GOOGLE_CLIENT_ID")
-                .expect("GOOGLE_CLIENT_ID"),
-            google_client_secret:   std::env::var("GOOGLE_CLIENT_SECRET")
+            fcm_server_key: std::env::var("FCM_SERVER_KEY").expect("FCM_SERVER_KEY"),
+            slack_client_id: std::env::var("SLACK_CLIENT_ID").expect("SLACK_CLIENT_ID"),
+            slack_client_secret: std::env::var("SLACK_CLIENT_SECRET").expect("SLACK_CLIENT_SECRET"),
+            google_client_id: std::env::var("GOOGLE_CLIENT_ID").expect("GOOGLE_CLIENT_ID"),
+            google_client_secret: std::env::var("GOOGLE_CLIENT_SECRET")
                 .expect("GOOGLE_CLIENT_SECRET"),
-            encryption_key_b64:     std::env::var("INTEGRATION_TOKEN_ENCRYPTION_KEY")
+            encryption_key_b64: std::env::var("INTEGRATION_TOKEN_ENCRYPTION_KEY")
                 .expect("INTEGRATION_TOKEN_ENCRYPTION_KEY"),
-            base_url:               std::env::var("BASE_URL")
-                .unwrap_or_else(|_| "http://localhost:3012".into()),
+            base_url: std::env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:3012".into()),
         }
     }
 }
 
 pub struct Fanout {
-    pub db:        PgPool,
-    pub smtp:      AsyncSmtpTransport<Tokio1Executor>,
+    pub db: PgPool,
+    pub smtp: AsyncSmtpTransport<Tokio1Executor>,
     pub smtp_from: String,
 }
 
 impl Fanout {
-    pub fn new(
-        db:        PgPool,
-        smtp:      AsyncSmtpTransport<Tokio1Executor>,
-        smtp_from: String,
-    ) -> Self {
-        Self { db, smtp, smtp_from }
+    pub fn new(db: PgPool, smtp: AsyncSmtpTransport<Tokio1Executor>, smtp_from: String) -> Self {
+        Self {
+            db,
+            smtp,
+            smtp_from,
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -73,9 +65,9 @@ impl Fanout {
     pub async fn dispatch_email(
         &self,
         recipient_id: Uuid,
-        to_address:   &str,
-        subject:      &str,
-        body:         &str,
+        to_address: &str,
+        subject: &str,
+        body: &str,
     ) -> Result<()> {
         let notif_id = Uuid::new_v4();
 
@@ -131,11 +123,11 @@ impl Fanout {
 
     pub async fn dispatch_in_app(
         &self,
-        user_id:    Uuid,
-        title:      &str,
-        body:       &str,
+        user_id: Uuid,
+        title: &str,
+        body: &str,
         event_type: &str,
-        priority:   &str,
+        priority: &str,
     ) -> Result<()> {
         sqlx::query(
             "INSERT INTO in_app_notifications (id, user_id, title, body, event_type, priority)
@@ -157,12 +149,8 @@ impl Fanout {
     // SMS (Twilio)
     // -------------------------------------------------------------------------
 
-    pub async fn dispatch_sms(
-        &self,
-        phone:  &str,
-        body:   &str,
-        config: &AppConfig,
-    ) -> Result<()> {
+    #[allow(dead_code)]
+    pub async fn dispatch_sms(&self, phone: &str, body: &str, config: &AppConfig) -> Result<()> {
         let url = format!(
             "https://api.twilio.com/2010-04-01/Accounts/{}/Messages.json",
             config.twilio_account_sid
@@ -174,7 +162,7 @@ impl Fanout {
             .basic_auth(&config.twilio_account_sid, Some(&config.twilio_auth_token))
             .form(&[
                 ("From", config.twilio_from_number.as_str()),
-                ("To",   phone),
+                ("To", phone),
                 ("Body", body),
             ])
             .send()
@@ -199,12 +187,13 @@ impl Fanout {
     // Push (FCM)
     // -------------------------------------------------------------------------
 
+    #[allow(dead_code)]
     pub async fn dispatch_push(
         &self,
         device_tokens: &[String],
-        title:         &str,
-        body:          &str,
-        config:        &AppConfig,
+        title: &str,
+        body: &str,
+        config: &AppConfig,
     ) -> Result<()> {
         let client = reqwest::Client::new();
 
@@ -219,10 +208,7 @@ impl Fanout {
 
             let res = client
                 .post("https://fcm.googleapis.com/fcm/send")
-                .header(
-                    "Authorization",
-                    format!("key={}", config.fcm_server_key),
-                )
+                .header("Authorization", format!("key={}", config.fcm_server_key))
                 .json(&payload)
                 .send()
                 .await;
@@ -246,10 +232,11 @@ impl Fanout {
     // WhatsApp (Twilio WhatsApp API)
     // -------------------------------------------------------------------------
 
+    #[allow(dead_code)]
     pub async fn dispatch_whatsapp(
         &self,
-        phone:  &str,
-        body:   &str,
+        phone: &str,
+        body: &str,
         config: &AppConfig,
     ) -> Result<()> {
         let url = format!(
@@ -258,17 +245,13 @@ impl Fanout {
         );
 
         let from = format!("whatsapp:{}", config.twilio_whatsapp_number);
-        let to   = format!("whatsapp:{phone}");
+        let to = format!("whatsapp:{phone}");
 
         let client = reqwest::Client::new();
         let res = client
             .post(&url)
             .basic_auth(&config.twilio_account_sid, Some(&config.twilio_auth_token))
-            .form(&[
-                ("From", from.as_str()),
-                ("To",   to.as_str()),
-                ("Body", body),
-            ])
+            .form(&[("From", from.as_str()), ("To", to.as_str()), ("Body", body)])
             .send()
             .await;
 
@@ -290,22 +273,14 @@ impl Fanout {
     // Slack (incoming webhook)
     // -------------------------------------------------------------------------
 
-    pub async fn dispatch_slack(
-        &self,
-        webhook_url: &str,
-        title:       &str,
-        body:        &str,
-    ) -> Result<()> {
+    #[allow(dead_code)]
+    pub async fn dispatch_slack(&self, webhook_url: &str, title: &str, body: &str) -> Result<()> {
         let payload = serde_json::json!({
             "text": format!("*{title}*\n{body}")
         });
 
         let client = reqwest::Client::new();
-        let res = client
-            .post(webhook_url)
-            .json(&payload)
-            .send()
-            .await;
+        let res = client.post(webhook_url).json(&payload).send().await;
 
         match res {
             Ok(r) if r.status().is_success() => {
@@ -325,12 +300,8 @@ impl Fanout {
     // Microsoft Teams (incoming webhook — Adaptive Card)
     // -------------------------------------------------------------------------
 
-    pub async fn dispatch_teams(
-        &self,
-        webhook_url: &str,
-        title:       &str,
-        body:        &str,
-    ) -> Result<()> {
+    #[allow(dead_code)]
+    pub async fn dispatch_teams(&self, webhook_url: &str, title: &str, body: &str) -> Result<()> {
         let payload = serde_json::json!({
             "@type":      "MessageCard",
             "@context":   "http://schema.org/extensions",
@@ -343,11 +314,7 @@ impl Fanout {
         });
 
         let client = reqwest::Client::new();
-        let res = client
-            .post(webhook_url)
-            .json(&payload)
-            .send()
-            .await;
+        let res = client.post(webhook_url).json(&payload).send().await;
 
         match res {
             Ok(r) if r.status().is_success() => {

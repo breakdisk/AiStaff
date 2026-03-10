@@ -30,13 +30,11 @@ async fn main() -> Result<()> {
     // ─────────────────────────────────────────────────────────────────────────
     // Core infrastructure env vars
     // ─────────────────────────────────────────────────────────────────────────
-    let db_url    = std::env::var("DATABASE_URL").expect("DATABASE_URL");
-    let brokers   = std::env::var("KAFKA_BROKERS").expect("KAFKA_BROKERS");
+    let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL");
+    let brokers = std::env::var("KAFKA_BROKERS").expect("KAFKA_BROKERS");
     let smtp_host = std::env::var("SMTP_HOST").expect("SMTP_HOST");
-    let smtp_from = std::env::var("SMTP_FROM")
-        .unwrap_or_else(|_| "noreply@aistaff.app".into());
-    let http_port = std::env::var("NOTIFICATION_HTTP_PORT")
-        .unwrap_or_else(|_| "3012".into());
+    let smtp_from = std::env::var("SMTP_FROM").unwrap_or_else(|_| "noreply@aistaff.app".into());
+    let http_port = std::env::var("NOTIFICATION_HTTP_PORT").unwrap_or_else(|_| "3012".into());
 
     // ─────────────────────────────────────────────────────────────────────────
     // Third-party integration config (all channels)
@@ -46,7 +44,7 @@ async fn main() -> Result<()> {
     // ─────────────────────────────────────────────────────────────────────────
     // Infrastructure clients
     // ─────────────────────────────────────────────────────────────────────────
-    let db   = PgPool::connect(&db_url).await?;
+    let db = PgPool::connect(&db_url).await?;
     let smtp = AsyncSmtpTransport::<Tokio1Executor>::relay(&smtp_host)?.build();
 
     let fanout = Arc::new(Fanout::new(db.clone(), smtp, smtp_from));
@@ -76,7 +74,7 @@ async fn main() -> Result<()> {
     // Axum HTTP server
     // ─────────────────────────────────────────────────────────────────────────
     let state = AppState {
-        db:     db.clone(),
+        db: db.clone(),
         fanout: fanout.clone(),
         config: config.clone(),
     };
@@ -87,19 +85,43 @@ async fn main() -> Result<()> {
         .route("/notifications/count", get(handlers::count_unread))
         .route("/notifications/:id/read", patch(handlers::mark_read))
         .route("/notifications/read-all", post(handlers::mark_all_read))
-        .route("/notification-preferences", get(handlers::get_prefs_handler))
-        .route("/notification-preferences", post(handlers::save_prefs_handler))
+        .route(
+            "/notification-preferences",
+            get(handlers::get_prefs_handler),
+        )
+        .route(
+            "/notification-preferences",
+            post(handlers::save_prefs_handler),
+        )
         .route("/device-tokens", post(handlers::register_device_token))
-        .route("/device-tokens/:token", delete(handlers::unregister_device_token))
+        .route(
+            "/device-tokens/:token",
+            delete(handlers::unregister_device_token),
+        )
         .route("/integrations/whatsapp/init", post(handlers::init_whatsapp))
-        .route("/integrations/whatsapp/webhook", post(handlers::whatsapp_webhook))
+        .route(
+            "/integrations/whatsapp/webhook",
+            post(handlers::whatsapp_webhook),
+        )
         .route("/integrations/slack/oauth", get(handlers::slack_oauth_init))
-        .route("/integrations/slack/callback", get(handlers::slack_oauth_callback))
+        .route(
+            "/integrations/slack/callback",
+            get(handlers::slack_oauth_callback),
+        )
         .route("/integrations/teams/webhook", post(handlers::save_teams))
-        .route("/integrations/google/oauth", get(handlers::google_oauth_init))
-        .route("/integrations/google/callback", get(handlers::google_oauth_callback))
+        .route(
+            "/integrations/google/oauth",
+            get(handlers::google_oauth_init),
+        )
+        .route(
+            "/integrations/google/callback",
+            get(handlers::google_oauth_callback),
+        )
         .route("/integrations/status", get(handlers::integration_status))
-        .route("/integrations/:provider", delete(handlers::revoke_integration))
+        .route(
+            "/integrations/:provider",
+            delete(handlers::revoke_integration),
+        )
         .layer(tower_http::cors::CorsLayer::permissive())
         .with_state(state);
 

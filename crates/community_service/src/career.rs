@@ -22,12 +22,14 @@ pub async fn get_career_profile(db: &Db, user_id: Uuid) -> Result<Option<Value>>
     .fetch_optional(db)
     .await?;
 
-    Ok(row.map(|r| serde_json::json!({
-        "id": r.id, "user_id": r.user_id, "current_tier": r.current_tier,
-        "target_role": r.target_role, "bio": r.bio,
-        "total_xp": r.total_xp, "milestone_count": r.milestone_count,
-        "created_at": r.created_at, "updated_at": r.updated_at,
-    })))
+    Ok(row.map(|r| {
+        serde_json::json!({
+            "id": r.id, "user_id": r.user_id, "current_tier": r.current_tier,
+            "target_role": r.target_role, "bio": r.bio,
+            "total_xp": r.total_xp, "milestone_count": r.milestone_count,
+            "created_at": r.created_at, "updated_at": r.updated_at,
+        })
+    }))
 }
 
 /// Upsert a career profile — called lazily on first milestone award.
@@ -52,10 +54,12 @@ pub async fn list_milestones(db: &Db, user_id: Uuid) -> Result<Vec<Value>> {
     .fetch_all(db)
     .await?
     .into_iter()
-    .map(|r| serde_json::json!({
-        "id": r.id, "milestone_key": r.milestone_key, "label": r.label,
-        "xp_awarded": r.xp_awarded, "achieved_at": r.achieved_at,
-    }))
+    .map(|r| {
+        serde_json::json!({
+            "id": r.id, "milestone_key": r.milestone_key, "label": r.label,
+            "xp_awarded": r.xp_awarded, "achieved_at": r.achieved_at,
+        })
+    })
     .collect();
     Ok(rows)
 }
@@ -123,11 +127,13 @@ pub async fn list_skill_gaps(db: &Db, user_id: Uuid) -> Result<Vec<Value>> {
     .fetch_all(db)
     .await?
     .into_iter()
-    .map(|r| serde_json::json!({
-        "id": r.id, "skill_tag": r.skill_tag, "current_level": r.current_level,
-        "required_level": r.required_level, "gap_score": r.gap_score,
-        "detected_at": r.detected_at,
-    }))
+    .map(|r| {
+        serde_json::json!({
+            "id": r.id, "skill_tag": r.skill_tag, "current_level": r.current_level,
+            "required_level": r.required_level, "gap_score": r.gap_score,
+            "detected_at": r.detected_at,
+        })
+    })
     .collect();
     Ok(rows)
 }
@@ -194,7 +200,7 @@ pub async fn update_path_progress(db: &Db, path_id: Uuid, progress_pct: i16) -> 
     sqlx::query!(
         r#"UPDATE learning_paths
            SET progress_pct = $2,
-               completed_at = CASE WHEN $2 = 100 THEN NOW() ELSE NULL END
+               completed_at = CASE WHEN $2::INT2 = 100 THEN NOW() ELSE NULL END
            WHERE id = $1"#,
         path_id,
         pct,
@@ -212,11 +218,14 @@ async fn emit_event(brokers: &str, topic: &str, envelope: &EventEnvelope) {
         .set("message.timeout.ms", "5000")
         .create()
     {
-        Ok(p)  => p,
-        Err(e) => { tracing::warn!("kafka producer init failed: {e}"); return; }
+        Ok(p) => p,
+        Err(e) => {
+            tracing::warn!("kafka producer init failed: {e}");
+            return;
+        }
     };
     let payload = serde_json::to_string(envelope).unwrap_or_default();
-    let record  = FutureRecord::to(topic).payload(&payload).key("career");
+    let record = FutureRecord::to(topic).payload(&payload).key("career");
     if let Err((e, _)) = producer.send(record, Duration::from_secs(5)).await {
         tracing::warn!("kafka emit failed: {e}");
     }

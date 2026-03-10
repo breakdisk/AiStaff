@@ -10,9 +10,12 @@ use tracing_subscriber::{fmt, EnvFilter};
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     dotenv().ok();
-    fmt().with_env_filter(EnvFilter::from_default_env()).json().init();
+    fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .json()
+        .init();
 
-    let db_url  = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let brokers = std::env::var("KAFKA_BROKERS").unwrap_or_else(|_| "localhost:9092".into());
 
     let pool = PgPoolOptions::new()

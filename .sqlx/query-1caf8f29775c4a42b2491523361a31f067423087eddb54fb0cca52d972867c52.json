@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO mentor_profiles\n               (user_id, bio, specializations, max_mentees, availability_tz,\n                accepting_requests, session_rate_cents)\n           VALUES ($1, $2, $3, $4, $5, $6, $7)\n           ON CONFLICT (user_id) DO UPDATE SET\n               bio                = EXCLUDED.bio,\n               specializations    = EXCLUDED.specializations,\n               max_mentees        = EXCLUDED.max_mentees,\n               availability_tz    = EXCLUDED.availability_tz,\n               accepting_requests = EXCLUDED.accepting_requests,\n               session_rate_cents = EXCLUDED.session_rate_cents",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "TextArray",
+        "Int4",
+        "Text",
+        "Bool",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1caf8f29775c4a42b2491523361a31f067423087eddb54fb0cca52d972867c52"
+}

@@ -18,7 +18,7 @@ pub const SOW_THRESHOLD: f32 = 0.85;
 /// Thin HTTP client that posts draft SOW contracts to `compliance_service`.
 #[derive(Clone)]
 pub struct SowOrchestrator {
-    client:         Client,
+    client: Client,
     compliance_url: String,
 }
 
@@ -28,17 +28,20 @@ impl SowOrchestrator {
             .timeout(Duration::from_secs(10))
             .build()
             .expect("reqwest client init");
-        Self { client, compliance_url }
+        Self {
+            client,
+            compliance_url,
+        }
     }
 
     /// Fires an async SOW draft creation request.
     /// Returns immediately — call from `tokio::spawn`.
     pub async fn propose_sow(
         &self,
-        agent_id:     Uuid,
+        agent_id: Uuid,
         developer_id: Uuid,
-        talent_id:    Uuid,
-        match_score:  f32,
+        talent_id: Uuid,
+        match_score: f32,
     ) {
         let doc = format!(
             "STATEMENT OF WORK (AUTO-PROPOSED)\n\

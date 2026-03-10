@@ -1,6 +1,8 @@
 use anyhow::Result;
 use chrono::Utc;
-use common::events::{ChecklistFinalized, ChecklistStepCompleted, EventEnvelope, TOPIC_CHECKLIST_EVENTS};
+use common::events::{
+    ChecklistFinalized, ChecklistStepCompleted, EventEnvelope, TOPIC_CHECKLIST_EVENTS,
+};
 use common::kafka::producer::KafkaProducer;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -16,7 +18,7 @@ const REQUIRED_STEPS: &[&str] = &[
 ];
 
 pub struct ChecklistService {
-    pub db:       PgPool,
+    pub db: PgPool,
     pub producer: KafkaProducer,
 }
 
@@ -28,10 +30,10 @@ impl ChecklistService {
     pub async fn record_step(
         &self,
         deployment_id: Uuid,
-        step_id:       String,
-        step_label:    String,
-        passed:        bool,
-        notes:         Option<String>,
+        step_id: String,
+        step_label: String,
+        passed: bool,
+        notes: Option<String>,
     ) -> Result<()> {
         let now = Utc::now();
 
@@ -61,7 +63,11 @@ impl ChecklistService {
             completed_at: now,
         };
         self.producer
-            .publish(TOPIC_CHECKLIST_EVENTS, &deployment_id.to_string(), &EventEnvelope::new("ChecklistStepCompleted", &event))
+            .publish(
+                TOPIC_CHECKLIST_EVENTS,
+                &deployment_id.to_string(),
+                &EventEnvelope::new("ChecklistStepCompleted", &event),
+            )
             .await?;
 
         // Attempt to finalize after every step update.
@@ -82,9 +88,7 @@ impl ChecklistService {
         let completed_ids: Vec<&str> = rows.iter().map(|r| r.step_id.as_str()).collect();
 
         // Check that every required step has been completed.
-        let all_required_present = REQUIRED_STEPS
-            .iter()
-            .all(|r| completed_ids.contains(r));
+        let all_required_present = REQUIRED_STEPS.iter().all(|r| completed_ids.contains(r));
 
         if !all_required_present {
             return Ok(()); // Not ready to finalize yet.

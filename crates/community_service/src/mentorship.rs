@@ -1,5 +1,5 @@
 use anyhow::Result;
-use common::events::{EventEnvelope, MentorshipPaired, CohortCreated, TOPIC_COMMUNITY_EVENTS};
+use common::events::{CohortCreated, EventEnvelope, MentorshipPaired, TOPIC_COMMUNITY_EVENTS};
 use rdkafka::config::ClientConfig;
 use rdkafka::producer::{FutureProducer, FutureRecord};
 use serde_json::Value;
@@ -7,7 +7,9 @@ use std::time::Duration;
 use uuid::Uuid;
 
 use crate::{
-    handlers::{CreateCohortRequest, MentorshipRequestBody, ScheduleSessionRequest, UpsertMentorRequest},
+    handlers::{
+        CreateCohortRequest, MentorshipRequestBody, ScheduleSessionRequest, UpsertMentorRequest,
+    },
     Db,
 };
 
@@ -25,13 +27,15 @@ pub async fn list_mentors(db: &Db) -> Result<Vec<Value>> {
     .fetch_all(db)
     .await?
     .into_iter()
-    .map(|r| serde_json::json!({
-        "id": r.id, "user_id": r.user_id, "bio": r.bio,
-        "specializations": r.specializations, "max_mentees": r.max_mentees,
-        "current_mentees": r.current_mentees, "availability_tz": r.availability_tz,
-        "accepting_requests": r.accepting_requests,
-        "session_rate_cents": r.session_rate_cents, "created_at": r.created_at,
-    }))
+    .map(|r| {
+        serde_json::json!({
+            "id": r.id, "user_id": r.user_id, "bio": r.bio,
+            "specializations": r.specializations, "max_mentees": r.max_mentees,
+            "current_mentees": r.current_mentees, "availability_tz": r.availability_tz,
+            "accepting_requests": r.accepting_requests,
+            "session_rate_cents": r.session_rate_cents, "created_at": r.created_at,
+        })
+    })
     .collect();
     Ok(rows)
 }
@@ -46,13 +50,15 @@ pub async fn get_mentor(db: &Db, mentor_id: Uuid) -> Result<Option<Value>> {
     .fetch_optional(db)
     .await?;
 
-    Ok(row.map(|r| serde_json::json!({
-        "id": r.id, "user_id": r.user_id, "bio": r.bio,
-        "specializations": r.specializations, "max_mentees": r.max_mentees,
-        "current_mentees": r.current_mentees, "availability_tz": r.availability_tz,
-        "accepting_requests": r.accepting_requests,
-        "session_rate_cents": r.session_rate_cents, "created_at": r.created_at,
-    })))
+    Ok(row.map(|r| {
+        serde_json::json!({
+            "id": r.id, "user_id": r.user_id, "bio": r.bio,
+            "specializations": r.specializations, "max_mentees": r.max_mentees,
+            "current_mentees": r.current_mentees, "availability_tz": r.availability_tz,
+            "accepting_requests": r.accepting_requests,
+            "session_rate_cents": r.session_rate_cents, "created_at": r.created_at,
+        })
+    }))
 }
 
 pub async fn upsert_mentor_profile(db: &Db, req: UpsertMentorRequest) -> Result<()> {
@@ -83,7 +89,11 @@ pub async fn upsert_mentor_profile(db: &Db, req: UpsertMentorRequest) -> Result<
 
 // ── Mentorship Pairs ──────────────────────────────────────────────────────────
 
-pub async fn request_mentorship(db: &Db, kafka_brokers: &str, req: MentorshipRequestBody) -> Result<Uuid> {
+pub async fn request_mentorship(
+    db: &Db,
+    kafka_brokers: &str,
+    req: MentorshipRequestBody,
+) -> Result<Uuid> {
     let pair_id = sqlx::query_scalar!(
         r#"INSERT INTO mentorship_pairs (mentor_id, mentee_id, goal, status)
            VALUES ($1, $2, $3, 'pending')
@@ -104,14 +114,18 @@ pub async fn request_mentorship(db: &Db, kafka_brokers: &str, req: MentorshipReq
     .await?;
 
     // Emit Kafka event
-    emit_event(kafka_brokers, TOPIC_COMMUNITY_EVENTS, &EventEnvelope::new(
-        "MentorshipPaired",
-        &MentorshipPaired {
-            pair_id,
-            mentor_id: req.mentor_id,
-            mentee_id: req.mentee_id,
-        },
-    ))
+    emit_event(
+        kafka_brokers,
+        TOPIC_COMMUNITY_EVENTS,
+        &EventEnvelope::new(
+            "MentorshipPaired",
+            &MentorshipPaired {
+                pair_id,
+                mentor_id: req.mentor_id,
+                mentee_id: req.mentee_id,
+            },
+        ),
+    )
     .await;
 
     Ok(pair_id)
@@ -129,11 +143,13 @@ pub async fn list_pairs(db: &Db, user_id: Option<Uuid>) -> Result<Vec<Value>> {
         .fetch_all(db)
         .await?
         .into_iter()
-        .map(|r| serde_json::json!({
-            "id": r.id, "mentor_id": r.mentor_id, "mentee_id": r.mentee_id,
-            "status": r.status, "goal": r.goal, "started_at": r.started_at,
-            "completed_at": r.completed_at,
-        }))
+        .map(|r| {
+            serde_json::json!({
+                "id": r.id, "mentor_id": r.mentor_id, "mentee_id": r.mentee_id,
+                "status": r.status, "goal": r.goal, "started_at": r.started_at,
+                "completed_at": r.completed_at,
+            })
+        })
         .collect()
     } else {
         sqlx::query!(
@@ -143,11 +159,13 @@ pub async fn list_pairs(db: &Db, user_id: Option<Uuid>) -> Result<Vec<Value>> {
         .fetch_all(db)
         .await?
         .into_iter()
-        .map(|r| serde_json::json!({
-            "id": r.id, "mentor_id": r.mentor_id, "mentee_id": r.mentee_id,
-            "status": r.status, "goal": r.goal, "started_at": r.started_at,
-            "completed_at": r.completed_at,
-        }))
+        .map(|r| {
+            serde_json::json!({
+                "id": r.id, "mentor_id": r.mentor_id, "mentee_id": r.mentee_id,
+                "status": r.status, "goal": r.goal, "started_at": r.started_at,
+                "completed_at": r.completed_at,
+            })
+        })
         .collect()
     };
     Ok(rows)
@@ -161,11 +179,13 @@ pub async fn get_pair(db: &Db, pair_id: Uuid) -> Result<Option<Value>> {
     )
     .fetch_optional(db)
     .await?;
-    Ok(row.map(|r| serde_json::json!({
-        "id": r.id, "mentor_id": r.mentor_id, "mentee_id": r.mentee_id,
-        "status": r.status, "goal": r.goal, "started_at": r.started_at,
-        "completed_at": r.completed_at,
-    })))
+    Ok(row.map(|r| {
+        serde_json::json!({
+            "id": r.id, "mentor_id": r.mentor_id, "mentee_id": r.mentee_id,
+            "status": r.status, "goal": r.goal, "started_at": r.started_at,
+            "completed_at": r.completed_at,
+        })
+    }))
 }
 
 // ── Sessions ──────────────────────────────────────────────────────────────────
@@ -179,10 +199,12 @@ pub async fn list_sessions(db: &Db, pair_id: Uuid) -> Result<Vec<Value>> {
     .fetch_all(db)
     .await?
     .into_iter()
-    .map(|r| serde_json::json!({
-        "id": r.id, "scheduled_at": r.scheduled_at, "duration_min": r.duration_min,
-        "notes": r.notes, "status": r.status, "rating": r.rating, "created_at": r.created_at,
-    }))
+    .map(|r| {
+        serde_json::json!({
+            "id": r.id, "scheduled_at": r.scheduled_at, "duration_min": r.duration_min,
+            "notes": r.notes, "status": r.status, "rating": r.rating, "created_at": r.created_at,
+        })
+    })
     .collect();
     Ok(rows)
 }
@@ -202,7 +224,8 @@ pub async fn schedule_session(db: &Db, pair_id: Uuid, req: ScheduleSessionReques
 pub async fn complete_session(db: &Db, session_id: Uuid, rating: Option<i16>) -> Result<()> {
     sqlx::query!(
         "UPDATE mentorship_sessions SET status = 'completed', rating = $2 WHERE id = $1",
-        session_id, rating
+        session_id,
+        rating
     )
     .execute(db)
     .await?;
@@ -220,12 +243,14 @@ pub async fn list_cohorts(db: &Db) -> Result<Vec<Value>> {
     .fetch_all(db)
     .await?
     .into_iter()
-    .map(|r| serde_json::json!({
-        "id": r.id, "name": r.name, "description": r.description,
-        "cohort_type": r.cohort_type, "max_members": r.max_members,
-        "member_count": r.member_count, "facilitator_id": r.facilitator_id,
-        "starts_at": r.starts_at, "ends_at": r.ends_at, "created_at": r.created_at,
-    }))
+    .map(|r| {
+        serde_json::json!({
+            "id": r.id, "name": r.name, "description": r.description,
+            "cohort_type": r.cohort_type, "max_members": r.max_members,
+            "member_count": r.member_count, "facilitator_id": r.facilitator_id,
+            "starts_at": r.starts_at, "ends_at": r.ends_at, "created_at": r.created_at,
+        })
+    })
     .collect();
     Ok(rows)
 }
@@ -243,14 +268,18 @@ pub async fn create_cohort(db: &Db, kafka_brokers: &str, req: CreateCohortReques
     .fetch_one(db)
     .await?;
 
-    emit_event(kafka_brokers, TOPIC_COMMUNITY_EVENTS, &EventEnvelope::new(
-        "CohortCreated",
-        &CohortCreated {
-            cohort_id,
-            name: req.name,
-            cohort_type: req.cohort_type.unwrap_or_else(|| "general".into()),
-        },
-    ))
+    emit_event(
+        kafka_brokers,
+        TOPIC_COMMUNITY_EVENTS,
+        &EventEnvelope::new(
+            "CohortCreated",
+            &CohortCreated {
+                cohort_id,
+                name: req.name,
+                cohort_type: req.cohort_type.unwrap_or_else(|| "general".into()),
+            },
+        ),
+    )
     .await;
 
     Ok(cohort_id)
@@ -259,7 +288,8 @@ pub async fn create_cohort(db: &Db, kafka_brokers: &str, req: CreateCohortReques
 pub async fn join_cohort(db: &Db, cohort_id: Uuid, user_id: Uuid) -> Result<()> {
     sqlx::query!(
         "INSERT INTO cohort_members (cohort_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
-        cohort_id, user_id
+        cohort_id,
+        user_id
     )
     .execute(db)
     .await?;
@@ -280,11 +310,14 @@ async fn emit_event(brokers: &str, topic: &str, envelope: &EventEnvelope) {
         .set("message.timeout.ms", "5000")
         .create()
     {
-        Ok(p)  => p,
-        Err(e) => { tracing::warn!("kafka producer init failed: {e}"); return; }
+        Ok(p) => p,
+        Err(e) => {
+            tracing::warn!("kafka producer init failed: {e}");
+            return;
+        }
     };
     let payload = serde_json::to_string(envelope).unwrap_or_default();
-    let record  = FutureRecord::to(topic).payload(&payload).key("community");
+    let record = FutureRecord::to(topic).payload(&payload).key("community");
     if let Err((e, _)) = producer.send(record, Duration::from_secs(5)).await {
         tracing::warn!("kafka emit failed: {e}");
     }

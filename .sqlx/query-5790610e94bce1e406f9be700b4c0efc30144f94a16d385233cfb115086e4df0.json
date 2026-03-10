@@ -1,0 +1,76 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, user_id, bio, specializations, max_mentees, current_mentees,\n                  availability_tz, accepting_requests, session_rate_cents, created_at\n           FROM mentor_profiles WHERE user_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "bio",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "specializations",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 4,
+        "name": "max_mentees",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "current_mentees",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "availability_tz",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "accepting_requests",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 8,
+        "name": "session_rate_cents",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "5790610e94bce1e406f9be700b4c0efc30144f94a16d385233cfb115086e4df0"
+}

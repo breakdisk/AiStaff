@@ -3,11 +3,11 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::AppState;
-use crate::{career, carbon, hub_service, mentorship, wellbeing};
+use crate::{carbon, career, hub_service, mentorship, wellbeing};
 
 // ── Health ────────────────────────────────────────────────────────────────────
 
@@ -20,7 +20,7 @@ pub async fn health() -> Json<serde_json::Value> {
 #[derive(Deserialize)]
 pub struct HubQuery {
     pub category: Option<String>,
-    pub limit:    Option<i64>,
+    pub limit: Option<i64>,
 }
 
 pub async fn list_hubs(
@@ -30,18 +30,21 @@ pub async fn list_hubs(
     hub_service::list_hubs(&s.db, q.category.as_deref(), q.limit.unwrap_or(50))
         .await
         .map(|rows| Json(serde_json::json!({ "hubs": rows })))
-        .map_err(|e| { tracing::error!("{e:#}"); StatusCode::INTERNAL_SERVER_ERROR })
+        .map_err(|e| {
+            tracing::error!("{e:#}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 #[derive(Deserialize)]
 pub struct CreateHubRequest {
-    pub owner_id:    Uuid,
-    pub slug:        String,
-    pub name:        String,
+    pub owner_id: Uuid,
+    pub slug: String,
+    pub name: String,
     pub description: Option<String>,
-    pub category:    Option<String>,
-    pub timezone:    Option<String>,
-    pub is_private:  Option<bool>,
+    pub category: Option<String>,
+    pub timezone: Option<String>,
+    pub is_private: Option<bool>,
 }
 
 pub async fn create_hub(
@@ -50,8 +53,16 @@ pub async fn create_hub(
 ) -> Result<(StatusCode, Json<serde_json::Value>), StatusCode> {
     hub_service::create_hub(&s.db, body)
         .await
-        .map(|id| (StatusCode::CREATED, Json(serde_json::json!({ "hub_id": id }))))
-        .map_err(|e| { tracing::error!("{e:#}"); StatusCode::INTERNAL_SERVER_ERROR })
+        .map(|id| {
+            (
+                StatusCode::CREATED,
+                Json(serde_json::json!({ "hub_id": id })),
+            )
+        })
+        .map_err(|e| {
+            tracing::error!("{e:#}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 pub async fn get_hub(
@@ -60,13 +71,18 @@ pub async fn get_hub(
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     hub_service::get_hub(&s.db, hub_id)
         .await
-        .map_err(|e| { tracing::error!("{e:#}"); StatusCode::INTERNAL_SERVER_ERROR })?
+        .map_err(|e| {
+            tracing::error!("{e:#}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
         .map(|h| Json(h))
         .ok_or(StatusCode::NOT_FOUND)
 }
 
 #[derive(Deserialize)]
-pub struct JoinHubRequest { pub user_id: Uuid }
+pub struct JoinHubRequest {
+    pub user_id: Uuid,
+}
 
 pub async fn join_hub(
     State(s): State<AppState>,
@@ -76,7 +92,10 @@ pub async fn join_hub(
     hub_service::join_hub(&s.db, hub_id, body.user_id)
         .await
         .map(|_| Json(serde_json::json!({ "ok": true })))
-        .map_err(|e| { tracing::error!("{e:#}"); StatusCode::INTERNAL_SERVER_ERROR })
+        .map_err(|e| {
+            tracing::error!("{e:#}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 pub async fn leave_hub(
@@ -87,7 +106,10 @@ pub async fn leave_hub(
     hub_service::leave_hub(&s.db, hub_id, body.user_id)
         .await
         .map(|_| Json(serde_json::json!({ "ok": true })))
-        .map_err(|e| { tracing::error!("{e:#}"); StatusCode::INTERNAL_SERVER_ERROR })
+        .map_err(|e| {
+            tracing::error!("{e:#}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 // ── Community Events ──────────────────────────────────────────────────────────
@@ -99,20 +121,23 @@ pub async fn list_hub_events(
     hub_service::list_hub_events(&s.db, hub_id)
         .await
         .map(|rows| Json(serde_json::json!({ "events": rows })))
-        .map_err(|e| { tracing::error!("{e:#}"); StatusCode::INTERNAL_SERVER_ERROR })
+        .map_err(|e| {
+            tracing::error!("{e:#}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 #[derive(Deserialize)]
 pub struct CreateEventRequest {
-    pub organizer_id:   Uuid,
-    pub title:          String,
-    pub description:    Option<String>,
-    pub event_type:     Option<String>,
-    pub timezone:       Option<String>,
-    pub starts_at:      chrono::DateTime<chrono::Utc>,
-    pub ends_at:        chrono::DateTime<chrono::Utc>,
-    pub max_attendees:  Option<i32>,
-    pub meeting_url:    Option<String>,
+    pub organizer_id: Uuid,
+    pub title: String,
+    pub description: Option<String>,
+    pub event_type: Option<String>,
+    pub timezone: Option<String>,
+    pub starts_at: chrono::DateTime<chrono::Utc>,
+    pub ends_at: chrono::DateTime<chrono::Utc>,
+    pub max_attendees: Option<i32>,
+    pub meeting_url: Option<String>,
 }
 
 pub async fn create_hub_event(
@@ -122,12 +147,22 @@ pub async fn create_hub_event(
 ) -> Result<(StatusCode, Json<serde_json::Value>), StatusCode> {
     hub_service::create_hub_event(&s.db, hub_id, body)
         .await
-        .map(|id| (StatusCode::CREATED, Json(serde_json::json!({ "event_id": id }))))
-        .map_err(|e| { tracing::error!("{e:#}"); StatusCode::INTERNAL_SERVER_ERROR })
+        .map(|id| {
+            (
+                StatusCode::CREATED,
+                Json(serde_json::json!({ "event_id": id })),
+            )
+        })
+        .map_err(|e| {
+            tracing::error!("{e:#}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 #[derive(Deserialize)]
-pub struct RsvpRequest { pub user_id: Uuid }
+pub struct RsvpRequest {
+    pub user_id: Uuid,
+}
 
 pub async fn rsvp_event(
     State(s): State<AppState>,
@@ -138,7 +173,10 @@ pub async fn rsvp_event(
     hub_service::rsvp_event(&s.db, event_id, body.user_id)
         .await
         .map(|_| Json(serde_json::json!({ "ok": true })))
-        .map_err(|e| { tracing::error!("{e:#}"); StatusCode::INTERNAL_SERVER_ERROR })
+        .map_err(|e| {
+            tracing::error!("{e:#}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 // ── Forum ─────────────────────────────────────────────────────────────────────
@@ -150,14 +188,17 @@ pub async fn list_threads(
     hub_service::list_threads(&s.db, hub_id)
         .await
         .map(|rows| Json(serde_json::json!({ "threads": rows })))
-        .map_err(|e| { tracing::error!("{e:#}"); StatusCode::INTERNAL_SERVER_ERROR })
+        .map_err(|e| {
+            tracing::error!("{e:#}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 #[derive(Deserialize)]
 pub struct CreateThreadRequest {
     pub author_id: Uuid,
-    pub title:     String,
-    pub body:      String,
+    pub title: String,
+    pub body: String,
 }
 
 pub async fn create_thread(
@@ -167,8 +208,16 @@ pub async fn create_thread(
 ) -> Result<(StatusCode, Json<serde_json::Value>), StatusCode> {
     hub_service::create_thread(&s.db, hub_id, body)
         .await
-        .map(|id| (StatusCode::CREATED, Json(serde_json::json!({ "thread_id": id }))))
-        .map_err(|e| { tracing::error!("{e:#}"); StatusCode::INTERNAL_SERVER_ERROR })
+        .map(|id| {
+            (
+                StatusCode::CREATED,
+                Json(serde_json::json!({ "thread_id": id })),
+            )
+        })
+        .map_err(|e| {
+            tracing::error!("{e:#}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 pub async fn get_thread(
@@ -178,7 +227,10 @@ pub async fn get_thread(
     let _ = hub_id;
     hub_service::get_thread(&s.db, thread_id)
         .await
-        .map_err(|e| { tracing::error!("{e:#}"); StatusCode::INTERNAL_SERVER_ERROR })?
+        .map_err(|e| {
+            tracing::error!("{e:#}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
         .map(|t| Json(t))
         .ok_or(StatusCode::NOT_FOUND)
 }
@@ -190,13 +242,16 @@ pub async fn list_posts(
     hub_service::list_posts(&s.db, thread_id)
         .await
         .map(|rows| Json(serde_json::json!({ "posts": rows })))
-        .map_err(|e| { tracing::error!("{e:#}"); StatusCode::INTERNAL_SERVER_ERROR })
+        .map_err(|e| {
+            tracing::error!("{e:#}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 #[derive(Deserialize)]
 pub struct CreatePostRequest {
     pub author_id: Uuid,
-    pub body:      String,
+    pub body: String,
 }
 
 pub async fn create_post(
@@ -206,8 +261,16 @@ pub async fn create_post(
 ) -> Result<(StatusCode, Json<serde_json::Value>), StatusCode> {
     hub_service::create_post(&s.db, thread_id, body)
         .await
-        .map(|id| (StatusCode::CREATED, Json(serde_json::json!({ "post_id": id }))))
-        .map_err(|e| { tracing::error!("{e:#}"); StatusCode::INTERNAL_SERVER_ERROR })
+        .map(|id| {
+            (
+                StatusCode::CREATED,
+                Json(serde_json::json!({ "post_id": id })),
+            )
+        })
+        .map_err(|e| {
+            tracing::error!("{e:#}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 // ── Mentor / Mentorship handlers ──────────────────────────────────────────────
@@ -218,7 +281,10 @@ pub async fn list_mentors(
     mentorship::list_mentors(&s.db)
         .await
         .map(|rows| Json(serde_json::json!({ "mentors": rows })))
-        .map_err(|e| { tracing::error!("{e:#}"); StatusCode::INTERNAL_SERVER_ERROR })
+        .map_err(|e| {
+            tracing::error!("{e:#}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 pub async fn get_mentor(
@@ -227,18 +293,21 @@ pub async fn get_mentor(
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     mentorship::get_mentor(&s.db, mentor_id)
         .await
-        .map_err(|e| { tracing::error!("{e:#}"); StatusCode::INTERNAL_SERVER_ERROR })?
+        .map_err(|e| {
+            tracing::error!("{e:#}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
         .map(|m| Json(m))
         .ok_or(StatusCode::NOT_FOUND)
 }
 
 #[derive(Deserialize)]
 pub struct UpsertMentorRequest {
-    pub user_id:            Uuid,
-    pub bio:                Option<String>,
-    pub specializations:    Vec<String>,
-    pub max_mentees:        Option<i32>,
-    pub availability_tz:    Option<String>,
+    pub user_id: Uuid,
+    pub bio: Option<String>,
+    pub specializations: Vec<String>,
+    pub max_mentees: Option<i32>,
+    pub availability_tz: Option<String>,
     pub accepting_requests: Option<bool>,
     pub session_rate_cents: Option<i32>,
 }
@@ -250,14 +319,17 @@ pub async fn upsert_mentor_profile(
     mentorship::upsert_mentor_profile(&s.db, body)
         .await
         .map(|_| Json(serde_json::json!({ "ok": true })))
-        .map_err(|e| { tracing::error!("{e:#}"); StatusCode::INTERNAL_SERVER_ERROR })
+        .map_err(|e| {
+            tracing::error!("{e:#}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 #[derive(Deserialize)]
 pub struct MentorshipRequestBody {
     pub mentor_id: Uuid,
     pub mentee_id: Uuid,
-    pub goal:      Option<String>,
+    pub goal: Option<String>,
 }
 
 pub async fn request_mentorship(
@@ -266,20 +338,30 @@ pub async fn request_mentorship(
 ) -> Result<(StatusCode, Json<serde_json::Value>), StatusCode> {
     mentorship::request_mentorship(&s.db, &s.kafka_brokers, body)
         .await
-        .map(|id| (StatusCode::CREATED, Json(serde_json::json!({ "pair_id": id }))))
-        .map_err(|e| { tracing::error!("{e:#}"); StatusCode::INTERNAL_SERVER_ERROR })
+        .map(|id| {
+            (
+                StatusCode::CREATED,
+                Json(serde_json::json!({ "pair_id": id })),
+            )
+        })
+        .map_err(|e| {
+            tracing::error!("{e:#}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 pub async fn list_pairs(
     State(s): State<AppState>,
     Query(q): Query<std::collections::HashMap<String, String>>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let user_id = q.get("user_id")
-        .and_then(|v| Uuid::parse_str(v).ok());
+    let user_id = q.get("user_id").and_then(|v| Uuid::parse_str(v).ok());
     mentorship::list_pairs(&s.db, user_id)
         .await
         .map(|rows| Json(serde_json::json!({ "pairs": rows })))
-        .map_err(|e| { tracing::error!("{e:#}"); StatusCode::INTERNAL_SERVER_ERROR })
+        .map_err(|e| {
+            tracing::error!("{e:#}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 pub async fn get_pair(
@@ -288,7 +370,10 @@ pub async fn get_pair(
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     mentorship::get_pair(&s.db, pair_id)
         .await
-        .map_err(|e| { tracing::error!("{e:#}"); StatusCode::INTERNAL_SERVER_ERROR })?
+        .map_err(|e| {
+            tracing::error!("{e:#}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
         .map(|p| Json(p))
         .ok_or(StatusCode::NOT_FOUND)
 }
@@ -300,13 +385,16 @@ pub async fn list_sessions(
     mentorship::list_sessions(&s.db, pair_id)
         .await
         .map(|rows| Json(serde_json::json!({ "sessions": rows })))
-        .map_err(|e| { tracing::error!("{e:#}"); StatusCode::INTERNAL_SERVER_ERROR })
+        .map_err(|e| {
+            tracing::error!("{e:#}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 #[derive(Deserialize)]
 pub struct ScheduleSessionRequest {
-    pub scheduled_at:  chrono::DateTime<chrono::Utc>,
-    pub duration_min:  Option<i32>,
+    pub scheduled_at: chrono::DateTime<chrono::Utc>,
+    pub duration_min: Option<i32>,
 }
 
 pub async fn schedule_session(
@@ -316,12 +404,22 @@ pub async fn schedule_session(
 ) -> Result<(StatusCode, Json<serde_json::Value>), StatusCode> {
     mentorship::schedule_session(&s.db, pair_id, body)
         .await
-        .map(|id| (StatusCode::CREATED, Json(serde_json::json!({ "session_id": id }))))
-        .map_err(|e| { tracing::error!("{e:#}"); StatusCode::INTERNAL_SERVER_ERROR })
+        .map(|id| {
+            (
+                StatusCode::CREATED,
+                Json(serde_json::json!({ "session_id": id })),
+            )
+        })
+        .map_err(|e| {
+            tracing::error!("{e:#}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 #[derive(Deserialize)]
-pub struct CompleteSessionRequest { pub rating: Option<i16> }
+pub struct CompleteSessionRequest {
+    pub rating: Option<i16>,
+}
 
 pub async fn complete_session(
     State(s): State<AppState>,
@@ -332,7 +430,10 @@ pub async fn complete_session(
     mentorship::complete_session(&s.db, session_id, body.rating)
         .await
         .map(|_| Json(serde_json::json!({ "ok": true })))
-        .map_err(|e| { tracing::error!("{e:#}"); StatusCode::INTERNAL_SERVER_ERROR })
+        .map_err(|e| {
+            tracing::error!("{e:#}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 pub async fn list_cohorts(
@@ -341,15 +442,18 @@ pub async fn list_cohorts(
     mentorship::list_cohorts(&s.db)
         .await
         .map(|rows| Json(serde_json::json!({ "cohorts": rows })))
-        .map_err(|e| { tracing::error!("{e:#}"); StatusCode::INTERNAL_SERVER_ERROR })
+        .map_err(|e| {
+            tracing::error!("{e:#}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 #[derive(Deserialize)]
 pub struct CreateCohortRequest {
-    pub name:           String,
-    pub description:    Option<String>,
-    pub cohort_type:    Option<String>,
-    pub max_members:    Option<i32>,
+    pub name: String,
+    pub description: Option<String>,
+    pub cohort_type: Option<String>,
+    pub max_members: Option<i32>,
     pub facilitator_id: Option<Uuid>,
 }
 
@@ -359,12 +463,22 @@ pub async fn create_cohort(
 ) -> Result<(StatusCode, Json<serde_json::Value>), StatusCode> {
     mentorship::create_cohort(&s.db, &s.kafka_brokers, body)
         .await
-        .map(|id| (StatusCode::CREATED, Json(serde_json::json!({ "cohort_id": id }))))
-        .map_err(|e| { tracing::error!("{e:#}"); StatusCode::INTERNAL_SERVER_ERROR })
+        .map(|id| {
+            (
+                StatusCode::CREATED,
+                Json(serde_json::json!({ "cohort_id": id })),
+            )
+        })
+        .map_err(|e| {
+            tracing::error!("{e:#}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 #[derive(Deserialize)]
-pub struct JoinCohortRequest { pub user_id: Uuid }
+pub struct JoinCohortRequest {
+    pub user_id: Uuid,
+}
 
 pub async fn join_cohort(
     State(s): State<AppState>,
@@ -374,7 +488,10 @@ pub async fn join_cohort(
     mentorship::join_cohort(&s.db, cohort_id, body.user_id)
         .await
         .map(|_| Json(serde_json::json!({ "ok": true })))
-        .map_err(|e| { tracing::error!("{e:#}"); StatusCode::INTERNAL_SERVER_ERROR })
+        .map_err(|e| {
+            tracing::error!("{e:#}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 // ── Career Growth handlers ────────────────────────────────────────────────────
@@ -385,7 +502,10 @@ pub async fn get_career_profile(
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     career::get_career_profile(&s.db, user_id)
         .await
-        .map_err(|e| { tracing::error!("{e:#}"); StatusCode::INTERNAL_SERVER_ERROR })?
+        .map_err(|e| {
+            tracing::error!("{e:#}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
         .map(|p| Json(p))
         .ok_or(StatusCode::NOT_FOUND)
 }
@@ -397,14 +517,17 @@ pub async fn list_milestones(
     career::list_milestones(&s.db, user_id)
         .await
         .map(|rows| Json(serde_json::json!({ "milestones": rows })))
-        .map_err(|e| { tracing::error!("{e:#}"); StatusCode::INTERNAL_SERVER_ERROR })
+        .map_err(|e| {
+            tracing::error!("{e:#}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 #[derive(Deserialize)]
 pub struct AwardMilestoneRequest {
     pub milestone_key: String,
-    pub label:         String,
-    pub xp_awarded:    Option<i32>,
+    pub label: String,
+    pub xp_awarded: Option<i32>,
 }
 
 pub async fn award_milestone(
@@ -414,8 +537,16 @@ pub async fn award_milestone(
 ) -> Result<(StatusCode, Json<serde_json::Value>), StatusCode> {
     career::award_milestone(&s.db, &s.kafka_brokers, user_id, body)
         .await
-        .map(|id| (StatusCode::CREATED, Json(serde_json::json!({ "milestone_id": id }))))
-        .map_err(|e| { tracing::error!("{e:#}"); StatusCode::INTERNAL_SERVER_ERROR })
+        .map(|id| {
+            (
+                StatusCode::CREATED,
+                Json(serde_json::json!({ "milestone_id": id })),
+            )
+        })
+        .map_err(|e| {
+            tracing::error!("{e:#}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 pub async fn list_skill_gaps(
@@ -425,7 +556,10 @@ pub async fn list_skill_gaps(
     career::list_skill_gaps(&s.db, user_id)
         .await
         .map(|rows| Json(serde_json::json!({ "gaps": rows })))
-        .map_err(|e| { tracing::error!("{e:#}"); StatusCode::INTERNAL_SERVER_ERROR })
+        .map_err(|e| {
+            tracing::error!("{e:#}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 pub async fn list_learning_paths(
@@ -435,15 +569,18 @@ pub async fn list_learning_paths(
     career::list_learning_paths(&s.db, user_id)
         .await
         .map(|rows| Json(serde_json::json!({ "paths": rows })))
-        .map_err(|e| { tracing::error!("{e:#}"); StatusCode::INTERNAL_SERVER_ERROR })
+        .map_err(|e| {
+            tracing::error!("{e:#}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 #[derive(Deserialize)]
 pub struct AssignPathRequest {
-    pub title:        String,
-    pub description:  Option<String>,
+    pub title: String,
+    pub description: Option<String>,
     pub skill_target: String,
-    pub steps:        serde_json::Value,
+    pub steps: serde_json::Value,
 }
 
 pub async fn assign_learning_path(
@@ -453,12 +590,22 @@ pub async fn assign_learning_path(
 ) -> Result<(StatusCode, Json<serde_json::Value>), StatusCode> {
     career::assign_learning_path(&s.db, &s.kafka_brokers, user_id, body)
         .await
-        .map(|id| (StatusCode::CREATED, Json(serde_json::json!({ "path_id": id }))))
-        .map_err(|e| { tracing::error!("{e:#}"); StatusCode::INTERNAL_SERVER_ERROR })
+        .map(|id| {
+            (
+                StatusCode::CREATED,
+                Json(serde_json::json!({ "path_id": id })),
+            )
+        })
+        .map_err(|e| {
+            tracing::error!("{e:#}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 #[derive(Deserialize)]
-pub struct UpdateProgressRequest { pub progress_pct: i16 }
+pub struct UpdateProgressRequest {
+    pub progress_pct: i16,
+}
 
 pub async fn update_path_progress(
     State(s): State<AppState>,
@@ -469,17 +616,20 @@ pub async fn update_path_progress(
     career::update_path_progress(&s.db, path_id, body.progress_pct)
         .await
         .map(|_| Json(serde_json::json!({ "ok": true })))
-        .map_err(|e| { tracing::error!("{e:#}"); StatusCode::INTERNAL_SERVER_ERROR })
+        .map_err(|e| {
+            tracing::error!("{e:#}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 // ── Well-Being handlers ───────────────────────────────────────────────────────
 
 #[derive(Deserialize)]
 pub struct CheckinRequest {
-    pub mood_score:   i16,
+    pub mood_score: i16,
     pub energy_score: i16,
     pub stress_score: i16,
-    pub notes:        Option<String>,
+    pub notes: Option<String>,
 }
 
 pub async fn submit_checkin(
@@ -489,8 +639,16 @@ pub async fn submit_checkin(
 ) -> Result<(StatusCode, Json<serde_json::Value>), StatusCode> {
     wellbeing::submit_checkin(&s.db, &s.kafka_brokers, user_id, body)
         .await
-        .map(|id| (StatusCode::CREATED, Json(serde_json::json!({ "checkin_id": id }))))
-        .map_err(|e| { tracing::error!("{e:#}"); StatusCode::INTERNAL_SERVER_ERROR })
+        .map(|id| {
+            (
+                StatusCode::CREATED,
+                Json(serde_json::json!({ "checkin_id": id })),
+            )
+        })
+        .map_err(|e| {
+            tracing::error!("{e:#}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 pub async fn list_checkins(
@@ -500,7 +658,10 @@ pub async fn list_checkins(
     wellbeing::list_checkins(&s.db, user_id)
         .await
         .map(|rows| Json(serde_json::json!({ "checkins": rows })))
-        .map_err(|e| { tracing::error!("{e:#}"); StatusCode::INTERNAL_SERVER_ERROR })
+        .map_err(|e| {
+            tracing::error!("{e:#}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 pub async fn get_burnout_signal(
@@ -509,7 +670,10 @@ pub async fn get_burnout_signal(
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     wellbeing::get_burnout_signal(&s.db, user_id)
         .await
-        .map_err(|e| { tracing::error!("{e:#}"); StatusCode::INTERNAL_SERVER_ERROR })?
+        .map_err(|e| {
+            tracing::error!("{e:#}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
         .map(|b| Json(b))
         .ok_or(StatusCode::NOT_FOUND)
 }
@@ -518,9 +682,9 @@ pub async fn get_burnout_signal(
 
 #[derive(Deserialize)]
 pub struct LogOffsetRequest {
-    pub offset_kg:      f64,
-    pub activity_type:  Option<String>,
-    pub provider:       Option<String>,
+    pub offset_kg: f64,
+    pub activity_type: Option<String>,
+    pub provider: Option<String>,
     pub certificate_url: Option<String>,
 }
 
@@ -531,8 +695,16 @@ pub async fn log_carbon_offset(
 ) -> Result<(StatusCode, Json<serde_json::Value>), StatusCode> {
     carbon::log_carbon_offset(&s.db, &s.kafka_brokers, user_id, body)
         .await
-        .map(|id| (StatusCode::CREATED, Json(serde_json::json!({ "offset_id": id }))))
-        .map_err(|e| { tracing::error!("{e:#}"); StatusCode::INTERNAL_SERVER_ERROR })
+        .map(|id| {
+            (
+                StatusCode::CREATED,
+                Json(serde_json::json!({ "offset_id": id })),
+            )
+        })
+        .map_err(|e| {
+            tracing::error!("{e:#}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 pub async fn get_carbon_footprint(
@@ -541,7 +713,10 @@ pub async fn get_carbon_footprint(
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     carbon::get_carbon_footprint(&s.db, user_id)
         .await
-        .map_err(|e| { tracing::error!("{e:#}"); StatusCode::INTERNAL_SERVER_ERROR })?
+        .map_err(|e| {
+            tracing::error!("{e:#}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
         .map(|f| Json(f))
         .ok_or(StatusCode::NOT_FOUND)
 }

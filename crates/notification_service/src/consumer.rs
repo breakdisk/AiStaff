@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 pub struct NotificationConsumer {
     consumer: KafkaConsumer,
-    fanout:   Arc<Fanout>,
+    fanout: Arc<Fanout>,
 }
 
 impl NotificationConsumer {
@@ -97,14 +97,12 @@ impl NotificationConsumer {
                         .and_then(|v| v.as_str())
                         .unwrap_or("");
 
-                    let row = sqlx::query(
-                        "SELECT email FROM unified_profiles WHERE id = $1::uuid",
-                    )
-                    .bind(licensee_id_str)
-                    .fetch_optional(&self.fanout.db)
-                    .await
-                    .ok()
-                    .flatten();
+                    let row = sqlx::query("SELECT email FROM unified_profiles WHERE id = $1::uuid")
+                        .bind(licensee_id_str)
+                        .fetch_optional(&self.fanout.db)
+                        .await
+                        .ok()
+                        .flatten();
 
                     let (recipient_id, to_addr) = if let Some(r) = row {
                         let email: String = r.get("email");
@@ -160,14 +158,13 @@ impl NotificationConsumer {
                         .unwrap_or("unknown");
 
                     // Look up the freelancer assigned to this deployment.
-                    let row = sqlx::query(
-                        "SELECT freelancer_id FROM deployments WHERE id = $1::uuid",
-                    )
-                    .bind(deployment_id)
-                    .fetch_optional(&self.fanout.db)
-                    .await
-                    .ok()
-                    .flatten();
+                    let row =
+                        sqlx::query("SELECT freelancer_id FROM deployments WHERE id = $1::uuid")
+                            .bind(deployment_id)
+                            .fetch_optional(&self.fanout.db)
+                            .await
+                            .ok()
+                            .flatten();
 
                     let (recipient_id, to_addr) = if let Some(r) = row {
                         let fid: uuid::Uuid = r.get("freelancer_id");
@@ -196,7 +193,6 @@ impl NotificationConsumer {
                 // ─────────────────────────────────────────────────────────────
                 // New handlers
                 // ─────────────────────────────────────────────────────────────
-
                 "EscrowRelease" => {
                     let developer_id_str = envelope
                         .payload
@@ -220,14 +216,13 @@ impl NotificationConsumer {
                         .unwrap_or(0);
 
                     // Look up developer email.
-                    let dev_row = sqlx::query(
-                        "SELECT email FROM unified_profiles WHERE id = $1::uuid",
-                    )
-                    .bind(developer_id_str)
-                    .fetch_optional(&self.fanout.db)
-                    .await
-                    .ok()
-                    .flatten();
+                    let dev_row =
+                        sqlx::query("SELECT email FROM unified_profiles WHERE id = $1::uuid")
+                            .bind(developer_id_str)
+                            .fetch_optional(&self.fanout.db)
+                            .await
+                            .ok()
+                            .flatten();
 
                     let (dev_id, dev_email) = if let Some(r) = dev_row {
                         let email: String = r.get("email");
@@ -239,14 +234,13 @@ impl NotificationConsumer {
                     };
 
                     // Look up talent email.
-                    let talent_row = sqlx::query(
-                        "SELECT email FROM unified_profiles WHERE id = $1::uuid",
-                    )
-                    .bind(talent_id_str)
-                    .fetch_optional(&self.fanout.db)
-                    .await
-                    .ok()
-                    .flatten();
+                    let talent_row =
+                        sqlx::query("SELECT email FROM unified_profiles WHERE id = $1::uuid")
+                            .bind(talent_id_str)
+                            .fetch_optional(&self.fanout.db)
+                            .await
+                            .ok()
+                            .flatten();
 
                     let (talent_id, talent_email) = if let Some(r) = talent_row {
                         let email: String = r.get("email");
@@ -257,7 +251,7 @@ impl NotificationConsumer {
                         (uuid::Uuid::new_v4(), "ops@aistaff.app".to_string())
                     };
 
-                    let dev_usd   = developer_cents / 100;
+                    let dev_usd = developer_cents / 100;
                     let talent_usd = talent_cents / 100;
 
                     self.fanout
@@ -319,14 +313,13 @@ impl NotificationConsumer {
                         .and_then(|v| v.as_str())
                         .unwrap_or("no reason provided");
 
-                    let talent_row = sqlx::query(
-                        "SELECT email FROM unified_profiles WHERE id = $1::uuid",
-                    )
-                    .bind(talent_id_str)
-                    .fetch_optional(&self.fanout.db)
-                    .await
-                    .ok()
-                    .flatten();
+                    let talent_row =
+                        sqlx::query("SELECT email FROM unified_profiles WHERE id = $1::uuid")
+                            .bind(talent_id_str)
+                            .fetch_optional(&self.fanout.db)
+                            .await
+                            .ok()
+                            .flatten();
 
                     let (talent_id, talent_email) = if let Some(r) = talent_row {
                         let email: String = r.get("email");
@@ -370,25 +363,23 @@ impl NotificationConsumer {
                         .unwrap_or("");
 
                     // Look up the requester from match_requests.
-                    let req_row = sqlx::query(
-                        "SELECT requester_id FROM match_requests WHERE id = $1::uuid",
-                    )
-                    .bind(request_id_str)
-                    .fetch_optional(&self.fanout.db)
-                    .await
-                    .ok()
-                    .flatten();
+                    let req_row =
+                        sqlx::query("SELECT requester_id FROM match_requests WHERE id = $1::uuid")
+                            .bind(request_id_str)
+                            .fetch_optional(&self.fanout.db)
+                            .await
+                            .ok()
+                            .flatten();
 
                     let (requester_id, requester_email) = if let Some(r) = req_row {
                         let rid: uuid::Uuid = r.get("requester_id");
-                        let email_row = sqlx::query(
-                            "SELECT email FROM unified_profiles WHERE id = $1",
-                        )
-                        .bind(rid)
-                        .fetch_optional(&self.fanout.db)
-                        .await
-                        .ok()
-                        .flatten();
+                        let email_row =
+                            sqlx::query("SELECT email FROM unified_profiles WHERE id = $1")
+                                .bind(rid)
+                                .fetch_optional(&self.fanout.db)
+                                .await
+                                .ok()
+                                .flatten();
 
                         let email = email_row
                             .map(|er| er.try_get::<String, _>("email").unwrap_or_default())
@@ -440,14 +431,13 @@ impl NotificationConsumer {
                         .unwrap_or("");
 
                     // Look up claimant email.
-                    let claimant_row = sqlx::query(
-                        "SELECT email FROM unified_profiles WHERE id = $1::uuid",
-                    )
-                    .bind(claimant_id_str)
-                    .fetch_optional(&self.fanout.db)
-                    .await
-                    .ok()
-                    .flatten();
+                    let claimant_row =
+                        sqlx::query("SELECT email FROM unified_profiles WHERE id = $1::uuid")
+                            .bind(claimant_id_str)
+                            .fetch_optional(&self.fanout.db)
+                            .await
+                            .ok()
+                            .flatten();
 
                     let (claimant_id, claimant_email) = if let Some(r) = claimant_row {
                         let email: String = r.get("email");
@@ -544,14 +534,13 @@ impl NotificationConsumer {
                         .unwrap_or("");
 
                     // Look up mentor email.
-                    let mentor_row = sqlx::query(
-                        "SELECT email FROM unified_profiles WHERE id = $1::uuid",
-                    )
-                    .bind(mentor_id_str)
-                    .fetch_optional(&self.fanout.db)
-                    .await
-                    .ok()
-                    .flatten();
+                    let mentor_row =
+                        sqlx::query("SELECT email FROM unified_profiles WHERE id = $1::uuid")
+                            .bind(mentor_id_str)
+                            .fetch_optional(&self.fanout.db)
+                            .await
+                            .ok()
+                            .flatten();
 
                     let (mentor_id, mentor_email) = if let Some(r) = mentor_row {
                         let email: String = r.get("email");
@@ -563,14 +552,13 @@ impl NotificationConsumer {
                     };
 
                     // Look up mentee email.
-                    let mentee_row = sqlx::query(
-                        "SELECT email FROM unified_profiles WHERE id = $1::uuid",
-                    )
-                    .bind(mentee_id_str)
-                    .fetch_optional(&self.fanout.db)
-                    .await
-                    .ok()
-                    .flatten();
+                    let mentee_row =
+                        sqlx::query("SELECT email FROM unified_profiles WHERE id = $1::uuid")
+                            .bind(mentee_id_str)
+                            .fetch_optional(&self.fanout.db)
+                            .await
+                            .ok()
+                            .flatten();
 
                     let (mentee_id, mentee_email) = if let Some(r) = mentee_row {
                         let email: String = r.get("email");

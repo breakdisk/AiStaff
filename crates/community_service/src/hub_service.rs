@@ -18,18 +18,21 @@ pub async fn list_hubs(db: &Db, category: Option<&str>, limit: i64) -> Result<Ve
                WHERE category = $1
                ORDER BY member_count DESC, created_at DESC
                LIMIT $2"#,
-            cat, limit
+            cat,
+            limit
         )
         .fetch_all(db)
         .await?
         .into_iter()
-        .map(|r| serde_json::json!({
-            "id": r.id, "slug": r.slug, "name": r.name,
-            "description": r.description, "category": r.category,
-            "timezone": r.timezone, "owner_id": r.owner_id,
-            "member_count": r.member_count, "is_private": r.is_private,
-            "created_at": r.created_at,
-        }))
+        .map(|r| {
+            serde_json::json!({
+                "id": r.id, "slug": r.slug, "name": r.name,
+                "description": r.description, "category": r.category,
+                "timezone": r.timezone, "owner_id": r.owner_id,
+                "member_count": r.member_count, "is_private": r.is_private,
+                "created_at": r.created_at,
+            })
+        })
         .collect()
     } else {
         sqlx::query!(
@@ -43,13 +46,15 @@ pub async fn list_hubs(db: &Db, category: Option<&str>, limit: i64) -> Result<Ve
         .fetch_all(db)
         .await?
         .into_iter()
-        .map(|r| serde_json::json!({
-            "id": r.id, "slug": r.slug, "name": r.name,
-            "description": r.description, "category": r.category,
-            "timezone": r.timezone, "owner_id": r.owner_id,
-            "member_count": r.member_count, "is_private": r.is_private,
-            "created_at": r.created_at,
-        }))
+        .map(|r| {
+            serde_json::json!({
+                "id": r.id, "slug": r.slug, "name": r.name,
+                "description": r.description, "category": r.category,
+                "timezone": r.timezone, "owner_id": r.owner_id,
+                "member_count": r.member_count, "is_private": r.is_private,
+                "created_at": r.created_at,
+            })
+        })
         .collect()
     };
     Ok(rows)
@@ -92,19 +97,22 @@ pub async fn get_hub(db: &Db, hub_id: Uuid) -> Result<Option<Value>> {
     .fetch_optional(db)
     .await?;
 
-    Ok(row.map(|r| serde_json::json!({
-        "id": r.id, "slug": r.slug, "name": r.name,
-        "description": r.description, "category": r.category,
-        "timezone": r.timezone, "owner_id": r.owner_id,
-        "member_count": r.member_count, "is_private": r.is_private,
-        "created_at": r.created_at,
-    })))
+    Ok(row.map(|r| {
+        serde_json::json!({
+            "id": r.id, "slug": r.slug, "name": r.name,
+            "description": r.description, "category": r.category,
+            "timezone": r.timezone, "owner_id": r.owner_id,
+            "member_count": r.member_count, "is_private": r.is_private,
+            "created_at": r.created_at,
+        })
+    }))
 }
 
 pub async fn join_hub(db: &Db, hub_id: Uuid, user_id: Uuid) -> Result<()> {
     sqlx::query!(
         "INSERT INTO hub_memberships (hub_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
-        hub_id, user_id
+        hub_id,
+        user_id
     )
     .execute(db)
     .await?;
@@ -121,7 +129,8 @@ pub async fn join_hub(db: &Db, hub_id: Uuid, user_id: Uuid) -> Result<()> {
 pub async fn leave_hub(db: &Db, hub_id: Uuid, user_id: Uuid) -> Result<()> {
     let rows = sqlx::query!(
         "DELETE FROM hub_memberships WHERE hub_id = $1 AND user_id = $2 AND role != 'owner'",
-        hub_id, user_id
+        hub_id,
+        user_id
     )
     .execute(db)
     .await?
@@ -151,13 +160,15 @@ pub async fn list_hub_events(db: &Db, hub_id: Uuid) -> Result<Vec<Value>> {
     .fetch_all(db)
     .await?
     .into_iter()
-    .map(|r| serde_json::json!({
-        "id": r.id, "title": r.title, "description": r.description,
-        "event_type": r.event_type, "timezone": r.timezone,
-        "starts_at": r.starts_at, "ends_at": r.ends_at,
-        "max_attendees": r.max_attendees, "attendee_count": r.attendee_count,
-        "meeting_url": r.meeting_url, "created_at": r.created_at,
-    }))
+    .map(|r| {
+        serde_json::json!({
+            "id": r.id, "title": r.title, "description": r.description,
+            "event_type": r.event_type, "timezone": r.timezone,
+            "starts_at": r.starts_at, "ends_at": r.ends_at,
+            "max_attendees": r.max_attendees, "attendee_count": r.attendee_count,
+            "meeting_url": r.meeting_url, "created_at": r.created_at,
+        })
+    })
     .collect();
     Ok(rows)
 }
@@ -188,7 +199,8 @@ pub async fn create_hub_event(db: &Db, hub_id: Uuid, req: CreateEventRequest) ->
 pub async fn rsvp_event(db: &Db, event_id: Uuid, user_id: Uuid) -> Result<()> {
     sqlx::query!(
         "INSERT INTO event_attendees (event_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
-        event_id, user_id
+        event_id,
+        user_id
     )
     .execute(db)
     .await?;
@@ -214,11 +226,13 @@ pub async fn list_threads(db: &Db, hub_id: Uuid) -> Result<Vec<Value>> {
     .fetch_all(db)
     .await?
     .into_iter()
-    .map(|r| serde_json::json!({
-        "id": r.id, "author_id": r.author_id, "title": r.title,
-        "body": r.body, "reply_count": r.reply_count,
-        "pinned": r.pinned, "locked": r.locked, "created_at": r.created_at,
-    }))
+    .map(|r| {
+        serde_json::json!({
+            "id": r.id, "author_id": r.author_id, "title": r.title,
+            "body": r.body, "reply_count": r.reply_count,
+            "pinned": r.pinned, "locked": r.locked, "created_at": r.created_at,
+        })
+    })
     .collect();
     Ok(rows)
 }
@@ -241,11 +255,13 @@ pub async fn get_thread(db: &Db, thread_id: Uuid) -> Result<Option<Value>> {
     )
     .fetch_optional(db)
     .await?;
-    Ok(row.map(|r| serde_json::json!({
-        "id": r.id, "hub_id": r.hub_id, "author_id": r.author_id,
-        "title": r.title, "body": r.body, "reply_count": r.reply_count,
-        "pinned": r.pinned, "locked": r.locked, "created_at": r.created_at,
-    })))
+    Ok(row.map(|r| {
+        serde_json::json!({
+            "id": r.id, "hub_id": r.hub_id, "author_id": r.author_id,
+            "title": r.title, "body": r.body, "reply_count": r.reply_count,
+            "pinned": r.pinned, "locked": r.locked, "created_at": r.created_at,
+        })
+    }))
 }
 
 pub async fn list_posts(db: &Db, thread_id: Uuid) -> Result<Vec<Value>> {
@@ -266,7 +282,9 @@ pub async fn list_posts(db: &Db, thread_id: Uuid) -> Result<Vec<Value>> {
 pub async fn create_post(db: &Db, thread_id: Uuid, req: CreatePostRequest) -> Result<Uuid> {
     let id = sqlx::query_scalar!(
         "INSERT INTO forum_posts (thread_id, author_id, body) VALUES ($1, $2, $3) RETURNING id",
-        thread_id, req.author_id, req.body
+        thread_id,
+        req.author_id,
+        req.body
     )
     .fetch_one(db)
     .await?;

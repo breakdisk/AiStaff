@@ -261,7 +261,7 @@ export default function DashboardPage() {
       await exportVc(reputation.talentId);
       setReputation((prev) => ({ ...prev, vcIssued: true }));
     } catch {
-      console.error("VC export failed — service unavailable");
+      // VC export service unavailable — silently degrade
     } finally {
       setVcExporting(false);
     }
@@ -443,12 +443,12 @@ export default function DashboardPage() {
             {...DEMO_DEPLOYMENT}
             onVeto={async (id, reason) => {
               await vetoDeployment(id, DEMO_DEPLOYMENT.talentId, reason).catch(() => {
-                console.warn("Veto API unavailable — local state only");
+                // Veto API unavailable — local state only
               });
             }}
             onApprove={async (id) => {
               await approveDeployment(id, DEMO_DEPLOYMENT.talentId).catch(() => {
-                console.warn("Approve API unavailable — local state only");
+                // Approve API unavailable — local state only
               });
             }}
           />

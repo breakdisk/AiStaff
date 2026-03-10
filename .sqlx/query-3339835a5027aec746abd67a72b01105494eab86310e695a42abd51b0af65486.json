@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE career_profiles\n           SET total_xp = total_xp + $2,\n               milestone_count = milestone_count + 1,\n               updated_at = NOW()\n           WHERE user_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3339835a5027aec746abd67a72b01105494eab86310e695a42abd51b0af65486"
+}

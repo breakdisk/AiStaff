@@ -3,7 +3,10 @@ mod matcher;
 mod orchestrator;
 
 use anyhow::Result;
-use axum::{routing::{get, post}, Router};
+use axum::{
+    routing::{get, post},
+    Router,
+};
 use dotenvy::dotenv;
 use handlers::{AppState, SharedState};
 use matcher::Matcher;
@@ -22,21 +25,23 @@ async fn main() -> Result<()> {
         .init();
 
     let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL");
-    let db     = PgPool::connect(&db_url).await?;
+    let db = PgPool::connect(&db_url).await?;
 
-    let compliance_url = std::env::var("COMPLIANCE_SERVICE_URL")
-        .unwrap_or_else(|_| "http://localhost:3006".into());
+    let compliance_url =
+        std::env::var("COMPLIANCE_SERVICE_URL").unwrap_or_else(|_| "http://localhost:3006".into());
 
     let state: SharedState = Arc::new(AppState {
-        matcher:      Matcher::new(db),
+        matcher: Matcher::new(db),
         orchestrator: SowOrchestrator::new(compliance_url),
     });
 
     let app = Router::new()
-        .route("/health",            get(handlers::health))
-        .route("/match",             post(handlers::match_talent))
-        .route("/talent/:id/skills",
-               get(handlers::get_talent_skills).post(handlers::upsert_skill))
+        .route("/health", get(handlers::health))
+        .route("/match", post(handlers::match_talent))
+        .route(
+            "/talent/:id/skills",
+            get(handlers::get_talent_skills).post(handlers::upsert_skill),
+        )
         .with_state(state)
         .layer(TraceLayer::new_for_http());
 

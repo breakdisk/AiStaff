@@ -67,13 +67,15 @@ pub async fn get_carbon_footprint(db: &Db, user_id: Uuid) -> Result<Option<Value
     .fetch_optional(db)
     .await?;
 
-    Ok(row.map(|r| serde_json::json!({
-        "id": r.id,
-        "total_kg_offset":  r.total_kg_offset,
-        "total_kg_emitted": r.total_kg_emitted,
-        "net_kg":           r.net_kg,
-        "updated_at":       r.updated_at,
-    })))
+    Ok(row.map(|r| {
+        serde_json::json!({
+            "id": r.id,
+            "total_kg_offset":  r.total_kg_offset,
+            "total_kg_emitted": r.total_kg_emitted,
+            "net_kg":           r.net_kg,
+            "updated_at":       r.updated_at,
+        })
+    }))
 }
 
 // ── Kafka helper ──────────────────────────────────────────────────────────────
@@ -84,11 +86,14 @@ async fn emit_event(brokers: &str, topic: &str, envelope: &EventEnvelope) {
         .set("message.timeout.ms", "5000")
         .create()
     {
-        Ok(p)  => p,
-        Err(e) => { tracing::warn!("kafka producer init failed: {e}"); return; }
+        Ok(p) => p,
+        Err(e) => {
+            tracing::warn!("kafka producer init failed: {e}");
+            return;
+        }
     };
     let payload = serde_json::to_string(envelope).unwrap_or_default();
-    let record  = FutureRecord::to(topic).payload(&payload).key("carbon");
+    let record = FutureRecord::to(topic).payload(&payload).key("carbon");
     if let Err((e, _)) = producer.send(record, Duration::from_secs(5)).await {
         tracing::warn!("kafka emit failed: {e}");
     }

@@ -105,10 +105,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }),
   ]);
 
-  console.log(
-    `[proposals/submit] ${proposal_id} stored | freelancer notified: ${freelancerSent} | client notified: ${clientSent}`,
-  );
-
   return NextResponse.json({
     proposal_id,
     submitted_at,

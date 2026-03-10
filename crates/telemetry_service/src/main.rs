@@ -21,10 +21,10 @@ async fn main() -> Result<()> {
         .with(fmt::layer().json())
         .init();
 
-    let db_url  = std::env::var("DATABASE_URL").expect("DATABASE_URL");
+    let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL");
     let brokers = std::env::var("KAFKA_BROKERS").expect("KAFKA_BROKERS");
 
-    let db       = PgPool::connect(&db_url).await?;
+    let db = PgPool::connect(&db_url).await?;
     let producer = KafkaProducer::new(&brokers)?;
     let detector = DriftDetector::new(db.clone(), producer);
 
@@ -38,19 +38,20 @@ async fn main() -> Result<()> {
     let app = Router::new()
         .route("/health", get(handlers::health))
         .route("/deployments/:id/heartbeats", get(handlers::get_heartbeats))
-        .route("/deployments/:id/drift",      get(handlers::get_drift_events))
+        .route("/deployments/:id/drift", get(handlers::get_drift_events))
         .with_state(db)
         .layer(TraceLayer::new_for_http());
 
-    let addr     = "0.0.0.0:3007";
+    let addr = "0.0.0.0:3007";
     let listener = tokio::net::TcpListener::bind(addr).await?;
     tracing::info!("telemetry-service listening on {addr}");
 
-    let kafka_task = tokio::spawn(async move {
-        TelemetryConsumer::new(consumer, detector).run().await
-    });
-    let http_task  = tokio::spawn(async move {
-        axum::serve(listener, app).await.map_err(anyhow::Error::from)
+    let kafka_task =
+        tokio::spawn(async move { TelemetryConsumer::new(consumer, detector).run().await });
+    let http_task = tokio::spawn(async move {
+        axum::serve(listener, app)
+            .await
+            .map_err(anyhow::Error::from)
     });
 
     tokio::select! {

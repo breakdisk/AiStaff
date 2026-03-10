@@ -22,14 +22,11 @@ use tokio::sync::oneshot;
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
-const VETO_WINDOW_SECS:       u64 = 30;
+const VETO_WINDOW_SECS: u64 = 30;
 const BIOMETRIC_TIMEOUT_SECS: u64 = 86_400; // 24 hours
 
 /// Entry point — consumes `deployment.complete` and spawns a handler per event.
-pub async fn run_veto_payout_consumer(
-    db:      PgPool,
-    brokers: String,
-) -> anyhow::Result<()> {
+pub async fn run_veto_payout_consumer(db: PgPool, brokers: String) -> anyhow::Result<()> {
     let producer = std::sync::Arc::new(KafkaProducer::new(&brokers)?);
 
     let consumer = KafkaConsumer::new(
@@ -75,15 +72,16 @@ pub async fn run_veto_payout_consumer(
 }
 
 async fn handle_deployment_complete(
-    event:    DeploymentComplete,
-    db:       PgPool,
+    event: DeploymentComplete,
+    db: PgPool,
     producer: std::sync::Arc<KafkaProducer>,
-    brokers:  String,
+    brokers: String,
 ) {
     let did = event.deployment_id;
 
     if let Err(e) = set_state(&db, did, "VETO_WINDOW").await {
-        error!(%did, "set_state VETO_WINDOW: {e}"); return;
+        error!(%did, "set_state VETO_WINDOW: {e}");
+        return;
     }
 
     // ── Open veto listener ────────────────────────────────────────────────
@@ -96,7 +94,9 @@ async fn handle_deployment_complete(
                 &brokers_v,
                 &format!("payout-veto-{did}"),
                 &[TOPIC_PAYOUT_VETO],
-            ) else { return; };
+            ) else {
+                return;
+            };
 
             loop {
                 if let Some((_, payload)) = consumer.next_payload().await {
@@ -183,7 +183,8 @@ async fn wait_for_biometric(brokers: &str, target: Uuid) -> Option<BiometricSign
         brokers,
         &format!("payout-bio-{target}"),
         &[TOPIC_BIOMETRIC_SIGNOFF],
-    ).ok()?;
+    )
+    .ok()?;
 
     loop {
         let (_, payload) = consumer.next_payload().await?;
@@ -208,7 +209,7 @@ fn verify_zk_proof(bio: &BiometricSignoff) -> anyhow::Result<bool> {
 
 /// Pure escrow split — keeps integer arithmetic exact.
 pub fn split_70_30(total_cents: u64) -> (u64, u64) {
-    let dev_cents    = total_cents * 70 / 100;
+    let dev_cents = total_cents * 70 / 100;
     let talent_cents = total_cents - dev_cents; // remainder goes to talent
     (dev_cents, talent_cents)
 }

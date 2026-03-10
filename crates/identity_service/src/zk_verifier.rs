@@ -17,7 +17,7 @@ use blake3::Hasher;
 /// Public inputs visible to the verifier — no biometric data.
 pub struct ZkPublicInputs {
     /// Blake3(nonce) — prevents replay attacks.
-    pub nonce_hash:          [u8; 32],
+    pub nonce_hash: [u8; 32],
     /// Blake3(nonce || zk_proof_bytes) commitment stored in `UnifiedProfile`.
     pub liveness_commitment: [u8; 32],
 }
@@ -29,8 +29,8 @@ pub struct ZkPublicInputs {
 /// Returns `Err` only on deserialization / runtime failures.
 pub fn verify_liveness_proof(
     proof_bytes: &[u8],
-    vk_bytes:    &[u8],
-    public_in:   &ZkPublicInputs,
+    vk_bytes: &[u8],
+    public_in: &ZkPublicInputs,
 ) -> Result<bool> {
     let proof = Proof::<Bn254>::deserialize_compressed(proof_bytes)
         .map_err(|e| anyhow!("Failed to deserialize ZK proof: {e}"))?;

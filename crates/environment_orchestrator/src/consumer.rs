@@ -8,12 +8,16 @@ use sqlx::PgPool;
 pub struct OrchestratorConsumer {
     pub consumer: KafkaConsumer,
     pub producer: KafkaProducer,
-    pub db:       PgPool,
+    pub db: PgPool,
 }
 
 impl OrchestratorConsumer {
     pub fn new(consumer: KafkaConsumer, producer: KafkaProducer, db: PgPool) -> Self {
-        Self { consumer, producer, db }
+        Self {
+            consumer,
+            producer,
+            db,
+        }
     }
 
     pub async fn run(self) -> Result<()> {

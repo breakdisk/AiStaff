@@ -7,9 +7,7 @@ use std::path::{Path, PathBuf};
 /// Resolves `path` relative to `root`, refusing path traversal attempts.
 fn safe_join(root: &Path, path: &str) -> Result<PathBuf> {
     let joined = root.join(path);
-    let canonical = joined
-        .canonicalize()
-        .unwrap_or_else(|_| joined.clone()); // allow non-existent for write
+    let canonical = joined.canonicalize().unwrap_or_else(|_| joined.clone()); // allow non-existent for write
     if !canonical.starts_with(root) {
         bail!("Path traversal denied: '{}' escapes sandbox root", path);
     }

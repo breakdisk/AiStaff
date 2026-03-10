@@ -89,7 +89,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       } satisfies PMAgentResponse);
     }
   } catch (err) {
-    console.error("[pm-agent] node error:", err);
+    void err;
     return NextResponse.json(
       { error: "Agent error — check ANTHROPIC_API_KEY in .env.local" },
       { status: 500 },

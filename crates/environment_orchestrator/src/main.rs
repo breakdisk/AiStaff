@@ -17,11 +17,11 @@ async fn main() -> Result<()> {
         .with(fmt::layer().json())
         .init();
 
-    let db_url      = std::env::var("DATABASE_URL").expect("DATABASE_URL");
-    let brokers     = std::env::var("KAFKA_BROKERS").expect("KAFKA_BROKERS");
-    let group_id    = "environment-orchestrator";
+    let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL");
+    let brokers = std::env::var("KAFKA_BROKERS").expect("KAFKA_BROKERS");
+    let group_id = "environment-orchestrator";
 
-    let db       = PgPool::connect(&db_url).await?;
+    let db = PgPool::connect(&db_url).await?;
     let producer = KafkaProducer::new(&brokers)?;
     let consumer = KafkaConsumer::new(
         &brokers,

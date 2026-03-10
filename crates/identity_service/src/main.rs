@@ -19,7 +19,10 @@ use stitch_logic::{StitchConfig, StitchService};
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     dotenv().ok();
-    fmt().with_env_filter(EnvFilter::from_default_env()).json().init();
+    fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .json()
+        .init();
 
     let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let zk_vk_path = std::env::var("ZK_VERIFYING_KEY_PATH")
@@ -44,7 +47,10 @@ async fn main() -> anyhow::Result<()> {
         .route("/health", get(handlers::health))
         .route("/identity/stitch", post(handlers::stitch_identity))
         .route("/identity/wallet-redirect", get(handlers::wallet_redirect))
-        .route("/identity/biometric-callback", post(handlers::biometric_callback))
+        .route(
+            "/identity/biometric-callback",
+            post(handlers::biometric_callback),
+        )
         .with_state(svc);
 
     let addr = "0.0.0.0:3001";

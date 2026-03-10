@@ -5,11 +5,7 @@ use uuid::Uuid;
 
 /// Validates that a license is active, not revoked, not expired, and covers the
 /// requested jurisdiction.
-pub async fn validate(
-    db:           &PgPool,
-    license_id:   Uuid,
-    jurisdiction: &str,
-) -> Result<()> {
+pub async fn validate(db: &PgPool, license_id: Uuid, jurisdiction: &str) -> Result<()> {
     let row = sqlx::query!(
         "SELECT jurisdiction, expires_at, revoked_at
          FROM licenses WHERE id = $1",

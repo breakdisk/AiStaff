@@ -45,11 +45,13 @@ pub async fn list_checkins(db: &Db, user_id: Uuid) -> Result<Vec<Value>> {
     .fetch_all(db)
     .await?
     .into_iter()
-    .map(|r| serde_json::json!({
-        "id": r.id, "mood_score": r.mood_score, "energy_score": r.energy_score,
-        "stress_score": r.stress_score, "notes": r.notes,
-        "checked_in_at": r.checked_in_at,
-    }))
+    .map(|r| {
+        serde_json::json!({
+            "id": r.id, "mood_score": r.mood_score, "energy_score": r.energy_score,
+            "stress_score": r.stress_score, "notes": r.notes,
+            "checked_in_at": r.checked_in_at,
+        })
+    })
     .collect();
     Ok(rows)
 }
@@ -64,29 +66,25 @@ pub async fn get_burnout_signal(db: &Db, user_id: Uuid) -> Result<Option<Value>>
     .fetch_optional(db)
     .await?;
 
-    Ok(row.map(|r| serde_json::json!({
-        "id": r.id, "risk_level": r.risk_level, "risk_score": r.risk_score,
-        "avg_stress_7d": r.avg_stress_7d, "avg_mood_7d": r.avg_mood_7d,
-        "checkin_streak": r.checkin_streak, "last_alert_at": r.last_alert_at,
-        "computed_at": r.computed_at,
-    })))
+    Ok(row.map(|r| {
+        serde_json::json!({
+            "id": r.id, "risk_level": r.risk_level, "risk_score": r.risk_score,
+            "avg_stress_7d": r.avg_stress_7d, "avg_mood_7d": r.avg_mood_7d,
+            "checkin_streak": r.checkin_streak, "last_alert_at": r.last_alert_at,
+            "computed_at": r.computed_at,
+        })
+    }))
 }
 
 /// Rolling 7-day burnout computation.
 /// risk_score = (avg_stress_7d * 1.5 + (10 - avg_mood_7d) * 0.5) * 5  capped at 100.
 /// risk_level: 0-29 = low, 30-59 = medium, 60-79 = high, 80+ = critical.
 async fn recompute_burnout(db: &Db, kafka_brokers: &str, user_id: Uuid) -> Result<()> {
-    struct Stats {
-        avg_stress: f64,
-        avg_mood: f64,
-        streak: i64,
-    }
-
     let row = sqlx::query!(
         r#"SELECT
-               COALESCE(AVG(stress_score) FILTER (WHERE checked_in_at > NOW() - INTERVAL '7 days'), 0) AS avg_stress,
-               COALESCE(AVG(mood_score)   FILTER (WHERE checked_in_at > NOW() - INTERVAL '7 days'), 5) AS avg_mood,
-               COUNT(DISTINCT checked_in_at::date)                                                    AS streak
+               COALESCE(AVG(stress_score) FILTER (WHERE checked_in_at > NOW() - INTERVAL '7 days'), 0)::FLOAT8 AS avg_stress,
+               COALESCE(AVG(mood_score)   FILTER (WHERE checked_in_at > NOW() - INTERVAL '7 days'), 5)::FLOAT8 AS avg_mood,
+               COUNT(DISTINCT checked_in_at::date)                                                              AS streak
            FROM wellbeing_checkins
            WHERE user_id = $1 AND checked_in_at > NOW() - INTERVAL '7 days'"#,
         user_id
@@ -94,21 +92,21 @@ async fn recompute_burnout(db: &Db, kafka_brokers: &str, user_id: Uuid) -> Resul
     .fetch_one(db)
     .await?;
 
-    let avg_stress: f64 = row.avg_stress.unwrap_or(0.0).try_into().unwrap_or(0.0);
-    let avg_mood: f64   = row.avg_mood.unwrap_or(5.0).try_into().unwrap_or(5.0);
-    let streak: i64     = row.streak.unwrap_or(0);
+    let avg_stress: f64 = row.avg_stress.unwrap_or(0.0);
+    let avg_mood: f64 = row.avg_mood.unwrap_or(5.0);
+    let streak: i64 = row.streak.unwrap_or(0);
 
     let raw_score = (avg_stress * 1.5 + (10.0 - avg_mood) * 0.5) * 5.0;
     let risk_score: i16 = raw_score.clamp(0.0, 100.0) as i16;
 
     let risk_level = match risk_score {
-        0..=29  => "low",
+        0..=29 => "low",
         30..=59 => "medium",
         60..=79 => "high",
-        _       => "critical",
+        _ => "critical",
     };
 
-    let prev = sqlx::query_scalar!(
+    let prev: Option<String> = sqlx::query_scalar!(
         "SELECT risk_level FROM burnout_signals WHERE user_id = $1",
         user_id
     )
@@ -173,11 +171,14 @@ async fn emit_event(brokers: &str, topic: &str, envelope: &EventEnvelope) {
         .set("message.timeout.ms", "5000")
         .create()
     {
-        Ok(p)  => p,
-        Err(e) => { tracing::warn!("kafka producer init failed: {e}"); return; }
+        Ok(p) => p,
+        Err(e) => {
+            tracing::warn!("kafka producer init failed: {e}");
+            return;
+        }
     };
     let payload = serde_json::to_string(envelope).unwrap_or_default();
-    let record  = FutureRecord::to(topic).payload(&payload).key("wellbeing");
+    let record = FutureRecord::to(topic).payload(&payload).key("wellbeing");
     if let Err((e, _)) = producer.send(record, Duration::from_secs(5)).await {
         tracing::warn!("kafka emit failed: {e}");
     }

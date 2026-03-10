@@ -15,14 +15,14 @@ impl ContractService {
     /// Creates a DRAFT contract. Returns `(contract_id, document_hash)`.
     pub async fn create_draft(
         &self,
-        contract_type:  &str,
-        party_a:        Uuid,
-        party_b:        Uuid,
-        deployment_id:  Option<Uuid>,
+        contract_type: &str,
+        party_a: Uuid,
+        party_b: Uuid,
+        deployment_id: Option<Uuid>,
         document_bytes: &[u8],
     ) -> Result<(Uuid, String)> {
         let hash = hex::encode(Sha256::digest(document_bytes));
-        let id   = Uuid::new_v4();
+        let id = Uuid::new_v4();
 
         sqlx::query!(
             "INSERT INTO contracts

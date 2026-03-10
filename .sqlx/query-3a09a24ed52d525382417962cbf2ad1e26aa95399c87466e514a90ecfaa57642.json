@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE mentor_profiles SET current_mentees = current_mentees + 1 WHERE user_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3a09a24ed52d525382417962cbf2ad1e26aa95399c87466e514a90ecfaa57642"
+}

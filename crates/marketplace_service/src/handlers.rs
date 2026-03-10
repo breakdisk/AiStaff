@@ -16,7 +16,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 pub struct AppState {
-    pub db:       PgPool,
+    pub db: PgPool,
     pub producer: KafkaProducer,
 }
 
@@ -26,19 +26,19 @@ pub type SharedState = Arc<AppState>;
 
 #[derive(Debug, Deserialize)]
 pub struct CreateDeploymentRequest {
-    pub agent_id:             Uuid,
-    pub client_id:            Uuid,
-    pub freelancer_id:        Uuid,
+    pub agent_id: Uuid,
+    pub client_id: Uuid,
+    pub freelancer_id: Uuid,
     /// SHA-256 hex of the agent Wasm artifact — used for drift detection.
-    pub agent_artifact_hash:  String,
+    pub agent_artifact_hash: String,
     /// Total escrow in USD cents (developer 70% + talent 30%).
-    pub escrow_amount_cents:  i64,
+    pub escrow_amount_cents: i64,
 }
 
 #[derive(Debug, Serialize)]
 pub struct CreateDeploymentResponse {
     pub deployment_id: Uuid,
-    pub state:         String,
+    pub state: String,
 }
 
 pub async fn create_deployment(
@@ -70,15 +70,19 @@ pub async fn create_deployment(
     // 2. Publish DeploymentStarted → wakes the environment_orchestrator.
     let event = DeploymentStarted {
         deployment_id,
-        agent_id:     req.agent_id,
-        client_id:    req.client_id,
+        agent_id: req.agent_id,
+        client_id: req.client_id,
         freelancer_id: req.freelancer_id,
     };
     let envelope = EventEnvelope::new("DeploymentStarted", &event);
 
     if let Err(e) = state
         .producer
-        .publish(TOPIC_DEPLOYMENT_STARTED, &deployment_id.to_string(), &envelope)
+        .publish(
+            TOPIC_DEPLOYMENT_STARTED,
+            &deployment_id.to_string(),
+            &envelope,
+        )
         .await
     {
         // Kafka unavailable — deployment row is already created, log the gap.
@@ -131,18 +135,22 @@ pub async fn get_deployment(
             let created: chrono::DateTime<chrono::Utc> = r.get("created_at");
             let updated: chrono::DateTime<chrono::Utc> = r.get("updated_at");
 
-            (StatusCode::OK, Json(serde_json::json!({
-                "id":                   dep_id,
-                "agent_id":             agent_id,
-                "client_id":            client_id,
-                "freelancer_id":        freelancer_id,
-                "agent_artifact_hash":  hash,
-                "escrow_amount_cents":  cents,
-                "state":                state_str,
-                "failure_reason":       failure,
-                "created_at":           created.to_rfc3339(),
-                "updated_at":           updated.to_rfc3339(),
-            }))).into_response()
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({
+                    "id":                   dep_id,
+                    "agent_id":             agent_id,
+                    "client_id":            client_id,
+                    "freelancer_id":        freelancer_id,
+                    "agent_artifact_hash":  hash,
+                    "escrow_amount_cents":  cents,
+                    "state":                state_str,
+                    "failure_reason":       failure,
+                    "created_at":           created.to_rfc3339(),
+                    "updated_at":           updated.to_rfc3339(),
+                })),
+            )
+                .into_response()
         }
         Ok(None) => StatusCode::NOT_FOUND.into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
@@ -153,13 +161,13 @@ pub async fn get_deployment(
 
 #[derive(Debug, Deserialize)]
 pub struct CreateListingRequest {
-    pub developer_id:  Uuid,
-    pub name:          String,
-    pub description:   String,
+    pub developer_id: Uuid,
+    pub name: String,
+    pub description: String,
     /// SHA-256 hex of the Wasm artifact.
-    pub wasm_hash:     String,
+    pub wasm_hash: String,
     /// Price in USD cents.
-    pub price_cents:   i64,
+    pub price_cents: i64,
 }
 
 pub async fn create_listing(
@@ -240,7 +248,11 @@ pub async fn list_listings(State(state): State<SharedState>) -> impl IntoRespons
                 })
                 .collect();
 
-            (StatusCode::OK, Json(serde_json::json!({ "listings": listings }))).into_response()
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({ "listings": listings })),
+            )
+                .into_response()
         }
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
@@ -275,17 +287,21 @@ pub async fn get_listing(
             let created: chrono::DateTime<chrono::Utc> = r.get("created_at");
             let updated: chrono::DateTime<chrono::Utc> = r.get("updated_at");
 
-            (StatusCode::OK, Json(serde_json::json!({
-                "id":           listing_id,
-                "developer_id": developer_id,
-                "name":         name,
-                "description":  description,
-                "wasm_hash":    wasm_hash,
-                "price_cents":  price_cents,
-                "active":       active,
-                "created_at":   created.to_rfc3339(),
-                "updated_at":   updated.to_rfc3339(),
-            }))).into_response()
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({
+                    "id":           listing_id,
+                    "developer_id": developer_id,
+                    "name":         name,
+                    "description":  description,
+                    "wasm_hash":    wasm_hash,
+                    "price_cents":  price_cents,
+                    "active":       active,
+                    "created_at":   created.to_rfc3339(),
+                    "updated_at":   updated.to_rfc3339(),
+                })),
+            )
+                .into_response()
         }
         Ok(None) => StatusCode::NOT_FOUND.into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),

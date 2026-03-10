@@ -21,22 +21,22 @@ pub async fn health() -> impl IntoResponse {
 // ── POST /identity/stitch ─────────────────────────────────────────────────────
 #[derive(Debug, Deserialize)]
 pub struct StitchRequest {
-    pub github:   GitHubIdentity,
+    pub github: GitHubIdentity,
     pub linkedin: LinkedInIdentity,
-    pub email:    String,
+    pub email: String,
 }
 
 #[derive(Debug, Serialize)]
 pub struct StitchResponse {
-    pub profile_id:    Uuid,
-    pub trust_score:   i16,
+    pub profile_id: Uuid,
+    pub trust_score: i16,
     pub identity_tier: String,
     pub deep_link_url: String,
 }
 
 pub async fn stitch_identity(
     State(svc): State<Arc<StitchService>>,
-    Json(req):  Json<StitchRequest>,
+    Json(req): Json<StitchRequest>,
 ) -> impl IntoResponse {
     match svc.stitch_social(req.github, req.linkedin, req.email).await {
         Ok(profile) => {
@@ -53,8 +53,8 @@ pub async fn stitch_identity(
             let _vp_req = build_liveness_vp_request("aistaffapp", &callback);
 
             Json(StitchResponse {
-                profile_id:    profile.id,
-                trust_score:   profile.trust_score,
+                profile_id: profile.id,
+                trust_score: profile.trust_score,
                 identity_tier: format!("{:?}", profile.identity_tier),
                 deep_link_url: deep_link,
             })
@@ -84,29 +84,33 @@ pub async fn wallet_redirect(Query(q): Query<WalletRedirectQuery>) -> impl IntoR
 // ── POST /identity/biometric-callback ─────────────────────────────────────────
 #[derive(Debug, Deserialize)]
 pub struct BiometricCallbackRequest {
-    pub profile_id:  Uuid,
+    pub profile_id: Uuid,
     /// Base64-encoded VP token containing the ZK proof from the wallet.
-    pub vp_token:    String,
-    pub nonce:       String,
-    pub issuer_did:  String,
+    pub vp_token: String,
+    pub nonce: String,
+    pub issuer_did: String,
 }
 
 pub async fn biometric_callback(
     State(svc): State<Arc<StitchService>>,
-    Json(req):  Json<BiometricCallbackRequest>,
+    Json(req): Json<BiometricCallbackRequest>,
 ) -> impl IntoResponse {
     let proof_bytes = match base64::decode(&req.vp_token) {
         Ok(b) => b,
-        Err(_) => {
-            return (StatusCode::BAD_REQUEST, "Invalid base64 vp_token").into_response()
-        }
+        Err(_) => return (StatusCode::BAD_REQUEST, "Invalid base64 vp_token").into_response(),
     };
 
     let nonce_bytes = req.nonce.as_bytes().to_vec();
-    let expires_at  = chrono::Utc::now() + chrono::Duration::days(365);
+    let expires_at = chrono::Utc::now() + chrono::Duration::days(365);
 
     match svc
-        .apply_biometric_proof(req.profile_id, proof_bytes, nonce_bytes, req.issuer_did, expires_at)
+        .apply_biometric_proof(
+            req.profile_id,
+            proof_bytes,
+            nonce_bytes,
+            req.issuer_did,
+            expires_at,
+        )
         .await
     {
         Ok(profile) => Json(serde_json::json!({

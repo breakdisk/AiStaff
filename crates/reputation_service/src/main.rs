@@ -19,19 +19,23 @@ async fn main() -> Result<()> {
         .with(fmt::layer().json())
         .init();
 
-    let db_url       = std::env::var("DATABASE_URL").expect("DATABASE_URL");
-    let brokers      = std::env::var("KAFKA_BROKERS").expect("KAFKA_BROKERS");
-    let platform_did = std::env::var("PLATFORM_DID")
-        .unwrap_or_else(|_| "did:aistaff:platform".into());
+    let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL");
+    let brokers = std::env::var("KAFKA_BROKERS").expect("KAFKA_BROKERS");
+    let platform_did =
+        std::env::var("PLATFORM_DID").unwrap_or_else(|_| "did:aistaff:platform".into());
 
-    let db       = PgPool::connect(&db_url).await?;
+    let db = PgPool::connect(&db_url).await?;
     let producer = KafkaProducer::new(&brokers)?;
-    let state    = Arc::new(AppState { db, producer, platform_did });
+    let state = Arc::new(AppState {
+        db,
+        producer,
+        platform_did,
+    });
 
     let app = Router::new()
-        .route("/health",                           get(handlers::health))
-        .route("/reputation/:id/export",            post(handlers::export_vc))
-        .route("/reputation/:id/vc",                get(handlers::get_vc))
+        .route("/health", get(handlers::health))
+        .route("/reputation/:id/export", post(handlers::export_vc))
+        .route("/reputation/:id/vc", get(handlers::get_vc))
         .with_state(state)
         .layer(TraceLayer::new_for_http());
 

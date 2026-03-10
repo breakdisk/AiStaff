@@ -5,8 +5,8 @@
 use anyhow::Result;
 use common::{
     events::{
-        ChecklistFinalized, DeploymentComplete, EventEnvelope,
-        TOPIC_CHECKLIST_EVENTS, TOPIC_DEPLOYMENT_COMPLETE,
+        ChecklistFinalized, DeploymentComplete, EventEnvelope, TOPIC_CHECKLIST_EVENTS,
+        TOPIC_DEPLOYMENT_COMPLETE,
     },
     kafka::{consumer::KafkaConsumer, producer::KafkaProducer},
 };
@@ -34,9 +34,9 @@ const STUB_WASM: &[u8] = &[
 /// finalises with all steps passing it provisions the Wasm sandbox and
 /// transitions the deployment into the VETO_WINDOW state.
 pub async fn run_checklist_consumer(
-    db:      PgPool,
+    db: PgPool,
     producer: KafkaProducer,
-    brokers:  String,
+    brokers: String,
 ) -> Result<()> {
     let consumer = KafkaConsumer::new(
         &brokers,
@@ -90,9 +90,9 @@ pub async fn run_checklist_consumer(
 }
 
 async fn handle_finalized(
-    db:       &PgPool,
+    db: &PgPool,
     producer: &KafkaProducer,
-    event:    ChecklistFinalized,
+    event: ChecklistFinalized,
 ) -> Result<()> {
     // Load deployment fields needed for sandbox provisioning.
     let row = sqlx::query(
@@ -104,12 +104,12 @@ async fn handle_finalized(
     .fetch_one(db)
     .await?;
 
-    let agent_id:            Uuid   = row.get("agent_id");
-    let client_id:           Uuid   = row.get("client_id");
-    let freelancer_id:       Uuid   = row.get("freelancer_id");
-    let developer_id:        Uuid   = row.get("developer_id");
-    let artifact_hash: String       = row.get("agent_artifact_hash");
-    let escrow_cents:  i64          = row.get("escrow_amount_cents");
+    let agent_id: Uuid = row.get("agent_id");
+    let client_id: Uuid = row.get("client_id");
+    let freelancer_id: Uuid = row.get("freelancer_id");
+    let developer_id: Uuid = row.get("developer_id");
+    let artifact_hash: String = row.get("agent_artifact_hash");
+    let escrow_cents: i64 = row.get("escrow_amount_cents");
 
     set_state(db, event.deployment_id, "PROVISIONING").await?;
     info!(deployment_id = %event.deployment_id, "Provisioning Wasm sandbox");
@@ -118,8 +118,8 @@ async fn handle_finalized(
     let wasm_bytes = fetch_artifact(&artifact_hash).await;
 
     let agent = AiAgent {
-        id:            agent_id,
-        name:          format!("agent-{agent_id}"),
+        id: agent_id,
+        name: format!("agent-{agent_id}"),
         wasm_bytes,
         artifact_hash: artifact_hash.clone(),
     };
@@ -132,15 +132,23 @@ async fn handle_finalized(
     };
 
     // Build MCP proxy — allowed_tools loaded from DB in production; empty = deny-all safe default.
-    let mcp_url = std::env::var("MCP_SERVER_URL")
-        .unwrap_or_else(|_| "http://127.0.0.1:4040".into());
+    let mcp_url =
+        std::env::var("MCP_SERVER_URL").unwrap_or_else(|_| "http://127.0.0.1:4040".into());
     let proxy = McpProxy::new(CapabilityManifest {
-        agent_id:      agent_id,
+        agent_id,
         allowed_tools: HashSet::new(),
-        mcp_endpoint:  mcp_url,
+        mcp_endpoint: mcp_url,
     });
 
-    match crate::sandbox::provision_sandbox(agent, credentials, event.deployment_id, db.clone(), Some(proxy)).await {
+    match crate::sandbox::provision_sandbox(
+        agent,
+        credentials,
+        event.deployment_id,
+        db.clone(),
+        Some(proxy),
+    )
+    .await
+    {
         Ok(result) => {
             info!(
                 deployment_id = %event.deployment_id,
@@ -152,8 +160,8 @@ async fn handle_finalized(
             let complete = DeploymentComplete {
                 deployment_id: event.deployment_id,
                 developer_id,
-                talent_id:    freelancer_id,
-                total_cents:  escrow_cents as u64,
+                talent_id: freelancer_id,
+                total_cents: escrow_cents as u64,
                 artifact_hash: result.artifact_hash,
             };
             producer

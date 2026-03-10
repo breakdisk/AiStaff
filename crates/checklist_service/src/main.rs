@@ -19,18 +19,24 @@ async fn main() -> Result<()> {
         .with(fmt::layer().json())
         .init();
 
-    let db_url  = std::env::var("DATABASE_URL").expect("DATABASE_URL");
+    let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL");
     let brokers = std::env::var("KAFKA_BROKERS").expect("KAFKA_BROKERS");
 
-    let db       = PgPool::connect(&db_url).await?;
+    let db = PgPool::connect(&db_url).await?;
     let producer = KafkaProducer::new(&brokers)?;
-    let svc      = Arc::new(ChecklistService::new(db, producer));
+    let svc = Arc::new(ChecklistService::new(db, producer));
 
     let app = Router::new()
         .route("/health", get(handlers::health))
-        .route("/checklist/:deployment_id/step",    post(handlers::record_step))
-        .route("/checklist/:deployment_id/steps",   get(handlers::get_steps))
-        .route("/checklist/:deployment_id/summary", get(handlers::get_summary))
+        .route(
+            "/checklist/:deployment_id/step",
+            post(handlers::record_step),
+        )
+        .route("/checklist/:deployment_id/steps", get(handlers::get_steps))
+        .route(
+            "/checklist/:deployment_id/summary",
+            get(handlers::get_summary),
+        )
         .with_state(svc)
         .layer(TraceLayer::new_for_http());
 

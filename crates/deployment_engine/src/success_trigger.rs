@@ -4,8 +4,8 @@
 use common::{
     errors::DomainError,
     events::{
-        EventEnvelope, InstallationCompleted, ReleaseEscrow,
-        TOPIC_ESCROW_COMMANDS, TOPIC_INSTALLATION_EVENTS,
+        EventEnvelope, InstallationCompleted, ReleaseEscrow, TOPIC_ESCROW_COMMANDS,
+        TOPIC_INSTALLATION_EVENTS,
     },
     kafka::{consumer::KafkaConsumer, producer::KafkaProducer},
 };
@@ -29,9 +29,9 @@ pub enum DeploymentState {
 
 /// Runs the SuccessTrigger consumer loop — never returns; use `tokio::spawn`.
 pub async fn run_success_trigger(
-    db:      PgPool,
+    db: PgPool,
     producer: KafkaProducer,
-    brokers:  String,
+    brokers: String,
 ) -> anyhow::Result<()> {
     let consumer = KafkaConsumer::new(
         &brokers,
@@ -59,9 +59,7 @@ pub async fn run_success_trigger(
             "InstallationCompleted" => {
                 match serde_json::from_value::<InstallationCompleted>(envelope.payload) {
                     Ok(event) => {
-                        if let Err(e) =
-                            handle_installation_completed(&db, &producer, event).await
-                        {
+                        if let Err(e) = handle_installation_completed(&db, &producer, event).await {
                             error!("handle_installation_completed: {e:#}");
                         }
                     }
@@ -76,9 +74,9 @@ pub async fn run_success_trigger(
 }
 
 async fn handle_installation_completed(
-    db:       &PgPool,
+    db: &PgPool,
     producer: &KafkaProducer,
-    event:    InstallationCompleted,
+    event: InstallationCompleted,
 ) -> Result<(), DomainError> {
     info!(deployment_id = %event.deployment_id, "Processing InstallationCompleted");
 
@@ -132,8 +130,8 @@ async fn handle_installation_completed(
     let release = ReleaseEscrow {
         deployment_id: event.deployment_id,
         freelancer_id: deployment.freelancer_id,
-        amount_cents:  release_amount,
-        reason:        "InstallationCompleted — artifact hash verified".into(),
+        amount_cents: release_amount,
+        reason: "InstallationCompleted — artifact hash verified".into(),
     };
 
     producer

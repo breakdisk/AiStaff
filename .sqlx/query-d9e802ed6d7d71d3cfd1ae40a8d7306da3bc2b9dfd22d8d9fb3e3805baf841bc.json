@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO career_profiles (user_id)\n           VALUES ($1)\n           ON CONFLICT (user_id) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d9e802ed6d7d71d3cfd1ae40a8d7306da3bc2b9dfd22d8d9fb3e3805baf841bc"
+}

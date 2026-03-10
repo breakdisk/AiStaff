@@ -24,10 +24,10 @@ use crate::mcp_proxy::McpProxy;
 /// An AI agent bundle purchased from the marketplace.
 #[derive(Debug, Clone)]
 pub struct AiAgent {
-    pub id:            Uuid,
+    pub id: Uuid,
     #[allow(dead_code)] // used in future manifest logging
-    pub name:          String,
-    pub wasm_bytes:    Vec<u8>,
+    pub name: String,
+    pub wasm_bytes: Vec<u8>,
     /// Pre-computed SHA-256 hex of `wasm_bytes` — set on upload, verified on deploy.
     pub artifact_hash: String,
 }
@@ -38,17 +38,17 @@ pub struct AiAgent {
 pub struct ClientCredentials {
     #[allow(dead_code)] // used for future per-tenant credential lookup
     pub client_id: Uuid,
-    pub secrets:   HashMap<String, String>,
+    pub secrets: HashMap<String, String>,
 }
 
 /// Result returned after sandbox provisioning completes.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DeploymentResult {
-    pub deployment_id:  Uuid,
-    pub sandbox_id:     Uuid,
-    pub agent_id:       Uuid,
-    pub status:         DeploymentStatus,
-    pub artifact_hash:  String,
+    pub deployment_id: Uuid,
+    pub sandbox_id: Uuid,
+    pub agent_id: Uuid,
+    pub status: DeploymentStatus,
+    pub artifact_hash: String,
     pub provisioned_at: chrono::DateTime<Utc>,
 }
 
@@ -61,12 +61,12 @@ pub enum DeploymentStatus {
 
 /// Host-side state carried into the Wasm instance via `Store<HostState>`.
 struct HostState {
-    credentials:   Arc<HashMap<String, String>>,
-    limiter:       SandboxResourceLimiter,
-    proxy:         Option<Arc<McpProxy>>,
-    db:            sqlx::PgPool,
+    credentials: Arc<HashMap<String, String>>,
+    limiter: SandboxResourceLimiter,
+    proxy: Option<Arc<McpProxy>>,
+    db: sqlx::PgPool,
     deployment_id: Uuid,
-    rpc_seq:       Arc<AtomicU64>,
+    rpc_seq: Arc<AtomicU64>,
 }
 
 /// Provisions a Wasmtime sandbox, injects credentials via host functions,
@@ -78,36 +78,37 @@ struct HostState {
 /// - Memory growth is bounded by `SandboxResourceLimiter`.
 /// - MCP tool calls are validated against `proxy.manifest.allowed_tools` before dispatch.
 pub async fn provision_sandbox(
-    agent:         AiAgent,
-    credentials:   ClientCredentials,
+    agent: AiAgent,
+    credentials: ClientCredentials,
     deployment_id: Uuid,
-    db:            sqlx::PgPool,
-    proxy:         Option<McpProxy>,
+    db: sqlx::PgPool,
+    proxy: Option<McpProxy>,
 ) -> Result<DeploymentResult, DomainError> {
     let sandbox_id = Uuid::new_v4();
 
     // ── Engine configuration ──────────────────────────────────────────────
     let mut config = Config::new();
-    config
-        .async_support(true)
-        .consume_fuel(true); // fuel metering — prevents runaway agents
+    config.async_support(true).consume_fuel(true); // fuel metering — prevents runaway agents
 
-    let engine = Engine::new(&config)
-        .map_err(|e| DomainError::SandboxError { reason: e.to_string() })?;
+    let engine = Engine::new(&config).map_err(|e| DomainError::SandboxError {
+        reason: e.to_string(),
+    })?;
 
     // ── Module compilation ────────────────────────────────────────────────
-    let module = Module::new(&engine, &agent.wasm_bytes)
-        .map_err(|e| DomainError::SandboxError { reason: format!("compile: {e}") })?;
+    let module =
+        Module::new(&engine, &agent.wasm_bytes).map_err(|e| DomainError::SandboxError {
+            reason: format!("compile: {e}"),
+        })?;
 
     // ── Host state — credentials live here, not in Wasm memory ───────────
     let creds_arc = Arc::new(credentials.secrets);
     let proxy_arc = proxy.map(Arc::new);
-    let rpc_seq   = Arc::new(AtomicU64::new(0));
+    let rpc_seq = Arc::new(AtomicU64::new(0));
 
     let host_state = HostState {
-        credentials:   Arc::clone(&creds_arc),
-        limiter:       SandboxResourceLimiter,
-        proxy:         proxy_arc,
+        credentials: Arc::clone(&creds_arc),
+        limiter: SandboxResourceLimiter,
+        proxy: proxy_arc,
         db,
         deployment_id,
         rpc_seq,
@@ -116,7 +117,9 @@ pub async fn provision_sandbox(
     let mut store = Store::new(&engine, host_state);
     store
         .set_fuel(1_000_000_000) // 1 billion instructions ≈ generous timeout
-        .map_err(|e| DomainError::SandboxError { reason: e.to_string() })?;
+        .map_err(|e| DomainError::SandboxError {
+            reason: e.to_string(),
+        })?;
     store.limiter(|state| &mut state.limiter as &mut dyn ResourceLimiter);
 
     // ── Host function definitions ─────────────────────────────────────────
@@ -138,10 +141,12 @@ pub async fn provision_sandbox(
 
                     // Read credential key from Wasm linear memory
                     let key = {
-                        let data  = mem.data(&caller);
+                        let data = mem.data(&caller);
                         let start = key_ptr as usize;
-                        let end   = start.saturating_add(key_len as usize);
-                        if end > data.len() { return -1i32; }
+                        let end = start.saturating_add(key_len as usize);
+                        if end > data.len() {
+                            return -1i32;
+                        }
                         match std::str::from_utf8(&data[start..end]) {
                             Ok(s) => s.to_string(),
                             Err(_) => return -1i32,
@@ -151,21 +156,25 @@ pub async fn provision_sandbox(
                     // Credential lookup — only permitted keys are served
                     let value = match caller.data().credentials.get(&key) {
                         Some(v) => v.clone(),
-                        None    => return -1i32,
+                        None => return -1i32,
                     };
 
                     let val_bytes = value.as_bytes();
-                    if val_bytes.len() > buf_len as usize { return -1i32; }
+                    if val_bytes.len() > buf_len as usize {
+                        return -1i32;
+                    }
 
                     // Write credential value into Wasm linear memory
-                    let data  = mem.data_mut(&mut caller);
+                    let data = mem.data_mut(&mut caller);
                     let start = buf_ptr as usize;
                     data[start..start + val_bytes.len()].copy_from_slice(val_bytes);
                     val_bytes.len() as i32
                 })
             },
         )
-        .map_err(|e| DomainError::SandboxError { reason: e.to_string() })?;
+        .map_err(|e| DomainError::SandboxError {
+            reason: e.to_string(),
+        })?;
 
     // `host::call_mcp_tool(tool_ptr, tool_len, params_ptr, params_len, buf_ptr, buf_len) -> i32`
     // Validates the capability manifest, dispatches to the MCP server, writes JSON result.
@@ -175,7 +184,14 @@ pub async fn provision_sandbox(
             "host",
             "call_mcp_tool",
             |mut caller: wasmtime::Caller<'_, HostState>,
-             (tool_ptr, tool_len, params_ptr, params_len, buf_ptr, buf_len): (i32, i32, i32, i32, i32, i32)| {
+             (tool_ptr, tool_len, params_ptr, params_len, buf_ptr, buf_len): (
+                i32,
+                i32,
+                i32,
+                i32,
+                i32,
+                i32,
+            )| {
                 Box::new(async move {
                     let mem = match caller.get_export("memory") {
                         Some(Extern::Memory(m)) => m,
@@ -184,10 +200,12 @@ pub async fn provision_sandbox(
 
                     // Read tool name from Wasm linear memory
                     let tool_name = {
-                        let data  = mem.data(&caller);
+                        let data = mem.data(&caller);
                         let start = tool_ptr as usize;
-                        let end   = start.saturating_add(tool_len as usize);
-                        if end > data.len() { return -1i32; }
+                        let end = start.saturating_add(tool_len as usize);
+                        if end > data.len() {
+                            return -1i32;
+                        }
                         match std::str::from_utf8(&data[start..end]) {
                             Ok(s) => s.to_string(),
                             Err(_) => return -1i32,
@@ -196,10 +214,12 @@ pub async fn provision_sandbox(
 
                     // Read params JSON from Wasm linear memory
                     let params_json = {
-                        let data  = mem.data(&caller);
+                        let data = mem.data(&caller);
                         let start = params_ptr as usize;
-                        let end   = start.saturating_add(params_len as usize);
-                        if end > data.len() { return -1i32; }
+                        let end = start.saturating_add(params_len as usize);
+                        if end > data.len() {
+                            return -1i32;
+                        }
                         match std::str::from_utf8(&data[start..end]) {
                             Ok(s) => s.to_string(),
                             Err(_) => return -1i32,
@@ -207,49 +227,62 @@ pub async fn provision_sandbox(
                     };
 
                     // Clone state needed for the async call — no borrows held during await
-                    let proxy  = caller.data().proxy.clone();
-                    let db     = caller.data().db.clone();
+                    let proxy = caller.data().proxy.clone();
+                    let db = caller.data().db.clone();
                     let dep_id = caller.data().deployment_id;
-                    let seq    = caller.data().rpc_seq.fetch_add(1, Ordering::Relaxed);
+                    let seq = caller.data().rpc_seq.fetch_add(1, Ordering::Relaxed);
 
-                    let Some(proxy) = proxy else { return -1i32; };
+                    let Some(proxy) = proxy else {
+                        return -1i32;
+                    };
 
-                    let result = match proxy.call_tool(&tool_name, &params_json, seq, dep_id, &db).await {
-                        Ok(r)  => r,
+                    let result = match proxy
+                        .call_tool(&tool_name, &params_json, seq, dep_id, &db)
+                        .await
+                    {
+                        Ok(r) => r,
                         Err(_) => return -1i32,
                     };
 
                     let result_bytes = result.as_bytes();
-                    if result_bytes.len() > buf_len as usize { return -1i32; }
+                    if result_bytes.len() > buf_len as usize {
+                        return -1i32;
+                    }
 
                     // Write result into Wasm linear memory
-                    let data  = mem.data_mut(&mut caller);
+                    let data = mem.data_mut(&mut caller);
                     let start = buf_ptr as usize;
                     data[start..start + result_bytes.len()].copy_from_slice(result_bytes);
                     result_bytes.len() as i32
                 })
             },
         )
-        .map_err(|e| DomainError::SandboxError { reason: e.to_string() })?;
+        .map_err(|e| DomainError::SandboxError {
+            reason: e.to_string(),
+        })?;
 
     // ── Instantiate and run ───────────────────────────────────────────────
     let instance = linker
         .instantiate_async(&mut store, &module)
         .await
-        .map_err(|e| DomainError::SandboxError { reason: format!("instantiate: {e}") })?;
+        .map_err(|e| DomainError::SandboxError {
+            reason: format!("instantiate: {e}"),
+        })?;
 
     if let Ok(func) = instance.get_typed_func::<(), ()>(&mut store, "_start") {
         func.call_async(&mut store, ())
             .await
-            .map_err(|e| DomainError::SandboxError { reason: format!("run: {e}") })?;
+            .map_err(|e| DomainError::SandboxError {
+                reason: format!("run: {e}"),
+            })?;
     }
 
     Ok(DeploymentResult {
         deployment_id,
         sandbox_id,
-        agent_id:       agent.id,
-        status:         DeploymentStatus::Provisioned,
-        artifact_hash:  agent.artifact_hash,
+        agent_id: agent.id,
+        status: DeploymentStatus::Provisioned,
+        artifact_hash: agent.artifact_hash,
         provisioned_at: Utc::now(),
     })
 }
@@ -261,7 +294,7 @@ impl ResourceLimiter for SandboxResourceLimiter {
     fn memory_growing(
         &mut self,
         _current: usize,
-        desired:  usize,
+        desired: usize,
         _maximum: Option<usize>,
     ) -> Result<bool> {
         const MAX_BYTES: usize = 256 * 1024 * 1024; // 256 MiB hard cap
