@@ -20,6 +20,9 @@ COPY crates/ ./crates/
 # SQLx offline query cache (required for macros without live DB)
 COPY .sqlx/ ./.sqlx/
 
+# Migration files (required by sqlx::migrate!() at compile time)
+COPY migrations/ ./migrations/
+
 # Build only the target crate in release mode
 RUN cargo build --release -p "${SERVICE}" \
     && cp "target/release/${SERVICE}" /usr/local/bin/service
