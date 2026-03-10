@@ -1,84 +1,38 @@
-// Mock session — base64(JSON) stored in httpOnly cookie.
-// Replace with signed JWT (jose) when wiring real OAuth.
+// Session — backed by NextAuth (Auth.js v5) JWT strategy.
+// The old base64-cookie approach is replaced; this file now re-exports
+// the NextAuth helpers so existing call-sites keep working.
 
-export const SESSION_COOKIE = "aistaff_session";
+export { auth as getServerSession } from "@/auth";
+export { signIn, signOut } from "@/auth";
 
-export type IdentityTier = 0 | 1 | 2;
+// ── Convenience types (mirrors NextAuth session.user shape) ───────────────────
+
+export type IdentityTier = "UNVERIFIED" | "SOCIAL_VERIFIED" | "BIOMETRIC_VERIFIED";
 export type UserRole = "client" | "talent" | "developer";
 
-export interface Session {
-  id:            string;
-  name:          string;
-  email:         string;
-  roles:         UserRole[];   // array — one user can hold multiple roles
-  identity_tier: IdentityTier;
-  trust_score:   number;
+export interface AiStaffUser {
+  profileId:    string;
+  name:         string | null;
+  email:        string | null;
+  image:        string | null;
+  identityTier: IdentityTier;
+  trustScore:   number;
+  provider:     string;
+  roles:        UserRole[];
 }
 
-/** Check if a session has a specific role. */
-export function hasRole(session: Session | null, role: UserRole): boolean {
-  return session?.roles.includes(role) ?? false;
+/** True if the user holds the given role. */
+export function hasRole(user: AiStaffUser | null, role: UserRole): boolean {
+  return user?.roles?.includes(role) ?? false;
 }
 
 /** Primary display role — first in the array. */
-export function primaryRole(session: Session): UserRole {
-  return session.roles[0];
+export function primaryRole(user: AiStaffUser): UserRole {
+  return (user.roles?.[0] as UserRole) ?? "talent";
 }
 
-// ── Mock accounts ─────────────────────────────────────────────────────────────
-
-export const MOCK_ACCOUNTS: Record<string, { password: string; session: Session }> = {
-  "client@demo.com": {
-    password: "demo",
-    session: {
-      id:            "usr-c001",
-      name:          "Alex Chen",
-      email:         "client@demo.com",
-      roles:         ["client"],
-      identity_tier: 1,
-      trust_score:   72,
-    },
-  },
-  "talent@demo.com": {
-    password: "demo",
-    session: {
-      id:            "usr-t001",
-      name:          "Marcus T.",
-      email:         "talent@demo.com",
-      roles:         ["talent"],
-      identity_tier: 2,
-      trust_score:   94,
-    },
-  },
-  "dev@demo.com": {
-    password: "demo",
-    session: {
-      id:            "usr-d001",
-      name:          "Priya N.",
-      email:         "dev@demo.com",
-      roles:         ["developer", "talent"],  // dual-role: publishes & installs
-      identity_tier: 2,
-      trust_score:   88,
-    },
-  },
-};
-
-// ── Encode / decode ───────────────────────────────────────────────────────────
-
-export function encodeSession(session: Session): string {
-  return Buffer.from(JSON.stringify(session)).toString("base64");
-}
-
-export function decodeSession(token: string): Session | null {
-  try {
-    const raw = JSON.parse(Buffer.from(token, "base64").toString("utf-8")) as
-      Session & { role?: UserRole }; // handle old single-role cookies
-    // Normalise: if old cookie has `role` but not `roles`, upgrade it
-    if (!raw.roles && raw.role) {
-      raw.roles = [raw.role];
-    }
-    return raw as Session;
-  } catch {
-    return null;
-  }
+/** True if the user can receive job matches (Tier 1 or above). */
+export function canReceiveJobs(user: AiStaffUser | null): boolean {
+  return user?.identityTier === "SOCIAL_VERIFIED" ||
+    user?.identityTier === "BIOMETRIC_VERIFIED";
 }

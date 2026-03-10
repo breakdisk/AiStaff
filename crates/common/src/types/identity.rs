@@ -51,6 +51,9 @@ pub enum IdentityTier {
 
 /// Canonical identity record — written to DB, embedded in auth tokens.
 /// PRIVACY: raw biometric data is NEVER stored in this struct or the DB.
+///
+/// NOTE: After running migration 0016 + `cargo sqlx prepare --workspace`,
+/// `github_uid` must be changed to `Option<String>` to match the nullable column.
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct UnifiedProfile {
     pub id: Uuid,
@@ -65,4 +68,42 @@ pub struct UnifiedProfile {
     pub identity_tier: IdentityTier,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+// ── OAuth multi-provider types (added in migration 0016) ──────────────────────
+
+/// Which OAuth provider initiated the login or connect request.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum OAuthProvider {
+    GitHub,
+    Google,
+    LinkedIn,
+}
+
+/// Payload sent from Next.js → identity_service after any OAuth callback.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OAuthCallbackPayload {
+    pub provider: OAuthProvider,
+    /// Stable provider-specific user ID (GitHub numeric ID, Google sub, LinkedIn sub).
+    pub provider_uid: String,
+    pub email: String,
+    pub display_name: String,
+    /// Number of public GitHub repos — present only for GitHub provider.
+    pub github_repos: Option<u32>,
+    /// GitHub account creation ISO-8601 timestamp — present only for GitHub provider.
+    pub github_created_at: Option<DateTime<Utc>>,
+    /// Whether the provider verified the email address.
+    pub email_verified: Option<bool>,
+    /// For connect-provider flow: existing profile to update.
+    pub existing_profile_id: Option<Uuid>,
+}
+
+/// Response from `POST /identity/oauth-callback`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OAuthCallbackResponse {
+    pub profile_id: Uuid,
+    /// "UNVERIFIED" | "SOCIAL_VERIFIED" | "BIOMETRIC_VERIFIED"
+    pub identity_tier: String,
+    pub trust_score: i16,
 }

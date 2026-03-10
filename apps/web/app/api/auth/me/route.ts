@@ -1,12 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
-import { SESSION_COOKIE, decodeSession } from "@/lib/session";
+import { auth } from "@/auth";
 
-export async function GET(req: NextRequest) {
-  const token = req.cookies.get(SESSION_COOKIE)?.value;
-  if (!token) return NextResponse.json(null, { status: 401 });
-
-  const session = decodeSession(token);
-  if (!session) return NextResponse.json(null, { status: 401 });
-
-  return NextResponse.json(session);
+export async function GET() {
+  const session = await auth();
+  if (!session?.user) {
+    return Response.json(null, { status: 401 });
+  }
+  return Response.json(session.user);
 }

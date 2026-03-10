@@ -1,8 +1,6 @@
-import { NextResponse } from "next/server";
-import { SESSION_COOKIE } from "@/lib/session";
+import { signOut } from "@/auth";
 
 export async function POST() {
-  const res = NextResponse.json({ ok: true });
-  res.cookies.set(SESSION_COOKIE, "", { maxAge: 0, path: "/" });
-  return res;
+  await signOut({ redirect: false });
+  return Response.json({ ok: true });
 }
