@@ -2,6 +2,8 @@
 name = "community_service"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
+publish = false
 
 [[bin]]
 name = "community_service"

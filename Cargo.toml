@@ -26,6 +26,7 @@ version  = "0.1.0"
 edition  = "2021"
 authors  = ["AiStaffApp Team"]
 license  = "UNLICENSED"
+publish  = false
 
 [workspace.dependencies]
 # Async runtime
