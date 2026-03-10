@@ -2,7 +2,7 @@
 
 **Controller:** AiStaffApp Ltd
 **DPO Contact:** dpo@aistaff.app
-**Last Updated:** 2026-03-09
+**Last Updated:** 2026-03-10
 
 ---
 
@@ -86,6 +86,34 @@
 | **Recipients** | mcp_server, security team |
 | **Table** | `tool_call_audit` (append-only) |
 
+### 8. Community & Growth Data
+
+| Field | Detail |
+|---|---|
+| **Purpose** | Community hubs, mentorship pairing, career milestones, learning paths, carbon offset tracking |
+| **Legal Basis** | Contract (Art. 6(1)(b)) for mentorship/career; Legitimate interest (Art. 6(1)(f)) for carbon tracking |
+| **Data Categories** | User IDs, hub memberships, mentor skill tags, session timestamps, milestone labels, learning path progress (0–100%), carbon offset amounts (kg CO₂) |
+| **Retention** | Active account lifetime. Pseudonymized on erasure request. |
+| **Recipients** | community_service only. Kafka `community-events` topic (event IDs + user IDs only). |
+| **Transfers** | No transfers outside EEA |
+| **Tables** | `community_hubs`, `hub_members`, `hub_events`, `hub_rsvps`, `forum_threads`, `forum_posts`, `mentor_profiles`, `mentorship_pairs`, `mentorship_sessions`, `cohort_groups`, `cohort_members`, `career_milestones`, `skill_levels`, `learning_paths`, `carbon_offsets` |
+
+### 9. Well-Being Check-ins — Article 9 Health-Adjacent Data
+
+> ⚠️ **Special Category Data (GDPR Article 9):** Stress and mood scores are health-adjacent PII.
+> Access is logged. Right-to-erasure **must** pseudonymize — **do not hard-delete**.
+
+| Field | Detail |
+|---|---|
+| **Purpose** | Monitor talent well-being; surface burnout risk signals for early intervention |
+| **Legal Basis** | **Explicit consent (Art. 9(2)(a))** — user initiates each check-in |
+| **Data Categories** | User ID, stress score (0–10), mood score (0–10), check-in timestamp, computed burnout risk level + score |
+| **Retention** | 90 days for burnout computation window. Pseudonymized on erasure request — never hard-deleted. |
+| **Recipients** | community_service only. `BurnoutAlertRaised` Kafka event carries risk level + user ID (no raw scores). |
+| **Access Controls** | DB-level: access logged. Service-level: community_service trusts upstream auth. No direct external access. |
+| **Transfers** | No transfers outside EEA |
+| **Tables** | `wellbeing_checkins`, `burnout_signals` |
+
 ---
 
 ## Data Subject Rights Procedures
@@ -100,6 +128,10 @@
 
 **Erasure note:** `escrow_payouts` and `tool_call_audit` are append-only audit tables.
 Financial records cannot be hard-deleted. Pseudonymization replaces PII with `DELETED_<sha256_of_id>`.
+
+**Article 9 erasure note:** `wellbeing_checkins` and `burnout_signals` must be pseudonymized on
+right-to-erasure requests — **do not hard-delete** (audit continuity). Raw stress/mood scores are
+replaced with `NULL`; user_id is replaced with `DELETED_<sha256_of_id>`.
 
 ---
 
