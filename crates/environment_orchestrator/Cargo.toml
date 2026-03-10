@@ -1,5 +1,5 @@
 [package]
-name    = "environment-orchestrator"
+name = "environment_orchestrator"
 version.workspace = true
 edition.workspace = true
 

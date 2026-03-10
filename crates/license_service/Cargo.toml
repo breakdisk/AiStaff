@@ -1,5 +1,5 @@
 [package]
-name    = "license-service"
+name = "license_service"
 version.workspace = true
 edition.workspace = true
 

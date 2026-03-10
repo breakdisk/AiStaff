@@ -1,5 +1,5 @@
 [package]
-name    = "compliance-service"
+name = "compliance_service"
 version.workspace = true
 edition.workspace = true
 

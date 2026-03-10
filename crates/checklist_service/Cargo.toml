@@ -1,5 +1,5 @@
 [package]
-name    = "checklist-service"
+name = "checklist_service"
 version.workspace = true
 edition.workspace = true
 

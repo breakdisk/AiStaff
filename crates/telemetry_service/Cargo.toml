@@ -1,5 +1,5 @@
 [package]
-name    = "telemetry-service"
+name = "telemetry_service"
 version.workspace = true
 edition.workspace = true
 
