@@ -15,7 +15,12 @@ async fn burnout_low_risk() {
         ctx.db(),
         &ctx.state.kafka_brokers,
         user_id,
-        CheckinRequest { mood_score: 10, energy_score: 8, stress_score: 1, notes: None },
+        CheckinRequest {
+            mood_score: 10,
+            energy_score: 8,
+            stress_score: 1,
+            notes: None,
+        },
     )
     .await
     .expect("submit checkin");
@@ -40,7 +45,12 @@ async fn burnout_medium_risk() {
         ctx.db(),
         &ctx.state.kafka_brokers,
         user_id,
-        CheckinRequest { mood_score: 5, energy_score: 5, stress_score: 5, notes: None },
+        CheckinRequest {
+            mood_score: 5,
+            energy_score: 5,
+            stress_score: 5,
+            notes: None,
+        },
     )
     .await
     .expect("submit checkin");
@@ -65,7 +75,12 @@ async fn burnout_high_risk() {
         ctx.db(),
         &ctx.state.kafka_brokers,
         user_id,
-        CheckinRequest { mood_score: 3, energy_score: 4, stress_score: 7, notes: None },
+        CheckinRequest {
+            mood_score: 3,
+            energy_score: 4,
+            stress_score: 7,
+            notes: None,
+        },
     )
     .await
     .expect("submit checkin");
@@ -90,7 +105,12 @@ async fn burnout_critical_risk() {
         ctx.db(),
         &ctx.state.kafka_brokers,
         user_id,
-        CheckinRequest { mood_score: 1, energy_score: 2, stress_score: 10, notes: None },
+        CheckinRequest {
+            mood_score: 1,
+            energy_score: 2,
+            stress_score: 10,
+            notes: None,
+        },
     )
     .await
     .expect("submit checkin");
@@ -115,7 +135,12 @@ async fn burnout_escalation_sets_last_alert_at() {
         ctx.db(),
         &ctx.state.kafka_brokers,
         user_id,
-        CheckinRequest { mood_score: 9, energy_score: 9, stress_score: 1, notes: None },
+        CheckinRequest {
+            mood_score: 9,
+            energy_score: 9,
+            stress_score: 1,
+            notes: None,
+        },
     )
     .await
     .expect("low checkin");
@@ -136,7 +161,12 @@ async fn burnout_escalation_sets_last_alert_at() {
             ctx.db(),
             &ctx.state.kafka_brokers,
             user_id,
-            CheckinRequest { mood_score: 1, energy_score: 1, stress_score: 10, notes: None },
+            CheckinRequest {
+                mood_score: 1,
+                energy_score: 1,
+                stress_score: 10,
+                notes: None,
+            },
         )
         .await
         .expect("high-stress checkin");
@@ -168,7 +198,12 @@ async fn burnout_no_alert_on_sustained_critical() {
             ctx.db(),
             &ctx.state.kafka_brokers,
             user_id,
-            CheckinRequest { mood_score: 1, energy_score: 1, stress_score: 10, notes: None },
+            CheckinRequest {
+                mood_score: 1,
+                energy_score: 1,
+                stress_score: 10,
+                notes: None,
+            },
         )
         .await
         .expect("critical checkin");
@@ -180,7 +215,10 @@ async fn burnout_no_alert_on_sustained_critical() {
         .expect("exists")["last_alert_at"]
         .clone();
 
-    assert!(!alert_time_1.is_null(), "alert should be set on first escalation");
+    assert!(
+        !alert_time_1.is_null(),
+        "alert should be set on first escalation"
+    );
 
     // Another critical checkin: prev was already critical → no new alert,
     // so last_alert_at must NOT change.
@@ -188,7 +226,12 @@ async fn burnout_no_alert_on_sustained_critical() {
         ctx.db(),
         &ctx.state.kafka_brokers,
         user_id,
-        CheckinRequest { mood_score: 1, energy_score: 1, stress_score: 10, notes: None },
+        CheckinRequest {
+            mood_score: 1,
+            energy_score: 1,
+            stress_score: 10,
+            notes: None,
+        },
     )
     .await
     .expect("sustained critical checkin");
@@ -226,6 +269,8 @@ async fn list_checkins_returns_up_to_30() {
         .expect("insert checkin");
     }
 
-    let checkins = wellbeing::list_checkins(ctx.db(), user_id).await.expect("list");
+    let checkins = wellbeing::list_checkins(ctx.db(), user_id)
+        .await
+        .expect("list");
     assert_eq!(checkins.len(), 5);
 }

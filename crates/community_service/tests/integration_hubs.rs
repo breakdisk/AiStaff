@@ -89,7 +89,11 @@ async fn hub_join_increments_member_count() {
         .as_i64()
         .unwrap();
 
-    assert_eq!(after, before + 1, "member_count must increment by 1 after join");
+    assert_eq!(
+        after,
+        before + 1,
+        "member_count must increment by 1 after join"
+    );
 }
 
 #[tokio::test]
@@ -125,7 +129,11 @@ async fn hub_leave_decrements_member_count() {
         .as_i64()
         .unwrap();
 
-    assert_eq!(after_leave, after_join - 1, "member_count must decrement after leave");
+    assert_eq!(
+        after_leave,
+        after_join - 1,
+        "member_count must decrement after leave"
+    );
 }
 
 #[tokio::test]
@@ -161,5 +169,8 @@ async fn hub_owner_cannot_leave() {
         .as_i64()
         .unwrap();
 
-    assert_eq!(before, after, "owner cannot leave — member_count must be unchanged");
+    assert_eq!(
+        before, after,
+        "owner cannot leave — member_count must be unchanged"
+    );
 }

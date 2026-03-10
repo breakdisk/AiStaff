@@ -80,11 +80,20 @@ pub fn create_router(state: AppState) -> axum::Router {
             put(handlers::update_path_progress),
         )
         // ── Well-Being ────────────────────────────────────────────────────────
-        .route("/wellbeing/:user_id/checkin", post(handlers::submit_checkin))
+        .route(
+            "/wellbeing/:user_id/checkin",
+            post(handlers::submit_checkin),
+        )
         .route("/wellbeing/:user_id/checkins", get(handlers::list_checkins))
-        .route("/wellbeing/:user_id/burnout", get(handlers::get_burnout_signal))
+        .route(
+            "/wellbeing/:user_id/burnout",
+            get(handlers::get_burnout_signal),
+        )
         // ── Carbon ────────────────────────────────────────────────────────────
         .route("/carbon/:user_id/log", post(handlers::log_carbon_offset))
-        .route("/carbon/:user_id/footprint", get(handlers::get_carbon_footprint))
+        .route(
+            "/carbon/:user_id/footprint",
+            get(handlers::get_carbon_footprint),
+        )
         .with_state(state)
 }

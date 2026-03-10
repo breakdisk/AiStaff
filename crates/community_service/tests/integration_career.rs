@@ -65,7 +65,10 @@ async fn milestone_idempotency_same_key_returns_same_id() {
     .await
     .expect("second award same key");
 
-    assert_eq!(id1, id2, "duplicate milestone_key must return the same UUID");
+    assert_eq!(
+        id1, id2,
+        "duplicate milestone_key must return the same UUID"
+    );
 
     // Only one row should exist for this key
     let milestones = career::list_milestones(ctx.db(), user_id)
@@ -75,7 +78,11 @@ async fn milestone_idempotency_same_key_returns_same_id() {
         .iter()
         .filter(|m| m["milestone_key"] == "first_deployment")
         .collect();
-    assert_eq!(matching.len(), 1, "exactly one row per (user_id, milestone_key)");
+    assert_eq!(
+        matching.len(),
+        1,
+        "exactly one row per (user_id, milestone_key)"
+    );
 }
 
 #[tokio::test]
@@ -137,11 +144,16 @@ async fn learning_path_completes_at_100_pct() {
     let paths = career::list_learning_paths(ctx.db(), user_id)
         .await
         .expect("list paths");
-    let path = paths.iter().find(|p| p["id"].as_str() == Some(&path_id.to_string()))
+    let path = paths
+        .iter()
+        .find(|p| p["id"].as_str() == Some(&path_id.to_string()))
         .expect("path in list");
 
     assert_eq!(path["progress_pct"].as_i64().unwrap(), 100);
-    assert!(!path["completed_at"].is_null(), "completed_at must be set at 100%");
+    assert!(
+        !path["completed_at"].is_null(),
+        "completed_at must be set at 100%"
+    );
 }
 
 #[tokio::test]
@@ -170,9 +182,14 @@ async fn learning_path_incomplete_has_no_completed_at() {
     let paths = career::list_learning_paths(ctx.db(), user_id)
         .await
         .expect("list paths");
-    let path = paths.iter().find(|p| p["id"].as_str() == Some(&path_id.to_string()))
+    let path = paths
+        .iter()
+        .find(|p| p["id"].as_str() == Some(&path_id.to_string()))
         .expect("path in list");
 
     assert_eq!(path["progress_pct"].as_i64().unwrap(), 50);
-    assert!(path["completed_at"].is_null(), "completed_at must be null below 100%");
+    assert!(
+        path["completed_at"].is_null(),
+        "completed_at must be null below 100%"
+    );
 }

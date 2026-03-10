@@ -75,7 +75,7 @@ pub async fn get_hub(
             tracing::error!("{e:#}");
             StatusCode::INTERNAL_SERVER_ERROR
         })?
-        .map(|h| Json(h))
+        .map(Json)
         .ok_or(StatusCode::NOT_FOUND)
 }
 
@@ -231,7 +231,7 @@ pub async fn get_thread(
             tracing::error!("{e:#}");
             StatusCode::INTERNAL_SERVER_ERROR
         })?
-        .map(|t| Json(t))
+        .map(Json)
         .ok_or(StatusCode::NOT_FOUND)
 }
 
@@ -297,7 +297,7 @@ pub async fn get_mentor(
             tracing::error!("{e:#}");
             StatusCode::INTERNAL_SERVER_ERROR
         })?
-        .map(|m| Json(m))
+        .map(Json)
         .ok_or(StatusCode::NOT_FOUND)
 }
 
@@ -374,7 +374,7 @@ pub async fn get_pair(
             tracing::error!("{e:#}");
             StatusCode::INTERNAL_SERVER_ERROR
         })?
-        .map(|p| Json(p))
+        .map(Json)
         .ok_or(StatusCode::NOT_FOUND)
 }
 
@@ -506,7 +506,7 @@ pub async fn get_career_profile(
             tracing::error!("{e:#}");
             StatusCode::INTERNAL_SERVER_ERROR
         })?
-        .map(|p| Json(p))
+        .map(Json)
         .ok_or(StatusCode::NOT_FOUND)
 }
 
@@ -674,7 +674,7 @@ pub async fn get_burnout_signal(
             tracing::error!("{e:#}");
             StatusCode::INTERNAL_SERVER_ERROR
         })?
-        .map(|b| Json(b))
+        .map(Json)
         .ok_or(StatusCode::NOT_FOUND)
 }
 
@@ -717,6 +717,6 @@ pub async fn get_carbon_footprint(
             tracing::error!("{e:#}");
             StatusCode::INTERNAL_SERVER_ERROR
         })?
-        .map(|f| Json(f))
+        .map(Json)
         .ok_or(StatusCode::NOT_FOUND)
 }
