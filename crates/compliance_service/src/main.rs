@@ -25,11 +25,11 @@ async fn main() -> Result<()> {
     let app = Router::new()
         .route("/health", get(handlers::health))
         .route("/contracts", post(handlers::create_contract))
-        .route("/contracts/:id", get(handlers::get_contract))
-        .route("/contracts/:id/sign", post(handlers::sign_contract))
+        .route("/contracts/{id}", get(handlers::get_contract))
+        .route("/contracts/{id}/sign", post(handlers::sign_contract))
         .route("/warranty-claims", get(handlers::list_warranty_claims))
         .route(
-            "/warranty-claims/:id/resolve",
+            "/warranty-claims/{id}/resolve",
             post(handlers::resolve_warranty_claim),
         )
         .with_state(svc)

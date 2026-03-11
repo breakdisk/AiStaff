@@ -83,7 +83,7 @@ async fn main() -> Result<()> {
         .route("/health", get(|| async { Json(json!({"ok": true})) }))
         .route("/notifications", get(handlers::list_notifications))
         .route("/notifications/count", get(handlers::count_unread))
-        .route("/notifications/:id/read", patch(handlers::mark_read))
+        .route("/notifications/{id}/read", patch(handlers::mark_read))
         .route("/notifications/read-all", post(handlers::mark_all_read))
         .route(
             "/notification-preferences",

@@ -34,8 +34,8 @@ async fn main() -> Result<()> {
 
     let app = Router::new()
         .route("/health", get(handlers::health))
-        .route("/reputation/:id/export", post(handlers::export_vc))
-        .route("/reputation/:id/vc", get(handlers::get_vc))
+        .route("/reputation/{id}/export", post(handlers::export_vc))
+        .route("/reputation/{id}/vc", get(handlers::get_vc))
         .with_state(state)
         .layer(TraceLayer::new_for_http());
 

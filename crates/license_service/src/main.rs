@@ -30,9 +30,9 @@ async fn main() -> Result<()> {
     let app = Router::new()
         .route("/health", get(handlers::health))
         .route("/licenses/issue", post(handlers::issue_license))
-        .route("/licenses/:id", get(handlers::get_license))
-        .route("/licenses/:id/revoke", post(handlers::revoke_license))
-        .route("/licenses/:id/validate", get(handlers::validate_license))
+        .route("/licenses/{id}", get(handlers::get_license))
+        .route("/licenses/{id}/revoke", post(handlers::revoke_license))
+        .route("/licenses/{id}/validate", get(handlers::validate_license))
         .with_state(svc)
         .layer(TraceLayer::new_for_http());
 

@@ -29,12 +29,12 @@ async fn main() -> Result<()> {
     let app = Router::new()
         .route("/health", get(handlers::health))
         .route(
-            "/checklist/:deployment_id/step",
+            "/checklist/{deployment_id}/step",
             post(handlers::record_step),
         )
-        .route("/checklist/:deployment_id/steps", get(handlers::get_steps))
+        .route("/checklist/{deployment_id}/steps", get(handlers::get_steps))
         .route(
-            "/checklist/:deployment_id/summary",
+            "/checklist/{deployment_id}/summary",
             get(handlers::get_summary),
         )
         .with_state(svc)

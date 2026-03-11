@@ -36,3 +36,7 @@ export function canReceiveJobs(user: AiStaffUser | null): boolean {
   return user?.identityTier === "SOCIAL_VERIFIED" ||
     user?.identityTier === "BIOMETRIC_VERIFIED";
 }
+
+// ── Legacy compat type — used by dashboard/page.tsx until migrated ─────────────
+// Maps the old numeric-tier Session shape to the new NextAuth user shape.
+export type Session = AiStaffUser;

@@ -21,6 +21,8 @@ const GH_REPOS_PTS: f64 = 12.0;
 const LI_EMAIL_PTS: f64 = 8.0;
 const LI_EXISTS_PTS: f64 = 7.0;
 
+const GOOGLE_EMAIL_PTS: f64 = 15.0; // Google verifies email at account creation
+
 // ── Public entry point ────────────────────────────────────────────────────────
 
 /// Upsert a unified_profile from an OAuth provider callback.
@@ -189,7 +191,7 @@ async fn fetch_and_score(
     .await
     .context("fetch provider columns")?;
 
-    let (github_uid, linkedin_uid, _google_uid) = row;
+    let (github_uid, linkedin_uid, google_uid) = row;
 
     // GitHub score — use data from current payload if GitHub is the provider
     let github_score = if github_uid.is_some() {
@@ -220,7 +222,10 @@ async fn fetch_and_score(
         0.0
     };
 
-    let total = (github_score + linkedin_score).round().clamp(0.0, 100.0) as i16;
+    // Google score — verified email is guaranteed by Google's own auth
+    let google_score = if google_uid.is_some() { GOOGLE_EMAIL_PTS } else { 0.0 };
+
+    let total = (github_score + linkedin_score + google_score).round().clamp(0.0, 100.0) as i16;
 
     let tier = if total > 0 {
         IdentityTier::SocialVerified
@@ -289,6 +294,14 @@ mod tests {
     fn linkedin_email_verified_gives_pts() {
         let email_pts = LI_EMAIL_PTS + LI_EXISTS_PTS; // 8 + 7 = 15
         assert!((email_pts - 15.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn google_score_constant() {
+        // Google-only login should give 15 pts → SOCIAL_VERIFIED
+        assert!((GOOGLE_EMAIL_PTS - 15.0).abs() < f64::EPSILON);
+        let total = GOOGLE_EMAIL_PTS.round() as i16;
+        assert!(total > 0, "Google login must yield trust_score > 0");
     }
 
     #[test]

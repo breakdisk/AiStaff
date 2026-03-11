@@ -21,7 +21,7 @@ async fn main() -> Result<()> {
 
     let app = Router::new()
         .route("/health", get(handlers::health))
-        .route("/analytics/talent/:id/roi", get(handlers::talent_roi))
+        .route("/analytics/talent/{id}/roi", get(handlers::talent_roi))
         .route("/analytics/leaderboard", get(handlers::leaderboard))
         .with_state(db)
         .layer(TraceLayer::new_for_http());

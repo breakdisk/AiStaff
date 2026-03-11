@@ -51,6 +51,12 @@ async fn main() -> Result<()> {
             get(handlers::list_listings).post(handlers::create_listing),
         )
         .route("/listings/{id}", get(handlers::get_listing))
+        .route("/skill-tags", get(handlers::get_skill_tags))
+        .route(
+            "/talent-skills/{id}",
+            get(handlers::get_talent_skills).put(handlers::put_talent_skills),
+        )
+        .route("/express-interest", post(handlers::express_interest))
         .with_state(state)
         .layer(TraceLayer::new_for_http());
 

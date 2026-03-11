@@ -36,8 +36,8 @@ async fn main() -> anyhow::Result<()> {
 
     let app = Router::new()
         .route("/health", get(handlers::health))
-        .route("/payouts/:deployment_id/veto", post(handlers::veto))
-        .route("/payouts/:deployment_id/approve", post(handlers::approve))
+        .route("/payouts/{deployment_id}/veto", post(handlers::veto))
+        .route("/payouts/{deployment_id}/approve", post(handlers::approve))
         .with_state(state)
         .layer(TraceLayer::new_for_http());
 

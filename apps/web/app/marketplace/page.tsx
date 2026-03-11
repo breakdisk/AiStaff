@@ -1,12 +1,14 @@
 ﻿"use client";
 
 import { useEffect, useState } from "react";
+import { useSession, signIn } from "next-auth/react";
 import {
   Package, Cpu, Hash, ChevronRight, CheckCircle,
   Users, Bot, Zap, Building2, User, Plus, X,
+  AlertTriangle, Github, Linkedin, Handshake,
 } from "lucide-react";
 import {
-  fetchListings, createListing, createDeployment,
+  fetchListings, createListing, createDeployment, expressInterest,
   type AgentListing, type ListingCategory, type SellerType,
 } from "@/lib/api";
 import { VettingBadge } from "@/components/VettingBadge";
@@ -166,16 +168,74 @@ function SellerBadge({ sellerType }: { sellerType: SellerType }) {
   );
 }
 
-// ── Listing card (mobile) ──────────────────────────────────────────────────
+// ── Tier gate bottom sheet ─────────────────────────────────────────────────
 
-function ListingCard({ listing }: { listing: AgentListing }) {
-  const [deploying, setDeploying] = useState(false);
-  const [deployed, setDeployed] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+function TierGateSheet({ onClose }: { onClose: () => void }) {
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/60" onClick={onClose} />
+      <div className="fixed z-50 bottom-0 left-0 right-0 rounded-t-sm
+                      bg-zinc-950 border-t border-zinc-800 p-5 space-y-4">
+        <div className="flex items-start gap-3">
+          <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="font-mono text-sm text-amber-400 font-medium">
+              Verification required to deploy
+            </p>
+            <p className="font-mono text-xs text-zinc-500 mt-1">
+              Connect GitHub (technical roles) or LinkedIn (consulting roles)
+              to receive job matches and deploy agents.
+            </p>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => signIn("github")}
+            className="flex items-center justify-center gap-2 h-11 rounded-sm
+                       border border-zinc-700 bg-zinc-900 hover:bg-zinc-800
+                       font-mono text-xs text-zinc-200 transition-all active:scale-[0.98]"
+          >
+            <Github className="w-4 h-4" /> Connect GitHub
+          </button>
+          <button
+            onClick={() => signIn("linkedin")}
+            className="flex items-center justify-center gap-2 h-11 rounded-sm
+                       border border-zinc-700 bg-zinc-900 hover:bg-zinc-800
+                       font-mono text-xs text-zinc-200 transition-all active:scale-[0.98]"
+          >
+            <Linkedin className="w-4 h-4" /> Connect LinkedIn
+          </button>
+        </div>
+        <button onClick={onClose}
+          className="w-full font-mono text-xs text-zinc-600 hover:text-zinc-400 transition-colors">
+          Cancel
+        </button>
+      </div>
+    </>
+  );
+}
 
-  async function handleDeploy() {
-    setDeploying(true);
-    setError(null);
+// ── Shared action button logic ─────────────────────────────────────────────
+
+type MarketView = "client" | "freelancer";
+
+interface ActionButtonProps {
+  listing:    AgentListing;
+  userTier:   string;
+  profileId:  string;
+  marketView: MarketView;
+  compact?:   boolean;
+}
+
+function ActionButton({ listing, userTier, profileId, marketView, compact }: ActionButtonProps) {
+  const [busy,     setBusy]     = useState(false);
+  const [done,     setDone]     = useState<string | null>(null); // deployment_id | "applied" | "demo"
+  const [showGate, setShowGate] = useState(false);
+  const [offlineNote, setOfflineNote] = useState(false);
+
+  async function handleClient() {
+    if (userTier === "UNVERIFIED") { setShowGate(true); return; }
+    setBusy(true);
     try {
       const result = await createDeployment({
         agent_id:            listing.id,
@@ -184,14 +244,84 @@ function ListingCard({ listing }: { listing: AgentListing }) {
         agent_artifact_hash: listing.wasm_hash,
         escrow_amount_cents: listing.price_cents,
       });
-      setDeployed(result.deployment_id);
+      setDone(result.deployment_id);
     } catch {
-      setError("Service unavailable — demo mode");
+      setDone("demo");
     } finally {
-      setDeploying(false);
+      setBusy(false);
     }
   }
 
+  async function handleFreelancer() {
+    if (userTier === "UNVERIFIED") { setShowGate(true); return; }
+    setBusy(true);
+    try {
+      await expressInterest(listing.id, profileId, []);
+      setDone("applied");
+    } catch {
+      setDone("applied");
+      setOfflineNote(true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const h = compact ? "h-7" : "h-8";
+  const px = compact ? "px-2" : "px-3";
+
+  if (done) {
+    if (done === "applied") {
+      return (
+        <span className="flex items-center gap-1 font-mono text-xs text-emerald-400">
+          <CheckCircle className="w-3 h-3" />
+          {offlineNote ? <span className="text-amber-400">Noted locally</span> : "Applied ✓"}
+        </span>
+      );
+    }
+    return (
+      <span className="flex items-center gap-1 font-mono text-xs text-emerald-400">
+        <CheckCircle className="w-3 h-3" />
+        {done === "demo" ? "DEMO" : done.slice(0, 8) + "…"}
+      </span>
+    );
+  }
+
+  return (
+    <>
+      {marketView === "freelancer" ? (
+        <button
+          onClick={handleFreelancer}
+          disabled={busy}
+          className={`flex items-center gap-1 ${px} ${h} rounded-sm border border-sky-900
+                     bg-sky-950 text-sky-400 font-mono text-xs uppercase tracking-widest
+                     hover:border-sky-700 active:scale-[0.97] transition-all disabled:opacity-40`}
+        >
+          {busy ? "…" : <><Handshake className="w-3 h-3" /> Apply</>}
+        </button>
+      ) : (
+        <button
+          onClick={handleClient}
+          disabled={busy}
+          className={`flex items-center gap-1 ${px} ${h} rounded-sm border border-amber-900
+                     bg-amber-950 text-amber-400 font-mono text-xs uppercase tracking-widest
+                     hover:border-amber-700 active:scale-[0.97] transition-all disabled:opacity-40`}
+        >
+          {busy ? "…" : <>Deploy <ChevronRight className="w-3 h-3" /></>}
+        </button>
+      )}
+      {showGate && <TierGateSheet onClose={() => setShowGate(false)} />}
+    </>
+  );
+}
+
+// ── Listing card (mobile) ──────────────────────────────────────────────────
+
+function ListingCard({ listing, userTier, profileId, marketView }: {
+  listing:    AgentListing;
+  userTier:   string;
+  profileId:  string;
+  marketView: MarketView;
+}) {
   return (
     <div className="border border-zinc-800 rounded-sm bg-zinc-900 p-3 space-y-2 hover:border-zinc-700 transition-colors">
       <div className="flex items-start justify-between gap-3">
@@ -200,10 +330,7 @@ function ListingCard({ listing }: { listing: AgentListing }) {
           <div className="flex items-center gap-1.5 flex-wrap">
             <CategoryBadge category={listing.category} />
             <SellerBadge sellerType={listing.seller_type} />
-            <VettingBadge
-              tier={DEV_TIERS[listing.developer_id] ?? 0}
-              compact
-            />
+            <VettingBadge tier={DEV_TIERS[listing.developer_id] ?? 0} compact />
           </div>
         </div>
         <span className="font-mono text-sm font-medium text-amber-400 tabular-nums whitespace-nowrap flex-shrink-0">
@@ -221,55 +348,25 @@ function ListingCard({ listing }: { listing: AgentListing }) {
         <span className="font-mono text-[10px] text-zinc-600 truncate flex-1">
           dev: {listing.developer_id.slice(0, 8)}…
         </span>
-        {deployed ? (
-          <span className="flex items-center gap-1 font-mono text-xs text-green-400">
-            <CheckCircle className="w-3 h-3" />
-            {deployed.slice(0, 8)}…
-          </span>
-        ) : (
-          <button
-            onClick={handleDeploy}
-            disabled={deploying}
-            className="flex items-center gap-1 px-3 h-8 rounded-sm border border-amber-900
-                       bg-amber-950 text-amber-400 font-mono text-xs uppercase tracking-widest
-                       hover:border-amber-700 active:scale-[0.97] transition-all
-                       disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {deploying ? "…" : <>Deploy <ChevronRight className="w-3 h-3" /></>}
-          </button>
-        )}
+        <ActionButton
+          listing={listing}
+          userTier={userTier}
+          profileId={profileId}
+          marketView={marketView}
+        />
       </div>
-      {error && (
-        <p className="font-mono text-[10px] text-zinc-500 bg-zinc-950 px-2 py-1 rounded-sm border border-zinc-800">{error}</p>
-      )}
     </div>
   );
 }
 
 // ── Desktop table row ──────────────────────────────────────────────────────
 
-function TableRow({ listing }: { listing: AgentListing }) {
-  const [deploying, setDeploying] = useState(false);
-  const [deployed, setDeployed] = useState<string | null>(null);
-
-  async function handleDeploy() {
-    setDeploying(true);
-    try {
-      const result = await createDeployment({
-        agent_id:            listing.id,
-        client_id:           "00000000-0000-0000-0000-000000000001",
-        freelancer_id:       "00000000-0000-0000-0000-000000000002",
-        agent_artifact_hash: listing.wasm_hash,
-        escrow_amount_cents: listing.price_cents,
-      });
-      setDeployed(result.deployment_id);
-    } catch {
-      setDeployed("demo");
-    } finally {
-      setDeploying(false);
-    }
-  }
-
+function TableRow({ listing, userTier, profileId, marketView }: {
+  listing:    AgentListing;
+  userTier:   string;
+  profileId:  string;
+  marketView: MarketView;
+}) {
   return (
     <tr className="border-b border-zinc-800 hover:bg-zinc-900 transition-colors">
       <td className="px-3 py-2">
@@ -284,10 +381,7 @@ function TableRow({ listing }: { listing: AgentListing }) {
         <div className="flex items-center gap-1.5 flex-wrap">
           <CategoryBadge category={listing.category} />
           <SellerBadge sellerType={listing.seller_type} />
-          <VettingBadge
-            tier={DEV_TIERS[listing.developer_id] ?? 0}
-            compact
-          />
+          <VettingBadge tier={DEV_TIERS[listing.developer_id] ?? 0} compact />
         </div>
       </td>
       <td className="px-3 py-2 font-mono text-xs text-zinc-400 max-w-xs">
@@ -297,22 +391,13 @@ function TableRow({ listing }: { listing: AgentListing }) {
         {fmtUSD(listing.price_cents)}
       </td>
       <td className="px-3 py-2">
-        {deployed ? (
-          <span className="flex items-center gap-1 font-mono text-xs text-green-400">
-            <CheckCircle className="w-3 h-3" />
-            {deployed === "demo" ? "DEMO" : deployed.slice(0, 8) + "…"}
-          </span>
-        ) : (
-          <button
-            onClick={handleDeploy}
-            disabled={deploying}
-            className="flex items-center gap-1 px-2 h-7 rounded-sm border border-amber-900
-                       bg-amber-950 text-amber-400 font-mono text-xs uppercase tracking-widest
-                       hover:border-amber-700 active:scale-[0.97] transition-all disabled:opacity-40"
-          >
-            {deploying ? "…" : <>Deploy <ChevronRight className="w-3 h-3" /></>}
-          </button>
-        )}
+        <ActionButton
+          listing={listing}
+          userTier={userTier}
+          profileId={profileId}
+          marketView={marketView}
+          compact
+        />
       </td>
     </tr>
   );
@@ -620,11 +705,21 @@ const MOBILE_NAV = [
 // ── Page ───────────────────────────────────────────────────────────────────
 
 export default function MarketplacePage() {
+  const { data: session } = useSession();
+  const userTier  = session?.user?.identityTier ?? "UNVERIFIED";
+  const profileId = session?.user?.profileId ?? "00000000-0000-0000-0000-000000000000";
+
   const [allListings, setAllListings] = useState<AgentListing[]>(DEMO_LISTINGS);
   const [status,      setStatus]      = useState<"live" | "demo" | "loading">("loading");
   const [catFilter,   setCatFilter]   = useState<CategoryFilter>("All");
   const [sellerFilter,setSellerFilter]= useState<SellerFilter>("All");
   const [showPanel,   setShowPanel]   = useState(false);
+  const [marketView,  setMarketView]  = useState<MarketView>(() => {
+    if (typeof window !== "undefined") {
+      return (localStorage.getItem("market_view") as MarketView) ?? "client";
+    }
+    return "client";
+  });
 
   useEffect(() => {
     fetchListings()
@@ -744,11 +839,34 @@ export default function MarketplacePage() {
       <main className="flex-1 p-4 pb-20 lg:pb-4 space-y-4 max-w-5xl mx-auto w-full">
 
         {/* Header */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <Package className="w-4 h-4 text-amber-400" />
           <h1 className="font-mono text-sm font-medium text-zinc-300 uppercase tracking-widest">
             Marketplace
           </h1>
+
+          {/* View toggle */}
+          <div className="flex items-center rounded-sm border border-zinc-700 overflow-hidden">
+            {(["client", "freelancer"] as MarketView[]).map((v) => (
+              <button
+                key={v}
+                onClick={() => {
+                  setMarketView(v);
+                  localStorage.setItem("market_view", v);
+                }}
+                className={`h-7 px-3 font-mono text-xs transition-colors capitalize ${
+                  marketView === v
+                    ? v === "freelancer"
+                      ? "bg-sky-900 text-sky-300"
+                      : "bg-zinc-700 text-zinc-100"
+                    : "text-zinc-500 hover:text-zinc-300"
+                }`}
+              >
+                {v}
+              </button>
+            ))}
+          </div>
+
           <span className="font-mono text-xs text-zinc-600 ml-auto">
             {visible.length} / {allListings.length}
           </span>
@@ -838,7 +956,7 @@ export default function MarketplacePage() {
                 </tr>
               </thead>
               <tbody>
-                {visible.map((l) => <TableRow key={l.id} listing={l} />)}
+                {visible.map((l) => <TableRow key={l.id} listing={l} userTier={userTier} profileId={profileId} marketView={marketView} />)}
               </tbody>
             </table>
           </div>
@@ -847,7 +965,7 @@ export default function MarketplacePage() {
         {/* Mobile cards */}
         {visible.length > 0 && (
           <div className="sm:hidden space-y-2">
-            {visible.map((l) => <ListingCard key={l.id} listing={l} />)}
+            {visible.map((l) => <ListingCard key={l.id} listing={l} userTier={userTier} profileId={profileId} marketView={marketView} />)}
           </div>
         )}
 

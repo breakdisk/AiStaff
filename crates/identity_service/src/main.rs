@@ -1,12 +1,14 @@
 use std::sync::Arc;
 
 use axum::{
-    extract::{FromRef, State},
+    extract::{FromRef, Path, State},
     http::StatusCode,
     response::{IntoResponse, Json},
-    routing::{get, post},
+    routing::{get, patch, post},
     Router,
 };
+use serde::Deserialize;
+use uuid::Uuid;
 use dotenvy::dotenv;
 use sqlx::postgres::PgPoolOptions;
 use tracing_subscriber::{fmt, EnvFilter};
@@ -77,6 +79,8 @@ async fn main() -> anyhow::Result<()> {
         // New single-provider OAuth endpoints (migration 0016)
         .route("/identity/oauth-callback", post(oauth_callback))
         .route("/identity/connect-provider", post(connect_provider))
+        // Freelancer profile update (migration 0017)
+        .route("/profile/{id}", patch(update_profile))
         .with_state(state);
 
     let addr = "0.0.0.0:3001";
@@ -97,6 +101,49 @@ async fn oauth_callback(
         Ok(resp) => Json(resp).into_response(),
         Err(e) => {
             tracing::error!("oauth_callback: {e:#}");
+            (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response()
+        }
+    }
+}
+
+// ── PATCH /profile/{id} ───────────────────────────────────────────────────────
+// Updates mutable freelancer profile fields (bio, hourly_rate_cents, availability, role).
+
+#[derive(Debug, Deserialize)]
+struct UpdateProfilePayload {
+    bio:               Option<String>,
+    hourly_rate_cents: Option<i32>,
+    availability:      Option<String>,
+    role:              Option<String>,
+}
+
+async fn update_profile(
+    State(pool): State<sqlx::PgPool>,
+    Path(id): Path<Uuid>,
+    Json(payload): Json<UpdateProfilePayload>,
+) -> impl IntoResponse {
+    let res = sqlx::query(
+        "UPDATE unified_profiles
+         SET bio               = COALESCE($2, bio),
+             hourly_rate_cents = COALESCE($3, hourly_rate_cents),
+             availability      = COALESCE($4, availability),
+             role              = COALESCE($5, role),
+             updated_at        = NOW()
+         WHERE id = $1",
+    )
+    .bind(id)
+    .bind(&payload.bio)
+    .bind(payload.hourly_rate_cents)
+    .bind(&payload.availability)
+    .bind(&payload.role)
+    .execute(&pool)
+    .await;
+
+    match res {
+        Ok(r) if r.rows_affected() == 0 => StatusCode::NOT_FOUND.into_response(),
+        Ok(_) => (StatusCode::OK, Json(serde_json::json!({ "ok": true }))).into_response(),
+        Err(e) => {
+            tracing::error!("update_profile: {e:#}");
             (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response()
         }
     }

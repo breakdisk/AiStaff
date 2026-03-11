@@ -37,8 +37,8 @@ async fn main() -> Result<()> {
     // REST API runs alongside the Kafka consumer.
     let app = Router::new()
         .route("/health", get(handlers::health))
-        .route("/deployments/:id/heartbeats", get(handlers::get_heartbeats))
-        .route("/deployments/:id/drift", get(handlers::get_drift_events))
+        .route("/deployments/{id}/heartbeats", get(handlers::get_heartbeats))
+        .route("/deployments/{id}/drift", get(handlers::get_drift_events))
         .with_state(db)
         .layer(TraceLayer::new_for_http());
 

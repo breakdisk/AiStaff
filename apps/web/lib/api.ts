@@ -140,6 +140,72 @@ export function createListing(req: CreateListingRequest): Promise<{ listing_id: 
   });
 }
 
+// ── Identity service — profile update (:3001) ────────────────────────────
+
+export interface UpdateProfileRequest {
+  bio?:               string;
+  hourly_rate_cents?: number;
+  availability?:      "available" | "busy" | "not-available";
+  role?:              "talent" | "client" | "agent-owner";
+}
+
+export function updateProfile(profileId: string, data: UpdateProfileRequest): Promise<{ ok: boolean }> {
+  return apiFetch(`/api/identity/profile/${profileId}`, {
+    method: "PATCH",
+    body:   JSON.stringify(data),
+  });
+}
+
+// ── Marketplace service — skills + express interest (:3002) ───────────────
+
+export interface SkillTag {
+  id:     string;
+  tag:    string;
+  domain: string;
+}
+
+export interface TalentSkill {
+  tag_id:      string;
+  tag:         string;
+  domain:      string;
+  proficiency: number;
+  verified_at: string | null;
+}
+
+export function fetchSkillTags(): Promise<{ skill_tags: SkillTag[] }> {
+  return apiFetch("/api/marketplace/skill-tags");
+}
+
+export function fetchTalentSkills(profileId: string): Promise<{ skills: TalentSkill[] }> {
+  return apiFetch(`/api/marketplace/talent-skills/${profileId}`);
+}
+
+export function updateTalentSkills(
+  profileId: string,
+  skills:    { tag_id: string; proficiency: number }[],
+): Promise<{ ok: boolean; count: number }> {
+  return apiFetch(`/api/marketplace/talent-skills/${profileId}`, {
+    method: "PUT",
+    body:   JSON.stringify({ skills }),
+  });
+}
+
+export function expressInterest(
+  agentId:        string,
+  profileId:      string,
+  requiredSkills: string[],
+): Promise<{ request_id: string }> {
+  return apiFetch("/api/marketplace/express-interest", {
+    method: "POST",
+    body:   JSON.stringify({
+      agent_id:        agentId,
+      profile_id:      profileId,
+      required_skills: requiredSkills,
+      min_trust_score: 0,
+    }),
+  });
+}
+
 // ── Analytics service (:3008) ─────────────────────────────────────────────
 
 export function fetchRoiReport(talentId: string): Promise<RoiReport> {

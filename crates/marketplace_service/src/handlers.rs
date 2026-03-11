@@ -308,6 +308,165 @@ pub async fn get_listing(
     }
 }
 
+// ── GET /skill-tags ───────────────────────────────────────────────────────────
+
+pub async fn get_skill_tags(State(state): State<SharedState>) -> impl IntoResponse {
+    use sqlx::Row;
+
+    let rows = sqlx::query("SELECT id, tag, domain FROM skill_tags ORDER BY domain, tag")
+        .fetch_all(&state.db)
+        .await;
+
+    match rows {
+        Ok(rs) => {
+            let tags: Vec<serde_json::Value> = rs
+                .iter()
+                .map(|r| {
+                    let id: Uuid = r.get("id");
+                    let tag: &str = r.get("tag");
+                    let domain: &str = r.get("domain");
+                    serde_json::json!({ "id": id, "tag": tag, "domain": domain })
+                })
+                .collect();
+            (StatusCode::OK, Json(serde_json::json!({ "skill_tags": tags }))).into_response()
+        }
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+// ── GET /talent-skills/:profile_id ────────────────────────────────────────────
+
+pub async fn get_talent_skills(
+    State(state): State<SharedState>,
+    Path(profile_id): Path<Uuid>,
+) -> impl IntoResponse {
+    use sqlx::Row;
+
+    let rows = sqlx::query(
+        "SELECT ts.tag_id, st.tag, st.domain, ts.proficiency, ts.verified_at
+         FROM talent_skills ts
+         JOIN skill_tags st ON st.id = ts.tag_id
+         WHERE ts.talent_id = $1
+         ORDER BY st.domain, st.tag",
+    )
+    .bind(profile_id)
+    .fetch_all(&state.db)
+    .await;
+
+    match rows {
+        Ok(rs) => {
+            let skills: Vec<serde_json::Value> = rs
+                .iter()
+                .map(|r| {
+                    let tag_id: Uuid = r.get("tag_id");
+                    let tag: &str = r.get("tag");
+                    let domain: &str = r.get("domain");
+                    let proficiency: i16 = r.get("proficiency");
+                    let verified_at: Option<chrono::DateTime<chrono::Utc>> = r.get("verified_at");
+                    serde_json::json!({
+                        "tag_id":      tag_id,
+                        "tag":         tag,
+                        "domain":      domain,
+                        "proficiency": proficiency,
+                        "verified_at": verified_at.map(|t| t.to_rfc3339()),
+                    })
+                })
+                .collect();
+            (StatusCode::OK, Json(serde_json::json!({ "skills": skills }))).into_response()
+        }
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+// ── PUT /talent-skills/:profile_id ────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct SkillEntry {
+    pub tag_id:      Uuid,
+    pub proficiency: i16,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PutTalentSkillsRequest {
+    pub skills: Vec<SkillEntry>,
+}
+
+pub async fn put_talent_skills(
+    State(state): State<SharedState>,
+    Path(profile_id): Path<Uuid>,
+    Json(req): Json<PutTalentSkillsRequest>,
+) -> impl IntoResponse {
+    let del = sqlx::query("DELETE FROM talent_skills WHERE talent_id = $1")
+        .bind(profile_id)
+        .execute(&state.db)
+        .await;
+
+    if let Err(e) = del {
+        return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
+    }
+
+    for entry in &req.skills {
+        let ins = sqlx::query(
+            "INSERT INTO talent_skills (talent_id, tag_id, proficiency)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (talent_id, tag_id) DO UPDATE SET proficiency = EXCLUDED.proficiency",
+        )
+        .bind(profile_id)
+        .bind(entry.tag_id)
+        .bind(entry.proficiency)
+        .execute(&state.db)
+        .await;
+
+        if let Err(e) = ins {
+            return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
+        }
+    }
+
+    (StatusCode::OK, Json(serde_json::json!({ "ok": true, "count": req.skills.len() }))).into_response()
+}
+
+// ── POST /express-interest ─────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct ExpressInterestRequest {
+    pub agent_id:        Uuid,
+    pub profile_id:      Uuid,
+    pub required_skills: Vec<String>,
+    pub min_trust_score: i16,
+}
+
+pub async fn express_interest(
+    State(state): State<SharedState>,
+    Json(req): Json<ExpressInterestRequest>,
+) -> impl IntoResponse {
+    let request_id = Uuid::new_v4();
+
+    let ins = sqlx::query(
+        "INSERT INTO match_requests
+             (id, agent_id, required_skills, min_trust_score, applicant_id)
+         VALUES ($1, $2, $3, $4, $5)",
+    )
+    .bind(request_id)
+    .bind(req.agent_id)
+    .bind(&req.required_skills)
+    .bind(req.min_trust_score)
+    .bind(req.profile_id)
+    .execute(&state.db)
+    .await;
+
+    match ins {
+        Ok(_) => (
+            StatusCode::CREATED,
+            Json(serde_json::json!({ "request_id": request_id })),
+        )
+            .into_response(),
+        Err(e) => {
+            tracing::error!("express_interest: {e:#}");
+            (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response()
+        }
+    }
+}
+
 // ── GET /health ───────────────────────────────────────────────────────────────
 
 pub async fn health() -> StatusCode {
