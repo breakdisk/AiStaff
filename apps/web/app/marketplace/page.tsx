@@ -245,8 +245,8 @@ function ActionButton({ listing, userTier, profileId, marketView, compact }: Act
     try {
       const result = await createDeployment({
         agent_id:            listing.id,
-        client_id:           "00000000-0000-0000-0000-000000000001",
-        freelancer_id:       "00000000-0000-0000-0000-000000000002",
+        client_id:           profileId,
+        freelancer_id:       listing.developer_id,
         agent_artifact_hash: listing.wasm_hash,
         escrow_amount_cents: listing.price_cents,
       });
@@ -415,9 +415,10 @@ function TableRow({ listing, userTier, profileId, marketView, devTierMap }: {
 
 // ── List Product Panel ─────────────────────────────────────────────────────
 
-function ListProductPanel({ onClose, onCreated }: {
+function ListProductPanel({ onClose, onCreated, profileId }: {
   onClose:   () => void;
   onCreated: (listing: AgentListing) => void;
+  profileId: string;
 }) {
   const [name,        setName]        = useState("");
   const [description, setDescription] = useState("");
@@ -439,7 +440,7 @@ function ListProductPanel({ onClose, onCreated }: {
 
     try {
       await createListing({
-        developer_id: "00000000-0000-0000-0000-000000000001",
+        developer_id: profileId,
         name:         name.trim(),
         description:  description.trim(),
         wasm_hash,
@@ -453,7 +454,7 @@ function ListProductPanel({ onClose, onCreated }: {
 
     const newListing: AgentListing = {
       id:           crypto.randomUUID(),
-      developer_id: "00000000-0000-0000-0000-000000000001",
+      developer_id: profileId,
       name:         name.trim(),
       description:  description.trim(),
       wasm_hash,
@@ -1017,6 +1018,7 @@ export default function MarketplacePage() {
         <ListProductPanel
           onClose={() => setShowPanel(false)}
           onCreated={(listing) => setAllListings(prev => [listing, ...prev])}
+          profileId={profileId}
         />
       )}
 
