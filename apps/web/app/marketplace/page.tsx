@@ -719,6 +719,8 @@ export default function MarketplacePage() {
   const { data: session } = useSession();
   const userTier  = session?.user?.identityTier ?? "UNVERIFIED";
   const profileId = session?.user?.profileId ?? "00000000-0000-0000-0000-000000000000";
+  // Session role: "talent" | "client" | "agent-owner" | null
+  const sessionRole = (session?.user as { role?: string | null })?.role ?? null;
 
   const [allListings, setAllListings] = useState<AgentListing[]>(DEMO_LISTINGS);
   const [status,      setStatus]      = useState<"live" | "demo" | "loading">("loading");
@@ -732,6 +734,17 @@ export default function MarketplacePage() {
     }
     return "client";
   });
+
+  // Once session loads, seed the view from the user's role — but only if
+  // they haven't manually toggled it in this browser (localStorage wins).
+  useEffect(() => {
+    if (!sessionRole) return;
+    if (typeof window !== "undefined" && localStorage.getItem("market_view")) return;
+    // talent → freelancer installer view; client / agent-owner → buyer view
+    if (sessionRole === "talent") {
+      setMarketView("freelancer");
+    }
+  }, [sessionRole]);
 
   useEffect(() => {
     fetchListings()
@@ -904,6 +917,16 @@ export default function MarketplacePage() {
             List Product
           </button>
         </div>
+
+        {/* Freelancer context strip */}
+        {marketView === "freelancer" && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-sm border border-sky-900 bg-sky-950/40">
+            <Handshake className="w-3.5 h-3.5 text-sky-400 shrink-0" aria-hidden="true" />
+            <p className="font-mono text-xs text-sky-300">
+              Installer view — click <span className="text-sky-200 font-semibold">Apply</span> on any listing to express interest in deploying that agent.
+            </p>
+          </div>
+        )}
 
         {/* Category tabs */}
         <div className="flex items-center gap-1">

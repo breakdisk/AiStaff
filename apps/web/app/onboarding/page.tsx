@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession, signIn } from "next-auth/react";
-import Link from "next/link";
+// update() is available on the useSession return value (NextAuth v5)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type UpdateFn = (data?: any) => Promise<unknown>;
 import { updateProfile, createAgency } from "@/lib/api";
 import {
   Bot, Github, Linkedin, Briefcase, Code2, Building2,
@@ -431,7 +433,8 @@ function toBackendRole(r: Role): "talent" | "client" | "agent-owner" {
 
 export default function OnboardingPage() {
   const router   = useRouter();
-  const { data: session } = useSession();
+  const { data: session, update } = useSession() as
+    ReturnType<typeof useSession> & { update: UpdateFn };
   const [step,     setStep]     = useState(0);
   const [role,     setRole]     = useState<Role | null>(null);
   const [orgName,  setOrgName]  = useState(
@@ -460,7 +463,16 @@ export default function OnboardingPage() {
     if (profileId && role && role !== "agency") {
       updateProfile(profileId, { role: toBackendRole(role) }).catch(() => {/* non-fatal */});
     }
-    router.push("/dashboard");
+    // Refresh the JWT so the middleware sees the new role immediately —
+    // without this, the JWT still has role=null until the next full sign-in.
+    if (role) {
+      await update({
+        role:        toBackendRole(role),
+        accountType: role === "agency" ? "agency" : "individual",
+      }).catch(() => {/* non-fatal if session update fails */});
+    }
+    // Route by role — same table as middleware
+    router.push(role === "client" ? "/marketplace" : "/dashboard");
   }
 
   function chooseRole(r: Role) {
@@ -527,16 +539,12 @@ export default function OnboardingPage() {
         </div>
 
         <p className="text-center font-mono text-xs text-zinc-600 mt-4">
-          <Link href="/dashboard" className="hover:text-zinc-400 transition-colors"
-            onClick={() => {
-              if (typeof window !== "undefined") localStorage.setItem("onboarding_done", "1");
-              // Best-effort role persist even on skip
-              if (profileId && role && role !== "agency") {
-                updateProfile(profileId, { role: toBackendRole(role) }).catch(() => {});
-              }
-            }}>
+          <button
+            onClick={markDone}
+            className="hover:text-zinc-400 transition-colors"
+          >
             Skip setup — take me to the dashboard
-          </Link>
+          </button>
         </p>
       </div>
     </div>

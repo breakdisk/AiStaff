@@ -90,7 +90,19 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   session: { strategy: "jwt" },
 
   callbacks: {
-    async jwt({ token, account, profile }) {
+    async jwt({ token, account, profile, trigger, session }) {
+      // ── Session update: client called update({ role, accountType }) ──────────
+      // Fired after onboarding writes a new role to the backend.
+      // We trust the client payload here because it only updates non-privileged
+      // display fields — the authoritative role lives in the DB and will be
+      // re-read from identity_service on the next full sign-in.
+      if (trigger === "update" && session) {
+        if (session.role        !== undefined) token.role        = session.role;
+        if (session.accountType !== undefined) token.accountType = session.accountType;
+        token.roles = session.role ? [session.role as string] : [];
+        return token;
+      }
+
       if (account && profile) {
         // Fetch extra GitHub data (public_repos, created_at) for trust scoring
         let githubExtra: { public_repos: number; created_at: string } | undefined;
