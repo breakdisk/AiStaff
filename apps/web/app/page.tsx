@@ -125,7 +125,7 @@ function Nav() {
       <nav className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
         {/* Logo */}
         <Link href="/" className="flex items-center group">
-          <img src="/logo.png" alt="AiStaff" className="h-8 w-auto" />
+          <img src="/logo.png" alt="AiStaff" className="h-24 w-auto" />
         </Link>
 
         {/* Desktop links */}

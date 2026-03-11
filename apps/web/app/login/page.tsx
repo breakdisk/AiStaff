@@ -128,7 +128,7 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="flex flex-col items-center gap-2 mb-1">
           <Link href="/" className="flex items-center">
-            <img src="/logo.png" alt="AiStaff" className="h-12 w-auto" />
+            <img src="/logo.png" alt="AiStaff" className="h-36 w-auto" />
           </Link>
           <p className="font-mono text-xs text-zinc-500 uppercase tracking-widest">
             Human-on-the-Loop Platform

@@ -282,7 +282,7 @@ export default function DashboardPage() {
       {/* Sidebar — hidden on mobile */}
       <aside className="hidden lg:flex lg:flex-col w-56 border-r border-zinc-800 bg-zinc-950 p-4 gap-6">
         <div className="flex items-center justify-between">
-          <img src="/logo.png" alt="AiStaff" className="h-7 w-auto" />
+          <img src="/logo.png" alt="AiStaff" className="h-20 w-auto" />
           {/* Live / demo indicator */}
           <span className={`font-mono text-[9px] px-1.5 py-0.5 rounded-sm border ${
             serviceStatus === "live"
