@@ -162,24 +162,40 @@ pub async fn get_deployment(
 #[derive(Debug, Deserialize)]
 pub struct CreateListingRequest {
     pub developer_id: Uuid,
-    pub name: String,
-    pub description: String,
+    pub name:         String,
+    pub description:  String,
     /// SHA-256 hex of the Wasm artifact.
-    pub wasm_hash: String,
+    pub wasm_hash:    String,
     /// Price in USD cents.
-    pub price_cents: i64,
+    pub price_cents:  i64,
+    /// "AiTalent" | "AiStaff" | "AiRobot"
+    pub category:     String,
+    /// "Agency" | "Freelancer"
+    pub seller_type:  String,
 }
 
 pub async fn create_listing(
     State(state): State<SharedState>,
     Json(req): Json<CreateListingRequest>,
 ) -> impl IntoResponse {
-    let listing_id = Uuid::new_v4();
+    const VALID_CATS:    &[&str] = &["AiTalent", "AiStaff", "AiRobot"];
+    const VALID_SELLERS: &[&str] = &["Agency", "Freelancer"];
+
+    if !VALID_CATS.contains(&req.category.as_str()) {
+        return (StatusCode::BAD_REQUEST, "category must be AiTalent|AiStaff|AiRobot")
+            .into_response();
+    }
+    if !VALID_SELLERS.contains(&req.seller_type.as_str()) {
+        return (StatusCode::BAD_REQUEST, "seller_type must be Agency|Freelancer")
+            .into_response();
+    }
+
+    let listing_id = Uuid::now_v7();
 
     let insert = sqlx::query(
         "INSERT INTO agent_listings
-             (id, developer_id, name, description, wasm_hash, price_cents)
-         VALUES ($1, $2, $3, $4, $5, $6)",
+             (id, developer_id, name, description, wasm_hash, price_cents, category, seller_type)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
     )
     .bind(listing_id)
     .bind(req.developer_id)
@@ -187,6 +203,8 @@ pub async fn create_listing(
     .bind(&req.description)
     .bind(&req.wasm_hash)
     .bind(req.price_cents)
+    .bind(&req.category)
+    .bind(&req.seller_type)
     .execute(&state.db)
     .await;
 
@@ -210,7 +228,7 @@ pub async fn list_listings(State(state): State<SharedState>) -> impl IntoRespons
 
     let rows = sqlx::query(
         "SELECT id, developer_id, name, description, wasm_hash,
-                price_cents, active, created_at, updated_at
+                price_cents, active, category, seller_type, created_at, updated_at
          FROM agent_listings
          WHERE active = TRUE
          ORDER BY created_at DESC
@@ -231,6 +249,8 @@ pub async fn list_listings(State(state): State<SharedState>) -> impl IntoRespons
                     let wasm_hash: &str = r.get("wasm_hash");
                     let price_cents: i64 = r.get("price_cents");
                     let active: bool = r.get("active");
+                    let category: &str = r.get("category");
+                    let seller_type: &str = r.get("seller_type");
                     let created: chrono::DateTime<chrono::Utc> = r.get("created_at");
                     let updated: chrono::DateTime<chrono::Utc> = r.get("updated_at");
 
@@ -242,6 +262,8 @@ pub async fn list_listings(State(state): State<SharedState>) -> impl IntoRespons
                         "wasm_hash":    wasm_hash,
                         "price_cents":  price_cents,
                         "active":       active,
+                        "category":     category,
+                        "seller_type":  seller_type,
                         "created_at":   created.to_rfc3339(),
                         "updated_at":   updated.to_rfc3339(),
                     })
@@ -268,7 +290,7 @@ pub async fn get_listing(
 
     let row = sqlx::query(
         "SELECT id, developer_id, name, description, wasm_hash,
-                price_cents, active, created_at, updated_at
+                price_cents, active, category, seller_type, created_at, updated_at
          FROM agent_listings WHERE id = $1",
     )
     .bind(id)
@@ -284,6 +306,8 @@ pub async fn get_listing(
             let wasm_hash: &str = r.get("wasm_hash");
             let price_cents: i64 = r.get("price_cents");
             let active: bool = r.get("active");
+            let category: &str = r.get("category");
+            let seller_type: &str = r.get("seller_type");
             let created: chrono::DateTime<chrono::Utc> = r.get("created_at");
             let updated: chrono::DateTime<chrono::Utc> = r.get("updated_at");
 
@@ -297,6 +321,8 @@ pub async fn get_listing(
                     "wasm_hash":    wasm_hash,
                     "price_cents":  price_cents,
                     "active":       active,
+                    "category":     category,
+                    "seller_type":  seller_type,
                     "created_at":   created.to_rfc3339(),
                     "updated_at":   updated.to_rfc3339(),
                 })),

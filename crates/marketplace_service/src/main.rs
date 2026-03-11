@@ -6,10 +6,9 @@ mod handlers;
 
 use anyhow::Result;
 use axum::{
-    routing::{get, post},
+    routing::{get, post, put},
     Router,
 };
-use axum::routing::put;
 use common::kafka::producer::KafkaProducer;
 use dotenvy::dotenv;
 use handlers::AppState;

@@ -84,6 +84,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/profile/{id}/provider/{provider}", delete(disconnect_provider))
         // Public profile endpoint (trust score + tier for marketplace)
         .route("/identity/public-profile/{id}", get(public_profile))
+        // Agency registration
+        .route("/agencies", post(create_agency))
         .with_state(state);
 
     let addr = "0.0.0.0:3001";
@@ -401,4 +403,97 @@ async fn disconnect_provider(
         "identity_tier": new_tier,
     }))
     .into_response()
+}
+
+// ── POST /agencies ─────────────────────────────────────────────────────────────
+// Creates an agency org record and marks the owner's profile as account_type='agency'.
+// Idempotency: `handle` is UNIQUE — duplicate returns 409.
+
+#[derive(Debug, Deserialize)]
+struct CreateAgencyPayload {
+    owner_id:    Uuid,
+    name:        String,
+    handle:      String,
+    description: Option<String>,
+    website_url: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct CreateAgencyResponse {
+    agency_id:  Uuid,
+    handle:     String,
+    name:       String,
+    created_at: String,
+}
+
+async fn create_agency(
+    State(pool): State<sqlx::PgPool>,
+    Json(payload): Json<CreateAgencyPayload>,
+) -> impl IntoResponse {
+    use sqlx::Row;
+
+    let handle = payload.handle.trim().to_lowercase();
+
+    if handle.len() < 3 || handle.len() > 40 {
+        return (StatusCode::BAD_REQUEST, "handle must be 3–40 characters").into_response();
+    }
+    if !handle.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+        return (StatusCode::BAD_REQUEST,
+            "handle must be lowercase alphanumeric or hyphens").into_response();
+    }
+
+    let agency_id = Uuid::now_v7();
+
+    // Mark the owner's profile as an agency account
+    if let Err(e) = sqlx::query(
+        "UPDATE unified_profiles
+         SET account_type = 'agency', org_name = $2, updated_at = NOW()
+         WHERE id = $1",
+    )
+    .bind(payload.owner_id)
+    .bind(&payload.name)
+    .execute(&pool)
+    .await
+    {
+        tracing::error!("create_agency profile update: {e:#}");
+        return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
+    }
+
+    // Insert the agency record
+    match sqlx::query(
+        "INSERT INTO agencies (id, owner_id, name, handle, description, website_url)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING created_at",
+    )
+    .bind(agency_id)
+    .bind(payload.owner_id)
+    .bind(&payload.name)
+    .bind(&handle)
+    .bind(&payload.description)
+    .bind(&payload.website_url)
+    .fetch_one(&pool)
+    .await
+    {
+        Ok(row) => {
+            let created_at: chrono::DateTime<chrono::Utc> = row.get("created_at");
+            tracing::info!(%agency_id, handle = %handle, "agency created");
+            (
+                StatusCode::CREATED,
+                Json(CreateAgencyResponse {
+                    agency_id,
+                    handle,
+                    name: payload.name,
+                    created_at: created_at.to_rfc3339(),
+                }),
+            )
+                .into_response()
+        }
+        Err(e) if e.to_string().contains("agencies_handle_key") => {
+            (StatusCode::CONFLICT, "agency handle already taken").into_response()
+        }
+        Err(e) => {
+            tracing::error!("create_agency insert: {e:#}");
+            (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response()
+        }
+    }
 }

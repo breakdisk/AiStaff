@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useSession, signIn } from "next-auth/react";
 import Link from "next/link";
 import {
-  Bot, Github, Linkedin, Briefcase, Code2,
+  Bot, Github, Linkedin, Briefcase, Code2, Building2,
   CheckCircle, ChevronRight, ArrowRight, Zap,
 } from "lucide-react";
 
@@ -78,7 +78,7 @@ function StepWelcome({ name, onNext }: { name: string | null; onNext: () => void
 
 // ── Step 2: Role ───────────────────────────────────────────────────────────────
 
-type Role = "freelancer" | "client";
+type Role = "freelancer" | "client" | "agency";
 
 function StepRole({ onNext }: { onNext: (role: Role) => void }) {
   return (
@@ -123,6 +123,26 @@ function StepRole({ onNext }: { onNext: (role: Role) => void }) {
               <p className="font-medium text-zinc-100 text-sm">I&apos;m a Client / Buyer</p>
               <p className="font-mono text-xs text-zinc-500 mt-0.5">
                 Deploy AI agents &amp; hire vetted installers for my business
+              </p>
+            </div>
+            <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-amber-400 ml-auto shrink-0 transition-colors" />
+          </div>
+        </button>
+
+        <button
+          onClick={() => onNext("agency")}
+          className="w-full p-4 rounded-sm border border-zinc-700 bg-zinc-900/60 hover:border-amber-400/50
+                     hover:bg-zinc-800 transition-all active:scale-[0.98] text-left group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-sm bg-zinc-800 border border-zinc-700
+                            group-hover:border-amber-400/40 flex items-center justify-center shrink-0">
+              <Building2 className="w-5 h-5 text-amber-400" />
+            </div>
+            <div>
+              <p className="font-medium text-zinc-100 text-sm">I run an Agency</p>
+              <p className="font-mono text-xs text-zinc-500 mt-0.5">
+                List agents &amp; manage team listings under an org account
               </p>
             </div>
             <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-amber-400 ml-auto shrink-0 transition-colors" />
@@ -254,6 +274,141 @@ function StepClient({ onDone }: { onDone: () => void }) {
   );
 }
 
+// ── Step 3c: Agency — org name + handle ───────────────────────────────────────
+
+function StepAgency({ onNext }: { onNext: (orgName: string, handle: string) => void }) {
+  const [orgName, setOrgName] = useState("");
+  const [handle,  setHandle]  = useState("");
+  const [error,   setError]   = useState<string | null>(null);
+
+  function validate(): boolean {
+    if (!orgName.trim()) {
+      setError("Organisation name is required.");
+      return false;
+    }
+    if (handle.length < 3) {
+      setError("Handle must be at least 3 characters.");
+      return false;
+    }
+    if (!/^[a-z0-9-]+$/.test(handle)) {
+      setError("Handle: lowercase letters, numbers, hyphens only.");
+      return false;
+    }
+    return true;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="text-center space-y-1">
+        <h2 className="text-lg font-semibold text-zinc-100">Name your agency</h2>
+        <p className="font-mono text-xs text-zinc-500">You can update this later from your profile.</p>
+      </div>
+
+      <div className="space-y-4">
+        <div className="space-y-1.5">
+          <label className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest">
+            Organisation Name
+          </label>
+          <input
+            type="text"
+            value={orgName}
+            onChange={e => { setOrgName(e.target.value); setError(null); }}
+            placeholder="Acme AI Labs"
+            className="w-full h-10 px-3 bg-zinc-900 border border-zinc-800 rounded-sm
+                       font-mono text-sm text-zinc-200 placeholder-zinc-600
+                       focus:outline-none focus:border-zinc-600 transition-colors"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest">
+            Handle
+          </label>
+          <div className="flex items-center h-10 bg-zinc-900 border border-zinc-800 rounded-sm
+                          focus-within:border-zinc-600 overflow-hidden transition-colors">
+            <span className="px-3 font-mono text-xs text-zinc-600 border-r border-zinc-800 select-none">
+              @
+            </span>
+            <input
+              type="text"
+              value={handle}
+              maxLength={40}
+              onChange={e => {
+                setHandle(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""));
+                setError(null);
+              }}
+              placeholder="acme-ai"
+              className="flex-1 h-full bg-transparent font-mono text-sm text-zinc-200
+                         placeholder-zinc-600 focus:outline-none px-3"
+            />
+          </div>
+          <p className="font-mono text-[10px] text-zinc-600">
+            Lowercase letters, numbers, hyphens. Min 3 chars.
+          </p>
+        </div>
+
+        {error && (
+          <p className="font-mono text-[10px] text-red-400 border border-red-900
+                        bg-red-950/30 px-2 py-1.5 rounded-sm">
+            {error}
+          </p>
+        )}
+      </div>
+
+      <button
+        onClick={() => { if (validate()) onNext(orgName.trim(), handle); }}
+        className="w-full h-11 flex items-center justify-center gap-2 rounded-sm
+                   bg-amber-400 hover:bg-amber-300 text-zinc-950 font-mono text-sm
+                   font-medium transition-all active:scale-[0.98]"
+      >
+        Continue <ArrowRight className="w-4 h-4" />
+      </button>
+    </div>
+  );
+}
+
+// ── Step 4: Agency done ────────────────────────────────────────────────────────
+
+function StepAgencyDone({ orgName, onDone }: { orgName: string; onDone: () => void }) {
+  const router = useRouter();
+  return (
+    <div className="space-y-6">
+      <div className="text-center space-y-2">
+        <div className="w-12 h-12 rounded-sm bg-zinc-800 border border-zinc-700
+                        flex items-center justify-center mx-auto">
+          <Building2 className="w-6 h-6 text-amber-400" />
+        </div>
+        <h2 className="text-lg font-semibold text-zinc-100">{orgName}</h2>
+        <p className="font-mono text-xs text-zinc-500">Your agency account is ready to configure.</p>
+      </div>
+
+      <button
+        onClick={() => { onDone(); router.push("/agency/register"); }}
+        className="w-full p-4 rounded-sm border border-amber-400/40 bg-amber-400/5
+                   hover:bg-amber-400/10 transition-all active:scale-[0.98] text-left"
+      >
+        <div className="flex items-center gap-3">
+          <Building2 className="w-5 h-5 text-amber-400 shrink-0" />
+          <div>
+            <p className="font-medium text-zinc-100 text-sm">Complete agency setup</p>
+            <p className="font-mono text-xs text-zinc-500 mt-0.5">
+              Add description, website and publish your first listing
+            </p>
+          </div>
+          <ArrowRight className="w-4 h-4 text-amber-400 ml-auto shrink-0" />
+        </div>
+      </button>
+
+      <button
+        onClick={onDone}
+        className="w-full text-center font-mono text-xs text-zinc-500 hover:text-zinc-400 transition-colors"
+      >
+        Go to dashboard
+      </button>
+    </div>
+  );
+}
+
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function OnboardingPage() {
@@ -261,11 +416,23 @@ export default function OnboardingPage() {
   const { data: session } = useSession();
   const [step, setStep]   = useState(0);
   const [role, setRole]   = useState<Role | null>(null);
+  const [orgName, setOrgName] = useState(
+    () => typeof window !== "undefined" ? localStorage.getItem("org_name") ?? "" : ""
+  );
+  const [handle, setHandle] = useState(
+    () => typeof window !== "undefined" ? localStorage.getItem("org_handle") ?? "" : ""
+  );
+
+  const totalSteps = role === "agency" ? 4 : 3;
 
   function markDone() {
     if (typeof window !== "undefined") {
       localStorage.setItem("onboarding_done", "1");
       if (role) localStorage.setItem("user_role", role);
+      if (role === "agency") {
+        localStorage.removeItem("org_name");
+        localStorage.removeItem("org_handle");
+      }
     }
     router.push("/dashboard");
   }
@@ -276,6 +443,19 @@ export default function OnboardingPage() {
     setStep(2);
   }
 
+  function handleAgencyDetails(name: string, h: string) {
+    setOrgName(name);
+    setHandle(h);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("org_name", name);
+      localStorage.setItem("org_handle", h);
+    }
+    setStep(3);
+  }
+
+  // Suppress unused-variable warning — handle is stored in localStorage for /agency/register
+  void handle;
+
   return (
     <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center px-4">
       {/* Ambient glow */}
@@ -285,7 +465,7 @@ export default function OnboardingPage() {
       </div>
 
       <div className="relative z-10 w-full max-w-sm">
-        <Steps current={step} total={3} />
+        <Steps current={step} total={totalSteps} />
 
         <div className="rounded-sm border border-zinc-800 bg-zinc-900/60 backdrop-blur-sm p-6">
           {step === 0 && (
@@ -297,6 +477,8 @@ export default function OnboardingPage() {
           {step === 1 && <StepRole onNext={chooseRole} />}
           {step === 2 && role === "freelancer" && <StepFreelancer onDone={markDone} />}
           {step === 2 && role === "client"     && <StepClient     onDone={markDone} />}
+          {step === 2 && role === "agency"     && <StepAgency     onNext={handleAgencyDetails} />}
+          {step === 3 && role === "agency"     && <StepAgencyDone orgName={orgName} onDone={markDone} />}
         </div>
 
         <p className="text-center font-mono text-xs text-zinc-600 mt-4">

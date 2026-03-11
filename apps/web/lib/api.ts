@@ -252,6 +252,28 @@ export function attestSkills(
   });
 }
 
+export interface AgencyResponse {
+  agency_id:  string;
+  handle:     string;
+  name:       string;
+  created_at: string;
+}
+
+export function createAgency(req: {
+  owner_id:     string;
+  name:         string;
+  handle:       string;
+  description?: string;
+  website_url?: string;
+}): Promise<AgencyResponse> {
+  // Proxy: /api/identity/* → http://localhost:3001/*
+  // Route: /agencies (no /identity/ prefix — top-level route in identity_service)
+  return apiFetch("/api/identity/agencies", {
+    method: "POST",
+    body:   JSON.stringify(req),
+  });
+}
+
 // ── Analytics service (:3008) ─────────────────────────────────────────────
 
 export function fetchRoiReport(talentId: string): Promise<RoiReport> {
