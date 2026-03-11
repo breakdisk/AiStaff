@@ -6,7 +6,7 @@ mod handlers;
 
 use anyhow::Result;
 use axum::{
-    routing::{get, post, put},
+    routing::{get, post},
     Router,
 };
 use common::kafka::producer::KafkaProducer;
