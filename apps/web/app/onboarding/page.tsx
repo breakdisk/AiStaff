@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession, signIn } from "next-auth/react";
 import Link from "next/link";
+import { updateProfile, createAgency } from "@/lib/api";
 import {
   Bot, Github, Linkedin, Briefcase, Code2, Building2,
   CheckCircle, ChevronRight, ArrowRight, Zap,
@@ -276,7 +277,15 @@ function StepClient({ onDone }: { onDone: () => void }) {
 
 // ── Step 3c: Agency — org name + handle ───────────────────────────────────────
 
-function StepAgency({ onNext }: { onNext: (orgName: string, handle: string) => void }) {
+function StepAgency({
+  onNext,
+  saving,
+  externalError,
+}: {
+  onNext:        (orgName: string, handle: string) => void;
+  saving:        boolean;
+  externalError: string | null;
+}) {
   const [orgName, setOrgName] = useState("");
   const [handle,  setHandle]  = useState("");
   const [error,   setError]   = useState<string | null>(null);
@@ -347,21 +356,23 @@ function StepAgency({ onNext }: { onNext: (orgName: string, handle: string) => v
           </p>
         </div>
 
-        {error && (
+        {(error || externalError) && (
           <p className="font-mono text-[10px] text-red-400 border border-red-900
                         bg-red-950/30 px-2 py-1.5 rounded-sm">
-            {error}
+            {error ?? externalError}
           </p>
         )}
       </div>
 
       <button
+        disabled={saving}
         onClick={() => { if (validate()) onNext(orgName.trim(), handle); }}
         className="w-full h-11 flex items-center justify-center gap-2 rounded-sm
                    bg-amber-400 hover:bg-amber-300 text-zinc-950 font-mono text-sm
-                   font-medium transition-all active:scale-[0.98]"
+                   font-medium transition-all active:scale-[0.98] disabled:opacity-50
+                   disabled:cursor-not-allowed"
       >
-        Continue <ArrowRight className="w-4 h-4" />
+        {saving ? "Creating agency…" : <>Continue <ArrowRight className="w-4 h-4" /></>}
       </button>
     </div>
   );
@@ -411,21 +422,31 @@ function StepAgencyDone({ orgName, onDone }: { orgName: string; onDone: () => vo
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 
+// Map onboarding Role → identity_service role string
+function toBackendRole(r: Role): "talent" | "client" | "agent-owner" {
+  if (r === "freelancer") return "talent";
+  if (r === "client")     return "client";
+  return "agent-owner";
+}
+
 export default function OnboardingPage() {
   const router   = useRouter();
   const { data: session } = useSession();
-  const [step, setStep]   = useState(0);
-  const [role, setRole]   = useState<Role | null>(null);
-  const [orgName, setOrgName] = useState(
+  const [step,     setStep]     = useState(0);
+  const [role,     setRole]     = useState<Role | null>(null);
+  const [orgName,  setOrgName]  = useState(
     () => typeof window !== "undefined" ? localStorage.getItem("org_name") ?? "" : ""
   );
-  const [handle, setHandle] = useState(
+  const [handle,   setHandle]   = useState(
     () => typeof window !== "undefined" ? localStorage.getItem("org_handle") ?? "" : ""
   );
+  const [saving,   setSaving]   = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   const totalSteps = role === "agency" ? 4 : 3;
+  const profileId  = session?.user?.profileId;
 
-  function markDone() {
+  async function markDone() {
     if (typeof window !== "undefined") {
       localStorage.setItem("onboarding_done", "1");
       if (role) localStorage.setItem("user_role", role);
@@ -434,23 +455,47 @@ export default function OnboardingPage() {
         localStorage.removeItem("org_handle");
       }
     }
+    // Safety-net write: persist role for freelancer/client in case the
+    // chooseRole fire-and-forget failed (agency role already written during agency creation)
+    if (profileId && role && role !== "agency") {
+      updateProfile(profileId, { role: toBackendRole(role) }).catch(() => {/* non-fatal */});
+    }
     router.push("/dashboard");
   }
 
   function chooseRole(r: Role) {
     setRole(r);
     if (typeof window !== "undefined") localStorage.setItem("user_role", r);
+    // Optimistic write to backend — non-blocking so UI moves instantly.
+    // For agency we defer until createAgency succeeds.
+    if (profileId && r !== "agency") {
+      updateProfile(profileId, { role: toBackendRole(r) }).catch(() => {/* non-fatal */});
+    }
     setStep(2);
   }
 
-  function handleAgencyDetails(name: string, h: string) {
+  async function handleAgencyDetails(name: string, h: string) {
     setOrgName(name);
     setHandle(h);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("org_name", name);
-      localStorage.setItem("org_handle", h);
+    setSaving(true);
+    setApiError(null);
+    try {
+      if (profileId) {
+        await createAgency({ owner_id: profileId, name, handle: h });
+        await updateProfile(profileId, { role: "agent-owner" });
+      }
+      if (typeof window !== "undefined") {
+        localStorage.setItem("org_name",   name);
+        localStorage.setItem("org_handle", h);
+      }
+      setStep(3);
+    } catch (err) {
+      setApiError(
+        err instanceof Error ? err.message : "Failed to create agency — handle may already be taken."
+      );
+    } finally {
+      setSaving(false);
     }
-    setStep(3);
   }
 
   // Suppress unused-variable warning — handle is stored in localStorage for /agency/register
@@ -477,13 +522,19 @@ export default function OnboardingPage() {
           {step === 1 && <StepRole onNext={chooseRole} />}
           {step === 2 && role === "freelancer" && <StepFreelancer onDone={markDone} />}
           {step === 2 && role === "client"     && <StepClient     onDone={markDone} />}
-          {step === 2 && role === "agency"     && <StepAgency     onNext={handleAgencyDetails} />}
+          {step === 2 && role === "agency"     && <StepAgency     onNext={handleAgencyDetails} saving={saving} externalError={apiError} />}
           {step === 3 && role === "agency"     && <StepAgencyDone orgName={orgName} onDone={markDone} />}
         </div>
 
         <p className="text-center font-mono text-xs text-zinc-600 mt-4">
           <Link href="/dashboard" className="hover:text-zinc-400 transition-colors"
-            onClick={() => { if (typeof window !== "undefined") localStorage.setItem("onboarding_done", "1"); }}>
+            onClick={() => {
+              if (typeof window !== "undefined") localStorage.setItem("onboarding_done", "1");
+              // Best-effort role persist even on skip
+              if (profileId && role && role !== "agency") {
+                updateProfile(profileId, { role: toBackendRole(role) }).catch(() => {});
+              }
+            }}>
             Skip setup — take me to the dashboard
           </Link>
         </p>
