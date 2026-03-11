@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import { LogOut } from "lucide-react";
 import type { Session } from "@/lib/session";
 import { StitchingDashboard }    from "@/components/StitchingDashboard";
@@ -284,7 +283,7 @@ export default function DashboardPage() {
       <aside className="hidden lg:flex lg:flex-col w-56 border-r border-zinc-800 bg-zinc-950 p-4 gap-6">
         <div className="flex items-center justify-between">
           <div className="bg-white rounded-sm p-1 flex items-center justify-center">
-            <Image src="/logo.png" alt="AiStaff" width={100} height={33} className="h-6 w-auto" />
+            <img src="/logo.png" alt="AiStaff" className="h-6 w-auto" />
           </div>
           {/* Live / demo indicator */}
           <span className={`font-mono text-[9px] px-1.5 py-0.5 rounded-sm border ${

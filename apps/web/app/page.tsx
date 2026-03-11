@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import {
   Bot, Users, Zap, Shield, ShieldCheck, ArrowRight, Check, Star,
   ChevronLeft, ChevronRight, Menu, X, Github, Twitter, Linkedin,
@@ -127,7 +126,7 @@ function Nav() {
         {/* Logo */}
         <Link href="/" className="flex items-center group">
           <div className="bg-white rounded-sm p-1 flex items-center justify-center">
-            <Image src="/logo.png" alt="AiStaff" width={110} height={36} className="h-7 w-auto" priority />
+            <img src="/logo.png" alt="AiStaff" className="h-7 w-auto" />
           </div>
         </Link>
 
