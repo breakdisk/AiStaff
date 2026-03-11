@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Bot, Users, Zap, Shield, ShieldCheck, ArrowRight, Check, Star,
   ChevronLeft, ChevronRight, Menu, X, Github, Twitter, Linkedin,
@@ -124,13 +125,10 @@ function Nav() {
     <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? "bg-zinc-950/90 backdrop-blur-md border-b border-zinc-800/80" : "bg-transparent"}`}>
       <nav className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2 group">
-          <div className="w-7 h-7 rounded-sm bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
-            <Bot className="w-4 h-4 text-zinc-950" />
+        <Link href="/" className="flex items-center group">
+          <div className="bg-white rounded-sm p-1 flex items-center justify-center">
+            <Image src="/logo.png" alt="AiStaff" width={110} height={36} className="h-7 w-auto" priority />
           </div>
-          <span className="font-mono text-sm font-medium text-zinc-100">
-            AiStaff<span className="text-amber-400">App</span>
-          </span>
         </Link>
 
         {/* Desktop links */}

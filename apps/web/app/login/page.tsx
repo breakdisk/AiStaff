@@ -4,7 +4,8 @@ import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
-import { Bot, Github, Loader2, Linkedin } from "lucide-react";
+import Image from "next/image";
+import { Github, Loader2, Linkedin } from "lucide-react";
 
 // ── Google icon (Lucide does not include it) ──────────────────────────────────
 
@@ -127,14 +128,10 @@ export default function LoginPage() {
 
         {/* Logo */}
         <div className="flex flex-col items-center gap-2 mb-1">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-sm bg-gradient-to-br from-amber-400 to-amber-600
-                            flex items-center justify-center shadow-lg shadow-amber-500/20">
-              <Bot className="w-5 h-5 text-zinc-950" />
+          <Link href="/" className="flex items-center">
+            <div className="bg-white rounded-sm p-1.5 flex items-center justify-center">
+              <Image src="/logo.png" alt="AiStaff" width={140} height={46} className="h-10 w-auto" priority />
             </div>
-            <span className="font-mono text-base font-medium text-zinc-100">
-              AiStaff<span className="text-amber-400">App</span>
-            </span>
           </Link>
           <p className="font-mono text-xs text-zinc-500 uppercase tracking-widest">
             Human-on-the-Loop Platform
