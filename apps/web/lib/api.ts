@@ -216,6 +216,10 @@ export interface PublicProfile {
   github_connected:   boolean;
   linkedin_connected: boolean;
   google_connected:   boolean;
+  // Added in migration 0017 — present on talent profiles
+  hourly_rate_cents:  number | null;
+  availability:       string | null;  // "available" | "busy" | "not-available"
+  role:               string | null;  // "talent" | "client" | "agent-owner"
 }
 
 export function fetchPublicProfile(profileId: string): Promise<PublicProfile> {

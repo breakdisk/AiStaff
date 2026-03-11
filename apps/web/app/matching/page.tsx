@@ -1,15 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Brain, ChevronDown, ChevronUp, Zap,
   Code2, Database, Cpu, Globe,
   Bot, Users, User, Clock, ShieldCheck,
   CheckCircle2, AlertCircle, ArrowRight, Star,
+  Search, SlidersHorizontal, Loader2,
 } from "lucide-react";
 import { SubScoreBar } from "@/components/SubScoreBar";
 import { VettingBadge } from "@/components/VettingBadge";
+import {
+  fetchMatches, fetchPublicProfile, fetchSkillTags,
+  type SkillTag,
+} from "@/lib/api";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -26,7 +31,7 @@ interface MatchCandidate {
   behavior_score:   number;   // 0–100
   skill_tags:       string[];
   rate_cents:       number;
-  trial_rate_cents: number;   // discounted (only used in Hybrid mode)
+  trial_rate_cents: number;
   availability:     "available" | "limited" | "unavailable";
   deployments:      number;
 }
@@ -41,7 +46,7 @@ interface HumanRecruiter {
   available:  boolean;
 }
 
-// ── Demo data ──────────────────────────────────────────────────────────────────
+// ── Demo data (fallback while no live search has been run) ─────────────────────
 
 const CANDIDATES: MatchCandidate[] = [
   {
@@ -149,9 +154,9 @@ const CANDIDATES: MatchCandidate[] = [
 ];
 
 const RECRUITERS: HumanRecruiter[] = [
-  { id: "rec-001", name: "Priya S.",  speciality: "AI/ML · Rust · Systems",          placements: 148, avg_days: 9,  fee_pct: 8, available: true  },
-  { id: "rec-002", name: "James W.",  speciality: "DevOps · Cloud · Kubernetes",      placements: 93,  avg_days: 12, fee_pct: 7, available: true  },
-  { id: "rec-003", name: "Amara O.",  speciality: "Robotics · Embedded · ROS2",       placements: 61,  avg_days: 11, fee_pct: 9, available: false },
+  { id: "rec-001", name: "Priya S.",  speciality: "AI/ML · Rust · Systems",      placements: 148, avg_days: 9,  fee_pct: 8, available: true  },
+  { id: "rec-002", name: "James W.",  speciality: "DevOps · Cloud · Kubernetes",  placements: 93,  avg_days: 12, fee_pct: 7, available: true  },
+  { id: "rec-003", name: "Amara O.",  speciality: "Robotics · Embedded · ROS2",   placements: 61,  avg_days: 11, fee_pct: 9, available: false },
 ];
 
 // ── Sidebar nav ────────────────────────────────────────────────────────────────
@@ -198,10 +203,30 @@ function subColor(s: number): "green" | "amber" | "red" {
   return "red";
 }
 
+function tierStringToNum(tier: string): 0 | 1 | 2 {
+  if (tier === "BIOMETRIC_VERIFIED") return 2;
+  if (tier === "SOCIAL_VERIFIED")    return 1;
+  return 0;
+}
+
+function availFromString(s: string | null | undefined): "available" | "limited" | "unavailable" {
+  if (s === "available")     return "available";
+  if (s === "busy")          return "limited";
+  if (s === "not-available") return "unavailable";
+  return "available";
+}
+
+function roleToTitle(role: string | null): string {
+  if (role === "talent")      return "Freelancer";
+  if (role === "agent-owner") return "Agency Owner";
+  if (role === "client")      return "Client";
+  return "Freelancer";
+}
+
 // ── Mode toggle ────────────────────────────────────────────────────────────────
 
-type PageMode   = "ai" | "hybrid";
-type HybridTab  = "shortlist" | "human" | "trials";
+type PageMode  = "ai" | "hybrid";
+type HybridTab = "shortlist" | "human" | "trials";
 
 function ModeToggle({ mode, onChange }: { mode: PageMode; onChange: (m: PageMode) => void }) {
   return (
@@ -235,6 +260,122 @@ function ModeToggle({ mode, onChange }: { mode: PageMode; onChange: (m: PageMode
   );
 }
 
+// ── Search form ────────────────────────────────────────────────────────────────
+
+function MatchSearchForm({
+  skillTags,
+  selectedSkills,
+  onToggleSkill,
+  minTrust,
+  onMinTrustChange,
+  searching,
+  hasResults,
+  error,
+  onSearch,
+}: {
+  skillTags:        SkillTag[];
+  selectedSkills:   string[];
+  onToggleSkill:    (tag: string) => void;
+  minTrust:         number;
+  onMinTrustChange: (v: number) => void;
+  searching:        boolean;
+  hasResults:       boolean;
+  error:            string | null;
+  onSearch:         () => void;
+}) {
+  return (
+    <div className="border border-zinc-800 rounded-sm bg-zinc-900/50 p-3 space-y-3">
+      <div className="flex items-center gap-2">
+        <SlidersHorizontal className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0" />
+        <p className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest">
+          Search live talent
+        </p>
+        {hasResults && (
+          <span className="ml-auto font-mono text-[10px] text-amber-500 border border-amber-900 px-1.5 py-0.5 rounded-sm">
+            Live results active
+          </span>
+        )}
+      </div>
+
+      {/* Skill tag pills */}
+      {skillTags.length > 0 ? (
+        <div className="flex flex-wrap gap-1.5">
+          {skillTags.map(({ tag }) => {
+            const active = selectedSkills.includes(tag);
+            return (
+              <button
+                key={tag}
+                onClick={() => onToggleSkill(tag)}
+                className={`font-mono text-[10px] px-2 py-1 rounded-sm border transition-colors ${
+                  active
+                    ? "border-amber-700 bg-amber-950/40 text-amber-400"
+                    : "border-zinc-700 text-zinc-500 hover:border-zinc-500 hover:text-zinc-300"
+                }`}
+              >
+                {tag}
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="flex gap-1.5 flex-wrap">
+          {["rust", "wasm", "kafka", "postgres", "python", "mlops", "k8s"].map((tag) => {
+            const active = selectedSkills.includes(tag);
+            return (
+              <button
+                key={tag}
+                onClick={() => onToggleSkill(tag)}
+                className={`font-mono text-[10px] px-2 py-1 rounded-sm border transition-colors ${
+                  active
+                    ? "border-amber-700 bg-amber-950/40 text-amber-400"
+                    : "border-zinc-700 text-zinc-500 hover:border-zinc-500 hover:text-zinc-300"
+                }`}
+              >
+                {tag}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Min trust + search */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2 flex-1 min-w-[180px]">
+          <label className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest whitespace-nowrap">
+            Min Trust
+          </label>
+          <input
+            type="range" min={0} max={90} step={5} value={minTrust}
+            onChange={(e) => onMinTrustChange(Number(e.target.value))}
+            className="flex-1 accent-amber-500"
+          />
+          <span className="font-mono text-xs text-amber-400 tabular-nums w-7">{minTrust}</span>
+        </div>
+        <button
+          onClick={onSearch}
+          disabled={searching || selectedSkills.length === 0}
+          className="flex items-center gap-1.5 h-8 px-4 rounded-sm border font-mono text-xs uppercase
+                     tracking-widest transition-colors disabled:opacity-40 disabled:cursor-not-allowed
+                     border-amber-800 bg-amber-950/30 text-amber-400 hover:border-amber-600"
+        >
+          {searching
+            ? <Loader2 className="w-3 h-3 animate-spin" />
+            : <Search  className="w-3 h-3" />
+          }
+          {searching ? "Searching…" : "Search Talent"}
+        </button>
+      </div>
+
+      {error && (
+        <div className="flex items-center gap-2 text-red-400 font-mono text-[10px]">
+          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+          {error}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // AI MATCH MODE — full ranked list
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -244,9 +385,9 @@ function CandidateRow({
   rank,
   onSwitchHybrid,
 }: {
-  candidate:       MatchCandidate;
-  rank:            number;
-  onSwitchHybrid:  (id: string) => void;
+  candidate:      MatchCandidate;
+  rank:           number;
+  onSwitchHybrid: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const avail = AVAIL_META[candidate.availability];
@@ -283,7 +424,7 @@ function CandidateRow({
         </span>
 
         <span className="font-mono text-xs text-zinc-400 tabular-nums flex-shrink-0 w-16 text-right">
-          {fmtRate(candidate.rate_cents)}
+          {candidate.rate_cents > 0 ? fmtRate(candidate.rate_cents) : "—"}
         </span>
 
         <span className={`font-mono text-sm font-medium tabular-nums flex-shrink-0 w-10 text-right ${overallColor(candidate.match_score)}`}>
@@ -308,8 +449,8 @@ function CandidateRow({
           <div className="grid grid-cols-3 gap-2">
             {[
               { label: "Trust",       value: `${candidate.trust_score}/100` },
-              { label: "Deployments", value: candidate.deployments.toString() },
               { label: "Location",    value: candidate.location },
+              { label: "Deployments", value: candidate.deployments > 0 ? candidate.deployments.toString() : "—" },
             ].map(({ label, value }) => (
               <div key={label} className="bg-zinc-900 border border-zinc-800 rounded-sm p-2">
                 <p className="font-mono text-[10px] text-zinc-600 uppercase">{label}</p>
@@ -347,11 +488,17 @@ function CandidateRow({
   );
 }
 
-function AiMatchMode({ onSwitchHybrid }: { onSwitchHybrid: (id: string) => void }) {
-  const [minScore,    setMinScore]    = useState(0);
-  const [tierFilter,  setTierFilter]  = useState<"all" | "0" | "1" | "2">("all");
+function AiMatchMode({
+  candidates,
+  onSwitchHybrid,
+}: {
+  candidates:     MatchCandidate[];
+  onSwitchHybrid: (id: string) => void;
+}) {
+  const [minScore,   setMinScore]   = useState(0);
+  const [tierFilter, setTierFilter] = useState<"all" | "0" | "1" | "2">("all");
 
-  const filtered = CANDIDATES
+  const filtered = candidates
     .filter((c) => c.match_score >= minScore / 100)
     .filter((c) => tierFilter === "all" || c.identity_tier === Number(tierFilter))
     .sort((a, b) => b.match_score - a.match_score);
@@ -390,9 +537,9 @@ function AiMatchMode({ onSwitchHybrid }: { onSwitchHybrid: (id: string) => void 
       {/* Legend */}
       <div className="grid grid-cols-3 gap-2 text-center">
         {[
-          { label: "Skills Assessment",   desc: "Required skill match"       },
-          { label: "Past Work Analysis",  desc: "Similar project history"    },
-          { label: "Client Behavior Fit", desc: "Communication + delivery"   },
+          { label: "Skills Assessment",   desc: "Required skill match"     },
+          { label: "Past Work Analysis",  desc: "Similar project history"  },
+          { label: "Client Behavior Fit", desc: "Communication + delivery" },
         ].map(({ label, desc }) => (
           <div key={label} className="border border-zinc-800 rounded-sm p-2 bg-zinc-900/30">
             <p className="font-mono text-[10px] font-medium text-zinc-400">{label}</p>
@@ -451,7 +598,7 @@ function TrialCard({ candidate, onStartTrial }: { candidate: MatchCandidate; onS
         <div className="flex-shrink-0 text-right">
           <p className="font-mono text-[10px] text-zinc-600">Trial</p>
           <p className="font-mono text-xs font-medium text-sky-400 tabular-nums">
-            {fmtRate(candidate.trial_rate_cents)}
+            {candidate.trial_rate_cents > 0 ? fmtRate(candidate.trial_rate_cents) : "—"}
           </p>
         </div>
 
@@ -481,11 +628,15 @@ function TrialCard({ candidate, onStartTrial }: { candidate: MatchCandidate; onS
           <div className="grid grid-cols-2 gap-2">
             <div className="border border-zinc-800 rounded-sm p-2">
               <p className="font-mono text-[9px] text-zinc-600 uppercase">Standard Rate</p>
-              <p className="font-mono text-sm font-medium text-zinc-400 tabular-nums mt-0.5">{fmtRate(candidate.rate_cents)}</p>
+              <p className="font-mono text-sm font-medium text-zinc-400 tabular-nums mt-0.5">
+                {candidate.rate_cents > 0 ? fmtRate(candidate.rate_cents) : "—"}
+              </p>
             </div>
             <div className="border border-sky-900/50 rounded-sm p-2 bg-sky-950/10">
               <p className="font-mono text-[9px] text-sky-500 uppercase">Trial Rate (7–14d)</p>
-              <p className="font-mono text-sm font-medium text-sky-400 tabular-nums mt-0.5">{fmtRate(candidate.trial_rate_cents)}</p>
+              <p className="font-mono text-sm font-medium text-sky-400 tabular-nums mt-0.5">
+                {candidate.trial_rate_cents > 0 ? fmtRate(candidate.trial_rate_cents) : "—"}
+              </p>
             </div>
           </div>
 
@@ -551,17 +702,23 @@ function RecruiterCard({ recruiter, onEngage }: { recruiter: HumanRecruiter; onE
   );
 }
 
-function HybridMode({ initialCandidateId }: { initialCandidateId?: string }) {
-  const [tab,          setTab]          = useState<HybridTab>(initialCandidateId ? "shortlist" : "shortlist");
+function HybridMode({
+  candidates,
+  initialCandidateId,
+}: {
+  candidates:         MatchCandidate[];
+  initialCandidateId?: string;
+}) {
+  const [tab,          setTab]          = useState<HybridTab>("shortlist");
   const [trialActive,  setTrialActive]  = useState<string | null>(initialCandidateId ?? null);
   const [recruiterMsg, setRecruiterMsg] = useState<string | null>(null);
 
-  const shortlist = CANDIDATES.slice(0, 3); // top 3 by match score
+  const shortlist = candidates.slice(0, 3);
 
   const TABS: { key: HybridTab; icon: React.ElementType; label: string }[] = [
-    { key: "shortlist", icon: Bot,         label: "AI Shortlist"    },
-    { key: "human",     icon: Users,       label: "Human Recruiter" },
-    { key: "trials",    icon: Clock,       label: "Active Trials"   },
+    { key: "shortlist", icon: Bot,   label: "AI Shortlist"    },
+    { key: "human",     icon: Users, label: "Human Recruiter" },
+    { key: "trials",    icon: Clock, label: "Active Trials"   },
   ];
 
   return (
@@ -569,9 +726,9 @@ function HybridMode({ initialCandidateId }: { initialCandidateId?: string }) {
       {/* How it works strip */}
       <div className="border border-zinc-800 rounded-sm p-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
         {[
-          { icon: Bot,        title: "AI Shortlist",     desc: "Algorithm ranks the top 3 by match score, skills, and past ROI." },
-          { icon: Users,      title: "Human Recruiter",  desc: "Add a specialist who vets the shortlist, does live reference checks." },
-          { icon: ShieldCheck,title: "7–14d Paid Trial", desc: "Start a discounted paid trial. Money-back guarantee after day 3." },
+          { icon: Bot,         title: "AI Shortlist",     desc: "Algorithm ranks the top 3 by match score, skills, and past ROI." },
+          { icon: Users,       title: "Human Recruiter",  desc: "Add a specialist who vets the shortlist, does live reference checks." },
+          { icon: ShieldCheck, title: "7–14d Paid Trial", desc: "Start a discounted paid trial. Money-back guarantee after day 3." },
         ].map(({ icon: Icon, title, desc }) => (
           <div key={title} className="flex gap-2.5">
             <div className="w-6 h-6 rounded-sm border border-zinc-700 bg-zinc-800 flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -611,7 +768,7 @@ function HybridMode({ initialCandidateId }: { initialCandidateId?: string }) {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <p className="font-mono text-[10px] text-zinc-600 uppercase tracking-widest">AI-ranked shortlist</p>
-            <span className="font-mono text-[10px] text-zinc-600">Top 3 of {CANDIDATES.length} candidates</span>
+            <span className="font-mono text-[10px] text-zinc-600">Top 3 of {candidates.length} candidates</span>
           </div>
 
           {shortlist.map((c) => (
@@ -685,7 +842,8 @@ function HybridMode({ initialCandidateId }: { initialCandidateId?: string }) {
       {tab === "trials" && (
         <div className="space-y-3">
           {trialActive ? (() => {
-            const c = CANDIDATES.find((x) => x.id === trialActive)!;
+            const c = candidates.find((x) => x.id === trialActive);
+            if (!c) return null;
             return (
               <>
                 <div className="border border-sky-800/60 rounded-sm bg-sky-950/10 overflow-hidden">
@@ -706,7 +864,9 @@ function HybridMode({ initialCandidateId }: { initialCandidateId?: string }) {
                     <div className="grid grid-cols-2 gap-2">
                       <div className="border border-zinc-800 rounded-sm p-2">
                         <p className="font-mono text-[9px] text-zinc-600 uppercase">Trial Rate</p>
-                        <p className="font-mono text-sm font-medium text-sky-400">{fmtRate(c.trial_rate_cents)}</p>
+                        <p className="font-mono text-sm font-medium text-sky-400">
+                          {c.trial_rate_cents > 0 ? fmtRate(c.trial_rate_cents) : "—"}
+                        </p>
                       </div>
                       <div className="border border-zinc-800 rounded-sm p-2">
                         <p className="font-mono text-[9px] text-zinc-600 uppercase">Guarantee</p>
@@ -793,10 +953,81 @@ export default function MatchingPage() {
   const [mode,             setMode]             = useState<PageMode>("ai");
   const [hybridEntryPoint, setHybridEntryPoint] = useState<string | undefined>();
 
+  // ── Search form state ──────────────────────────────────────────────────────
+  const [skillTags,      setSkillTags]      = useState<SkillTag[]>([]);
+  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+  const [minTrust,       setMinTrust]       = useState(0);
+  const [searching,      setSearching]      = useState(false);
+  const [liveResults,    setLiveResults]    = useState<MatchCandidate[] | null>(null);
+  const [searchError,    setSearchError]    = useState<string | null>(null);
+
+  // Load skill tags once on mount
+  useEffect(() => {
+    fetchSkillTags()
+      .then((r) => setSkillTags(r.skill_tags))
+      .catch(() => { /* non-fatal — fallback pills will show */ });
+  }, []);
+
+  function toggleSkill(tag: string) {
+    setSelectedSkills((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+    );
+  }
+
+  async function handleSearch() {
+    if (selectedSkills.length === 0) return;
+    setSearching(true);
+    setSearchError(null);
+    try {
+      const result = await fetchMatches({
+        request_id:      crypto.randomUUID(),
+        agent_id:        "00000000-0000-0000-0000-000000000000",
+        required_skills: selectedSkills,
+        min_trust_score: minTrust,
+      });
+
+      // Batch-enrich with public profiles (non-fatal per candidate)
+      const enriched = await Promise.allSettled(
+        result.matches.map((m) => fetchPublicProfile(m.talent_id))
+      );
+
+      const candidates: MatchCandidate[] = result.matches.map((m, i) => {
+        const profile = enriched[i].status === "fulfilled" ? enriched[i].value : null;
+        const rateCents = profile?.hourly_rate_cents ?? 0;
+        return {
+          id:               m.talent_id,
+          name:             profile?.display_name ?? `Talent ${m.talent_id.slice(0, 6)}`,
+          title:            roleToTitle(profile?.role ?? null),
+          location:         "—",
+          trust_score:      m.trust_score,
+          identity_tier:    tierStringToNum(profile?.identity_tier ?? "UNVERIFIED"),
+          match_score:      m.match_score,
+          skills_score:     Math.round(m.match_score * 100),
+          past_work_score:  Math.min(100, m.trust_score),
+          behavior_score:   Math.round(m.match_score * 90),
+          skill_tags:       m.skill_tags,
+          rate_cents:       rateCents,
+          trial_rate_cents: Math.round(rateCents * 0.75),
+          availability:     availFromString(profile?.availability),
+          deployments:      0,
+        };
+      });
+
+      setLiveResults(candidates);
+    } catch (err) {
+      setSearchError(err instanceof Error ? err.message : "Search failed — is matching_service running?");
+    } finally {
+      setSearching(false);
+    }
+  }
+
   function switchToHybrid(candidateId: string) {
     setHybridEntryPoint(candidateId);
     setMode("hybrid");
   }
+
+  // Use live results when available, fall back to demo candidates
+  const activeCandidates = liveResults ?? CANDIDATES;
 
   return (
     <div className="flex flex-col lg:flex-row min-h-screen">
@@ -843,20 +1074,33 @@ export default function MatchingPage() {
           </div>
         </div>
 
-        {/* Content */}
+        {/* Live search form */}
+        <MatchSearchForm
+          skillTags={skillTags}
+          selectedSkills={selectedSkills}
+          onToggleSkill={toggleSkill}
+          minTrust={minTrust}
+          onMinTrustChange={setMinTrust}
+          searching={searching}
+          hasResults={liveResults !== null}
+          error={searchError}
+          onSearch={handleSearch}
+        />
+
+        {/* Mode content */}
         {mode === "ai"
-          ? <AiMatchMode onSwitchHybrid={switchToHybrid} />
-          : <HybridMode initialCandidateId={hybridEntryPoint} />
+          ? <AiMatchMode candidates={activeCandidates} onSwitchHybrid={switchToHybrid} />
+          : <HybridMode  candidates={activeCandidates} initialCandidateId={hybridEntryPoint} />
         }
       </main>
 
       {/* Mobile bottom nav */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 h-16 flex items-center border-t border-zinc-800 bg-zinc-950">
         {[
-          { label: "Dash",     href: "/dashboard"  },
-          { label: "Market",   href: "/marketplace"},
+          { label: "Dash",     href: "/dashboard"   },
+          { label: "Market",   href: "/marketplace" },
           { label: "Matching", href: "/matching", active: true },
-          { label: "Profile",  href: "/profile"    },
+          { label: "Profile",  href: "/profile"     },
         ].map(({ label, href, active }) => (
           <Link key={label} href={href} className={`nav-tab ${active ? "active" : ""}`}>
             <span className="text-[10px]">{label}</span>
