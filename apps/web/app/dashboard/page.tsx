@@ -22,12 +22,15 @@ import {
   fetchHeartbeats,
   fetchDriftEvents,
   fetchChecklistSteps,
+  fetchPublicProfile,
+  fetchTalentSkills,
   vetoDeployment,
   approveDeployment,
   type RoiReport,
   type MatchResult,
   type Heartbeat,
   type ChecklistStep,
+  type PublicProfile,
 } from "@/lib/api";
 
 // ── Demo fallback data ────────────────────────────────────────────────────────
@@ -141,6 +144,24 @@ const DEMO_MATCHES = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+// ── Live-data helpers ─────────────────────────────────────────────────────────
+
+function tierToStitching(tier: string): "Unverified" | "SocialVerified" | "BiometricVerified" {
+  if (tier === "BIOMETRIC_VERIFIED") return "BiometricVerified";
+  if (tier === "SOCIAL_VERIFIED")    return "SocialVerified";
+  return "Unverified";
+}
+
+function buildSignals(profile: PublicProfile): PlatformSignal[] {
+  const out: PlatformSignal[] = [];
+  if (profile.github_connected)
+    out.push({ id: "gh",   platform: "github",   label: "GitHub",   detail: "Connected", url: "#", verified: true });
+  if (profile.linkedin_connected)
+    out.push({ id: "li",   platform: "linkedin", label: "LinkedIn", detail: "Connected", url: "#", verified: true });
+  // Google is auth-only — not a portfolio platform, no icon in VerifiedSkillsChips
+  return out;
+}
+
 function roiToReputation(roi: RoiReport) {
   const driftRate    = roi.total_deployments > 0
     ? roi.drift_incidents / roi.total_deployments : 0;
@@ -213,16 +234,37 @@ export default function DashboardPage() {
     finalized: DEMO_CHECKLIST.finalized,
     allPassed: DEMO_CHECKLIST.allPassed,
   });
+  const [publicProfile, setPublicProfile] = useState<PublicProfile | null>(null);
+  const [liveSkills,    setLiveSkills]    = useState<SkillTag[] | null>(null);
 
-  // Fetch ROI / reputation from analytics service
+  // Fetch ROI / reputation + public profile + skills once session is available
   useEffect(() => {
-    fetchRoiReport(DEMO_TALENT_ID)
+    const profileId = session?.profileId;
+    if (!profileId) return;
+
+    fetchRoiReport(profileId)
       .then((roi) => {
         setReputation({ ...roiToReputation(roi), vcIssued: false });
         setServiceStatus("live");
       })
       .catch(() => setServiceStatus("demo"));
-  }, []);
+
+    fetchPublicProfile(profileId)
+      .then(setPublicProfile)
+      .catch(() => {/* keep demo */});
+
+    fetchTalentSkills(profileId)
+      .then((r) => {
+        if (r.skills.length > 0) {
+          setLiveSkills(r.skills.map((s) => ({
+            tag:         s.tag,
+            proficiency: (Math.min(5, Math.max(1, s.proficiency)) as 1 | 2 | 3 | 4 | 5),
+            verified:    s.verified_at !== null,
+          })));
+        }
+      })
+      .catch(() => {/* keep demo */});
+  }, [session]);
 
   // Fetch talent matches from matching service
   useEffect(() => {
@@ -518,8 +560,15 @@ export default function DashboardPage() {
           <SectionLabel>Verified Skills &amp; Platforms</SectionLabel>
           <div className="border border-zinc-800 rounded-sm p-4 bg-zinc-900/60">
             <VerifiedSkillsChips
-              signals={DEMO_SIGNALS[session?.email ?? ""] ?? DEMO_SIGNALS["talent@demo.com"]}
-              skills={DEMO_SKILLS[session?.email ?? ""]  ?? DEMO_SKILLS["talent@demo.com"]}
+              signals={
+                publicProfile
+                  ? buildSignals(publicProfile)
+                  : (DEMO_SIGNALS[session?.email ?? ""] ?? DEMO_SIGNALS["talent@demo.com"])
+              }
+              skills={
+                liveSkills
+                  ?? (DEMO_SKILLS[session?.email ?? ""] ?? DEMO_SKILLS["talent@demo.com"])
+              }
             />
           </div>
         </section>
@@ -528,7 +577,26 @@ export default function DashboardPage() {
         <section>
           <SectionLabel>Identity Stitching</SectionLabel>
           <div className="border border-zinc-800 rounded-sm p-4 bg-zinc-900">
-            <StitchingDashboard {...DEMO_PROFILE} />
+            <StitchingDashboard
+              currentTier={
+                session
+                  ? tierToStitching(session.identityTier)
+                  : DEMO_PROFILE.currentTier
+              }
+              trustScore={session?.trustScore ?? DEMO_PROFILE.trustScore}
+              biometricCommitment={undefined}
+              deepLinkUrl={DEMO_PROFILE.deepLinkUrl}
+              githubLogin={
+                publicProfile?.github_connected
+                  ? (session?.name ?? "user")
+                  : DEMO_PROFILE.githubLogin
+              }
+              linkedinVerified={
+                publicProfile
+                  ? publicProfile.linkedin_connected
+                  : DEMO_PROFILE.linkedinVerified
+              }
+            />
           </div>
         </section>
 
