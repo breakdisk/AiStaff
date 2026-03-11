@@ -237,5 +237,41 @@ services:
     ports: ["4040:4040"]
     depends_on: [postgres]
 
+  # ── Frontend ────────────────────────────────────────────────────────────────
+  web:
+    build:
+      context: apps/web
+      dockerfile: Dockerfile
+    environment:
+      NODE_ENV: production
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      NEXTAUTH_URL:    ${NEXTAUTH_URL:-http://localhost:3000}
+      # OAuth providers
+      GITHUB_CLIENT_ID:     ${GITHUB_CLIENT_ID}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
+      GOOGLE_CLIENT_ID:     ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      LINKEDIN_CLIENT_ID:     ${LINKEDIN_CLIENT_ID}
+      LINKEDIN_CLIENT_SECRET: ${LINKEDIN_CLIENT_SECRET}
+      # Backend service URLs — Docker container names
+      IDENTITY_SERVICE_URL:     http://identity-service:3001
+      MARKETPLACE_SERVICE_URL:  http://marketplace-service:3002
+      CHECKLIST_SERVICE_URL:    http://checklist-service:3003
+      LICENSE_SERVICE_URL:      http://license-service:3004
+      MATCHING_SERVICE_URL:     http://matching-service:3005
+      COMPLIANCE_SERVICE_URL:   http://compliance-service:3006
+      TELEMETRY_SERVICE_URL:    http://telemetry-service:3007
+      ANALYTICS_SERVICE_URL:    http://analytics-service:3008
+      REPUTATION_SERVICE_URL:   http://reputation-service:3009
+      PAYOUT_SERVICE_URL:       http://payout-service:3010
+      COMMUNITY_SERVICE_URL:    http://community-service:3011
+      NOTIFICATION_SERVICE_URL: http://notification-service:3012
+    ports: ["3000:3000"]
+    depends_on:
+      - identity-service
+      - marketplace-service
+      - checklist-service
+      - payout-service
+
 volumes:
   pg_data:
