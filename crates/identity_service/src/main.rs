@@ -4,10 +4,10 @@ use axum::{
     extract::{FromRef, Path, State},
     http::StatusCode,
     response::{IntoResponse, Json},
-    routing::{get, patch, post},
+    routing::{delete, get, patch, post},
     Router,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use dotenvy::dotenv;
 use sqlx::postgres::PgPoolOptions;
@@ -72,15 +72,18 @@ async fn main() -> anyhow::Result<()> {
         // Legacy stitch endpoint (GitHub + LinkedIn together)
         .route("/identity/stitch", post(handlers::stitch_identity))
         .route("/identity/wallet-redirect", get(handlers::wallet_redirect))
-        .route(
-            "/identity/biometric-callback",
-            post(handlers::biometric_callback),
-        )
-        // New single-provider OAuth endpoints (migration 0016)
+        .route("/identity/biometric-callback", post(handlers::biometric_callback))
+        // Single-provider OAuth (migration 0016)
         .route("/identity/oauth-callback", post(oauth_callback))
         .route("/identity/connect-provider", post(connect_provider))
+        // ZK nonce request (migration 0018)
+        .route("/identity/nonce-request", post(nonce_request))
         // Freelancer profile update (migration 0017)
         .route("/profile/{id}", patch(update_profile))
+        // Provider disconnect + audit log (migration 0018)
+        .route("/profile/{id}/provider/{provider}", delete(disconnect_provider))
+        // Public profile endpoint (trust score + tier for marketplace)
+        .route("/identity/public-profile/{id}", get(public_profile))
         .with_state(state);
 
     let addr = "0.0.0.0:3001";
@@ -171,4 +174,231 @@ async fn connect_provider(
             (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response()
         }
     }
+}
+
+// ── POST /identity/nonce-request ─────────────────────────────────────────────
+// Issues a single-use 10-minute nonce for ZK biometric proof submission.
+// Returns the nonce + wallet deep-link URL.
+
+#[derive(Debug, Deserialize)]
+struct NonceRequestPayload {
+    profile_id: Uuid,
+}
+
+#[derive(Debug, Serialize)]
+struct NonceResponse {
+    nonce_hex:       String,
+    expires_at:      String,
+    wallet_deep_link: String,
+}
+
+async fn nonce_request(
+    State(pool): State<sqlx::PgPool>,
+    Json(payload): Json<NonceRequestPayload>,
+) -> impl IntoResponse {
+    // Generate 32-byte nonce from UUID v4 randomness + blake3
+    let raw = Uuid::new_v4();
+    let nonce_hex = hex::encode(
+        blake3::hash(raw.as_bytes()).as_bytes()
+    );
+
+    let res = sqlx::query(
+        "INSERT INTO biometric_nonces (profile_id, nonce_hex)
+         VALUES ($1, $2)
+         RETURNING expires_at",
+    )
+    .bind(payload.profile_id)
+    .bind(&nonce_hex)
+    .fetch_one(&pool)
+    .await;
+
+    match res {
+        Ok(row) => {
+            use sqlx::Row;
+            let expires_at: chrono::DateTime<chrono::Utc> = row.get("expires_at");
+            let base_url = std::env::var("API_BASE_URL")
+                .unwrap_or_else(|_| "https://api.aistaffglobal.com".into());
+            let wallet_deep_link = format!(
+                "openid4vp://present?request_uri={base_url}/identity/biometric-callback\
+                 &nonce={nonce_hex}&profile_id={pid}",
+                nonce_hex = nonce_hex,
+                pid = payload.profile_id
+            );
+            Json(NonceResponse {
+                nonce_hex,
+                expires_at: expires_at.to_rfc3339(),
+                wallet_deep_link,
+            })
+            .into_response()
+        }
+        Err(e) => {
+            tracing::error!("nonce_request: {e:#}");
+            (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response()
+        }
+    }
+}
+
+// ── GET /identity/public-profile/:id ─────────────────────────────────────────
+// Returns public-facing profile data (trust score, tier, display name).
+// No auth required — used by marketplace to show live credential badges.
+
+#[derive(Debug, Serialize)]
+struct PublicProfileResponse {
+    profile_id:    Uuid,
+    display_name:  String,
+    trust_score:   i16,
+    identity_tier: String,
+    github_connected:   bool,
+    linkedin_connected: bool,
+    google_connected:   bool,
+}
+
+async fn public_profile(
+    State(pool): State<sqlx::PgPool>,
+    Path(id): Path<Uuid>,
+) -> impl IntoResponse {
+    use sqlx::Row;
+
+    let res = sqlx::query(
+        "SELECT display_name, trust_score, identity_tier::TEXT AS identity_tier,
+                github_uid, linkedin_uid, google_uid
+         FROM unified_profiles WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_optional(&pool)
+    .await;
+
+    match res {
+        Ok(Some(row)) => {
+            let display_name: String = row.get("display_name");
+            let trust_score: i16 = row.get("trust_score");
+            let identity_tier: String = row.get("identity_tier");
+            let github_uid: Option<String> = row.get("github_uid");
+            let linkedin_uid: Option<String> = row.get("linkedin_uid");
+            let google_uid: Option<String> = row.get("google_uid");
+
+            Json(PublicProfileResponse {
+                profile_id: id,
+                display_name,
+                trust_score,
+                identity_tier,
+                github_connected:   github_uid.is_some(),
+                linkedin_connected: linkedin_uid.is_some(),
+                google_connected:   google_uid.is_some(),
+            })
+            .into_response()
+        }
+        Ok(None) => StatusCode::NOT_FOUND.into_response(),
+        Err(e) => {
+            tracing::error!("public_profile: {e:#}");
+            (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response()
+        }
+    }
+}
+
+// ── DELETE /profile/:id/provider/:provider ────────────────────────────────────
+// Unlinks an OAuth provider from a profile, recalculates trust_score + tier,
+// and appends an audit log entry.
+
+async fn disconnect_provider(
+    State(pool): State<sqlx::PgPool>,
+    Path((id, provider)): Path<(Uuid, String)>,
+) -> impl IntoResponse {
+    use sqlx::Row;
+
+    // Fetch current score + tier before change
+    let before = sqlx::query(
+        "SELECT trust_score, identity_tier::TEXT AS identity_tier
+         FROM unified_profiles WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_optional(&pool)
+    .await;
+
+    let (old_score, old_tier) = match before {
+        Ok(Some(r)) => {
+            let s: i16 = r.get("trust_score");
+            let t: String = r.get("identity_tier");
+            (s, t)
+        }
+        Ok(None) => return StatusCode::NOT_FOUND.into_response(),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    };
+
+    // Null the provider column
+    let update_sql = match provider.as_str() {
+        "github" =>
+            "UPDATE unified_profiles SET github_uid = NULL, github_connected_at = NULL, updated_at = NOW() WHERE id = $1",
+        "google" =>
+            "UPDATE unified_profiles SET google_uid = NULL, google_connected_at = NULL, updated_at = NOW() WHERE id = $1",
+        "linkedin" =>
+            "UPDATE unified_profiles SET linkedin_uid = NULL, linkedin_connected_at = NULL, updated_at = NOW() WHERE id = $1",
+        _ => return (StatusCode::BAD_REQUEST, "provider must be github|google|linkedin").into_response(),
+    };
+
+    if let Err(e) = sqlx::query(update_sql).bind(id).execute(&pool).await {
+        tracing::error!("disconnect_provider update: {e:#}");
+        return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
+    }
+
+    // Recalculate trust score from remaining providers
+    let row = sqlx::query(
+        "SELECT github_uid, linkedin_uid, google_uid FROM unified_profiles WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_one(&pool)
+    .await;
+
+    let (new_score, new_tier) = match row {
+        Ok(r) => {
+            let gh: Option<String> = r.get("github_uid");
+            let li: Option<String> = r.get("linkedin_uid");
+            let go: Option<String> = r.get("google_uid");
+            let score: i16 = (if gh.is_some() { 10.0_f64 } else { 0.0 }
+                + if li.is_some() { 15.0 } else { 0.0 }
+                + if go.is_some() { 15.0 } else { 0.0 })
+                .round() as i16;
+            let tier = if score > 0 { "SOCIAL_VERIFIED" } else { "UNVERIFIED" };
+            (score, tier.to_string())
+        }
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    };
+
+    // Persist new score + tier
+    if let Err(e) = sqlx::query(
+        "UPDATE unified_profiles SET trust_score = $1, identity_tier = $2, updated_at = NOW() WHERE id = $3",
+    )
+    .bind(new_score)
+    .bind(&new_tier)
+    .bind(id)
+    .execute(&pool)
+    .await
+    {
+        tracing::error!("disconnect_provider score update: {e:#}");
+        return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
+    }
+
+    // Append audit log
+    let _ = sqlx::query(
+        "INSERT INTO identity_audit_log
+             (profile_id, event_type, event_data, old_tier, new_tier, old_score, new_score, actor_id)
+         VALUES ($1, 'PROVIDER_DISCONNECTED', $2, $3, $4, $5, $6, $1)",
+    )
+    .bind(id)
+    .bind(serde_json::json!({ "provider": provider }))
+    .bind(&old_tier)
+    .bind(&new_tier)
+    .bind(old_score)
+    .bind(new_score)
+    .execute(&pool)
+    .await;
+
+    tracing::info!(%id, provider = %provider, "provider disconnected, trust_score recalculated");
+
+    Json(serde_json::json!({
+        "ok": true,
+        "trust_score": new_score,
+        "identity_tier": new_tier,
+    }))
+    .into_response()
 }

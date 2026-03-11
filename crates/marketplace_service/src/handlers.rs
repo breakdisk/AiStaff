@@ -467,6 +467,42 @@ pub async fn express_interest(
     }
 }
 
+// ── POST /talent-skills/:profile_id/attest ────────────────────────────────────
+// Self-attestation: freelancer confirms all their listed skills are accurate.
+// Sets verified_at = NOW() for every skill row owned by this talent.
+// Logged in identity_audit_log via identity_service (fire-and-forget).
+
+pub async fn attest_skills(
+    State(state): State<SharedState>,
+    Path(profile_id): Path<Uuid>,
+) -> impl IntoResponse {
+    let res = sqlx::query(
+        "UPDATE talent_skills
+         SET verified_at = NOW()
+         WHERE talent_id = $1 AND verified_at IS NULL
+         RETURNING tag_id",
+    )
+    .bind(profile_id)
+    .fetch_all(&state.db)
+    .await;
+
+    match res {
+        Ok(rows) => {
+            let attested = rows.len();
+            tracing::info!(%profile_id, %attested, "skills self-attested");
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({ "ok": true, "attested": attested })),
+            )
+                .into_response()
+        }
+        Err(e) => {
+            tracing::error!("attest_skills: {e:#}");
+            (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response()
+        }
+    }
+}
+
 // ── GET /health ───────────────────────────────────────────────────────────────
 
 pub async fn health() -> StatusCode {

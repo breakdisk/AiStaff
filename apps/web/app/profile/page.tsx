@@ -12,6 +12,7 @@ import { VettingBadge }    from "@/components/VettingBadge";
 import { TrustScoreBadge } from "@/components/TrustScoreBadge";
 import {
   updateProfile, fetchSkillTags, fetchTalentSkills, updateTalentSkills,
+  requestNonce, attestSkills, disconnectProvider,
   type SkillTag, type TalentSkill, type UpdateProfileRequest,
 } from "@/lib/api";
 
@@ -46,7 +47,30 @@ const PROVIDERS = [
   { id: "linkedin", label: "LinkedIn", icon: <Linkedin className="w-4 h-4 text-zinc-300" />, tierNote: "+15 pts · professional verification" },
 ];
 
-function ConnectedAccounts({ provider }: { provider: string }) {
+function ConnectedAccounts({
+  provider,
+  profileId,
+  onDisconnect,
+}: {
+  provider:     string;
+  profileId:    string | undefined;
+  onDisconnect: (provider: string, newScore: number, newTier: string) => void;
+}) {
+  const [disconnecting, setDisconnecting] = useState<string | null>(null);
+
+  async function handleDisconnect(pid: string) {
+    if (!profileId) return;
+    setDisconnecting(pid);
+    try {
+      const res = await disconnectProvider(profileId, pid as "github" | "google" | "linkedin");
+      onDisconnect(pid, res.trust_score, res.identity_tier);
+    } catch {
+      // backend offline — show nothing, keep UI unchanged
+    } finally {
+      setDisconnecting(null);
+    }
+  }
+
   return (
     <div className="border border-zinc-800 rounded-sm bg-zinc-900 divide-y divide-zinc-800">
       {PROVIDERS.map((p) => {
@@ -59,9 +83,20 @@ function ConnectedAccounts({ provider }: { provider: string }) {
               <p className="font-mono text-[10px] text-zinc-600">{p.tierNote}</p>
             </div>
             {connected ? (
-              <span className="flex items-center gap-1 font-mono text-[10px] text-emerald-500">
-                <CheckCheck className="w-3 h-3" /> Connected
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="flex items-center gap-1 font-mono text-[10px] text-emerald-500">
+                  <CheckCheck className="w-3 h-3" /> Connected
+                </span>
+                <button
+                  onClick={() => handleDisconnect(p.id)}
+                  disabled={disconnecting === p.id}
+                  className="font-mono text-[10px] text-zinc-600 hover:text-red-400
+                             border border-zinc-700 hover:border-red-900 px-2 py-1
+                             rounded-sm transition-colors disabled:opacity-40"
+                >
+                  {disconnecting === p.id ? "…" : "Disconnect"}
+                </button>
+              </div>
             ) : (
               <button
                 onClick={() => signIn(p.id)}
@@ -363,13 +398,19 @@ const DEMO_ACTIVITY = [
 export default function ProfilePage() {
   const { data: session, status } = useSession();
 
-  const [editing,       setEditing]       = useState(false);
-  const [allTags,       setAllTags]       = useState<SkillTag[]>([]);
-  const [currentSkills, setCurrentSkills] = useState<TalentSkill[]>([]);
-  const [bio,           setBio]           = useState("");
-  const [hourlyRate,    setHourlyRate]    = useState("");
-  const [availability,  setAvailability]  = useState("available");
-  const [role,          setRole]          = useState("talent");
+  const [editing,         setEditing]         = useState(false);
+  const [allTags,         setAllTags]         = useState<SkillTag[]>([]);
+  const [currentSkills,   setCurrentSkills]   = useState<TalentSkill[]>([]);
+  const [bio,             setBio]             = useState("");
+  const [hourlyRate,      setHourlyRate]      = useState("");
+  const [availability,    setAvailability]    = useState("available");
+  const [role,            setRole]            = useState("talent");
+  const [zkLoading,       setZkLoading]       = useState(false);
+  const [zkError,         setZkError]         = useState<string | null>(null);
+  const [attesting,       setAttesting]       = useState(false);
+  const [attestMsg,       setAttestMsg]       = useState<string | null>(null);
+  const [liveScore,       setLiveScore]       = useState<number | null>(null);
+  const [liveTier,        setLiveTier]        = useState<string | null>(null);
 
   const profileId = session?.user?.profileId;
 
@@ -393,11 +434,51 @@ export default function ProfilePage() {
 
   if (!session?.user) return null;
 
-  const user       = session.user;
-  const tier       = tierToNum(user.identityTier);
+  const user        = session.user;
+  const tierStr     = liveTier ?? user.identityTier;
+  const tier        = tierToNum(tierStr);
   const primaryRole = role || (user.roles?.[0] as string) || "talent";
-  const stats      = ROLE_STATS[primaryRole] ?? ROLE_STATS.talent;
-  const trustScore = user.trustScore ?? 0;
+  const stats       = ROLE_STATS[primaryRole] ?? ROLE_STATS.talent;
+  const trustScore  = liveScore ?? user.trustScore ?? 0;
+
+  async function handleOpenWallet() {
+    if (!profileId) return;
+    setZkLoading(true);
+    setZkError(null);
+    try {
+      const { wallet_deep_link } = await requestNonce(profileId);
+      window.open(wallet_deep_link, "_blank");
+    } catch {
+      setZkError("Nonce service unavailable — try again shortly.");
+    } finally {
+      setZkLoading(false);
+    }
+  }
+
+  async function handleAttestSkills() {
+    if (!profileId) return;
+    setAttesting(true);
+    setAttestMsg(null);
+    try {
+      const { attested } = await attestSkills(profileId);
+      setCurrentSkills((prev) =>
+        prev.map((s) => ({ ...s, verified_at: s.verified_at ?? new Date().toISOString() })),
+      );
+      setAttestMsg(attested > 0 ? `${attested} skill${attested !== 1 ? "s" : ""} self-attested ✓` : "All skills already attested.");
+    } catch {
+      setAttestMsg("Backend offline — attestation noted locally.");
+      setCurrentSkills((prev) =>
+        prev.map((s) => ({ ...s, verified_at: s.verified_at ?? new Date().toISOString() })),
+      );
+    } finally {
+      setAttesting(false);
+    }
+  }
+
+  function handleDisconnect(_provider: string, newScore: number, newTier: string) {
+    setLiveScore(newScore);
+    setLiveTier(newTier);
+  }
 
   const currentSkillMap = new Map<string, number>(
     currentSkills.map((s) => [s.tag_id, s.proficiency]),
@@ -526,10 +607,29 @@ export default function ProfilePage() {
         {/* Skills (view mode) */}
         {!editing && currentSkills.length > 0 && (
           <div className="space-y-2">
-            <p className="font-mono text-xs text-zinc-500 uppercase tracking-widest">Skills</p>
+            <div className="flex items-center justify-between">
+              <p className="font-mono text-xs text-zinc-500 uppercase tracking-widest">Skills</p>
+              <button
+                onClick={handleAttestSkills}
+                disabled={attesting}
+                className="flex items-center gap-1.5 h-6 px-2.5 rounded-sm border border-zinc-700
+                           text-zinc-400 font-mono text-[10px] hover:border-zinc-500 hover:text-zinc-200
+                           disabled:opacity-40 transition-colors"
+              >
+                {attesting
+                  ? <><Loader2 className="w-3 h-3 animate-spin" /> Attesting…</>
+                  : <><Shield className="w-3 h-3" /> Attest skills</>}
+              </button>
+            </div>
+            {attestMsg && (
+              <p className="font-mono text-[10px] text-emerald-500 border border-emerald-900 bg-emerald-950/20 px-2 py-1 rounded-sm">
+                {attestMsg}
+              </p>
+            )}
             <div className="flex flex-wrap gap-1.5">
               {currentSkills.map((s) => (
                 <div key={s.tag_id} className="flex items-center gap-1 h-7 px-2.5 rounded-sm border border-amber-400/40 bg-amber-400/5">
+                  {s.verified_at && <CheckCircle2 className="w-3 h-3 text-emerald-500 flex-shrink-0" />}
                   <span className="font-mono text-xs text-amber-400">{s.tag}</span>
                   <span className="font-mono text-[10px] text-amber-700">{PROF_LABELS[s.proficiency]}</span>
                 </div>
@@ -565,7 +665,11 @@ export default function ProfilePage() {
         {!editing && (
           <div className="space-y-2">
             <p className="font-mono text-xs text-zinc-500 uppercase tracking-widest">Connected Accounts</p>
-            <ConnectedAccounts provider={user.provider ?? ""} />
+            <ConnectedAccounts
+              provider={user.provider ?? ""}
+              profileId={profileId}
+              onDisconnect={handleDisconnect}
+            />
           </div>
         )}
 
@@ -587,10 +691,22 @@ export default function ProfilePage() {
                 </li>
               ))}
             </ul>
-            <button className="flex items-center gap-2 h-10 px-4 rounded-sm border border-amber-800 bg-amber-950
-                               text-amber-400 font-mono text-xs uppercase tracking-widest
-                               hover:border-amber-600 active:scale-[0.98] transition-all w-full justify-center">
-              Open Identity Wallet
+            {zkError && (
+              <p className="font-mono text-[10px] text-red-400 border border-red-900 bg-red-950/20 px-2 py-1 rounded-sm">
+                {zkError}
+              </p>
+            )}
+            <button
+              onClick={handleOpenWallet}
+              disabled={zkLoading || tier >= 2}
+              className="flex items-center gap-2 h-10 px-4 rounded-sm border border-amber-800 bg-amber-950
+                         text-amber-400 font-mono text-xs uppercase tracking-widest
+                         hover:border-amber-600 active:scale-[0.98] transition-all w-full justify-center
+                         disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {zkLoading
+                ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Requesting nonce…</>
+                : <><Shield className="w-3.5 h-3.5" /> Open Identity Wallet</>}
             </button>
           </div>
         )}

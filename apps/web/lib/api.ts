@@ -206,6 +206,52 @@ export function expressInterest(
   });
 }
 
+// ── Identity service — verification endpoints (:3001) ────────────────────
+
+export interface PublicProfile {
+  profile_id:         string;
+  display_name:       string;
+  trust_score:        number;
+  identity_tier:      string;
+  github_connected:   boolean;
+  linkedin_connected: boolean;
+  google_connected:   boolean;
+}
+
+export function fetchPublicProfile(profileId: string): Promise<PublicProfile> {
+  // Proxy: /api/identity/* → http://localhost:3001/*
+  // Identity service route: /identity/public-profile/{id}
+  return apiFetch(`/api/identity/identity/public-profile/${profileId}`);
+}
+
+export function requestNonce(
+  profileId: string,
+): Promise<{ nonce_hex: string; expires_at: string; wallet_deep_link: string }> {
+  // Identity service route: /identity/nonce-request
+  return apiFetch("/api/identity/identity/nonce-request", {
+    method: "POST",
+    body:   JSON.stringify({ profile_id: profileId }),
+  });
+}
+
+export function disconnectProvider(
+  profileId: string,
+  provider:  "github" | "google" | "linkedin",
+): Promise<{ ok: boolean; trust_score: number; identity_tier: string }> {
+  // Identity service route: /profile/{id}/provider/{provider}
+  return apiFetch(`/api/identity/profile/${profileId}/provider/${provider}`, {
+    method: "DELETE",
+  });
+}
+
+export function attestSkills(
+  profileId: string,
+): Promise<{ ok: boolean; attested: number }> {
+  return apiFetch(`/api/marketplace/talent-skills/${profileId}/attest`, {
+    method: "POST",
+  });
+}
+
 // ── Analytics service (:3008) ─────────────────────────────────────────────
 
 export function fetchRoiReport(talentId: string): Promise<RoiReport> {

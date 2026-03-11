@@ -9,6 +9,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
+use axum::routing::put;
 use common::kafka::producer::KafkaProducer;
 use dotenvy::dotenv;
 use handlers::AppState;
@@ -57,6 +58,7 @@ async fn main() -> Result<()> {
             get(handlers::get_talent_skills).put(handlers::put_talent_skills),
         )
         .route("/express-interest", post(handlers::express_interest))
+        .route("/talent-skills/{id}/attest", post(handlers::attest_skills))
         .with_state(state)
         .layer(TraceLayer::new_for_http());
 

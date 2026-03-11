@@ -8,11 +8,17 @@ import {
   AlertTriangle, Github, Linkedin, Handshake,
 } from "lucide-react";
 import {
-  fetchListings, createListing, createDeployment, expressInterest,
+  fetchListings, createListing, createDeployment, expressInterest, fetchPublicProfile,
   type AgentListing, type ListingCategory, type SellerType,
 } from "@/lib/api";
 import { VettingBadge } from "@/components/VettingBadge";
 import type { VettingTier } from "@/components/VettingBadge";
+
+function tierStringToNum(t: string | undefined): VettingTier {
+  if (t === "SOCIAL_VERIFIED")    return 1;
+  if (t === "BIOMETRIC_VERIFIED") return 2;
+  return 0;
+}
 
 // ── Category + seller config ───────────────────────────────────────────────
 
@@ -316,12 +322,14 @@ function ActionButton({ listing, userTier, profileId, marketView, compact }: Act
 
 // ── Listing card (mobile) ──────────────────────────────────────────────────
 
-function ListingCard({ listing, userTier, profileId, marketView }: {
+function ListingCard({ listing, userTier, profileId, marketView, devTierMap }: {
   listing:    AgentListing;
   userTier:   string;
   profileId:  string;
   marketView: MarketView;
+  devTierMap: Map<string, VettingTier>;
 }) {
+  const devTier = devTierMap.get(listing.developer_id) ?? DEV_TIERS[listing.developer_id] ?? 0;
   return (
     <div className="border border-zinc-800 rounded-sm bg-zinc-900 p-3 space-y-2 hover:border-zinc-700 transition-colors">
       <div className="flex items-start justify-between gap-3">
@@ -330,7 +338,7 @@ function ListingCard({ listing, userTier, profileId, marketView }: {
           <div className="flex items-center gap-1.5 flex-wrap">
             <CategoryBadge category={listing.category} />
             <SellerBadge sellerType={listing.seller_type} />
-            <VettingBadge tier={DEV_TIERS[listing.developer_id] ?? 0} compact />
+            <VettingBadge tier={devTier} compact />
           </div>
         </div>
         <span className="font-mono text-sm font-medium text-amber-400 tabular-nums whitespace-nowrap flex-shrink-0">
@@ -361,12 +369,14 @@ function ListingCard({ listing, userTier, profileId, marketView }: {
 
 // ── Desktop table row ──────────────────────────────────────────────────────
 
-function TableRow({ listing, userTier, profileId, marketView }: {
+function TableRow({ listing, userTier, profileId, marketView, devTierMap }: {
   listing:    AgentListing;
   userTier:   string;
   profileId:  string;
   marketView: MarketView;
+  devTierMap: Map<string, VettingTier>;
 }) {
+  const devTier = devTierMap.get(listing.developer_id) ?? DEV_TIERS[listing.developer_id] ?? 0;
   return (
     <tr className="border-b border-zinc-800 hover:bg-zinc-900 transition-colors">
       <td className="px-3 py-2">
@@ -381,7 +391,7 @@ function TableRow({ listing, userTier, profileId, marketView }: {
         <div className="flex items-center gap-1.5 flex-wrap">
           <CategoryBadge category={listing.category} />
           <SellerBadge sellerType={listing.seller_type} />
-          <VettingBadge tier={DEV_TIERS[listing.developer_id] ?? 0} compact />
+          <VettingBadge tier={devTier} compact />
         </div>
       </td>
       <td className="px-3 py-2 font-mono text-xs text-zinc-400 max-w-xs">
@@ -714,6 +724,7 @@ export default function MarketplacePage() {
   const [catFilter,   setCatFilter]   = useState<CategoryFilter>("All");
   const [sellerFilter,setSellerFilter]= useState<SellerFilter>("All");
   const [showPanel,   setShowPanel]   = useState(false);
+  const [devTierMap,  setDevTierMap]  = useState<Map<string, VettingTier>>(new Map());
   const [marketView,  setMarketView]  = useState<MarketView>(() => {
     if (typeof window !== "undefined") {
       return (localStorage.getItem("market_view") as MarketView) ?? "client";
@@ -723,10 +734,22 @@ export default function MarketplacePage() {
 
   useEffect(() => {
     fetchListings()
-      .then(({ listings }) => {
+      .then(async ({ listings }) => {
         if (listings.length > 0) {
           setAllListings(listings);
           setStatus("live");
+          // Fetch live trust tiers for all unique developers in parallel
+          const uniqueDevIds = [...new Set(listings.map((l) => l.developer_id))];
+          const profiles = await Promise.allSettled(
+            uniqueDevIds.map((id) => fetchPublicProfile(id)),
+          );
+          const tierMap = new Map<string, VettingTier>();
+          profiles.forEach((res, i) => {
+            if (res.status === "fulfilled") {
+              tierMap.set(uniqueDevIds[i], tierStringToNum(res.value.identity_tier));
+            }
+          });
+          setDevTierMap(tierMap);
         } else {
           setStatus("demo");
         }
@@ -956,7 +979,7 @@ export default function MarketplacePage() {
                 </tr>
               </thead>
               <tbody>
-                {visible.map((l) => <TableRow key={l.id} listing={l} userTier={userTier} profileId={profileId} marketView={marketView} />)}
+                {visible.map((l) => <TableRow key={l.id} listing={l} userTier={userTier} profileId={profileId} marketView={marketView} devTierMap={devTierMap} />)}
               </tbody>
             </table>
           </div>
@@ -965,7 +988,7 @@ export default function MarketplacePage() {
         {/* Mobile cards */}
         {visible.length > 0 && (
           <div className="sm:hidden space-y-2">
-            {visible.map((l) => <ListingCard key={l.id} listing={l} userTier={userTier} profileId={profileId} marketView={marketView} />)}
+            {visible.map((l) => <ListingCard key={l.id} listing={l} userTier={userTier} profileId={profileId} marketView={marketView} devTierMap={devTierMap} />)}
           </div>
         )}
 
