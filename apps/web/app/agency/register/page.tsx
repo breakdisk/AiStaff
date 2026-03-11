@@ -8,7 +8,7 @@ import {
   ArrowLeft, Building2, Globe, CheckCircle,
   Loader2, AlertTriangle,
 } from "lucide-react";
-import { createAgency } from "@/lib/api";
+import { createAgency, updateProfile } from "@/lib/api";
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 
@@ -75,6 +75,9 @@ export default function AgencyRegisterPage() {
         description: description.trim() || undefined,
         website_url: websiteUrl.trim()  || undefined,
       });
+      // Set role to agent-owner so next-login JWT reflects the correct role.
+      // Fire-and-forget — agency record already exists, non-fatal if this lags.
+      updateProfile(profileId, { role: "agent-owner" }).catch(() => {});
       // Clear onboarding hints
       localStorage.removeItem("org_name");
       localStorage.removeItem("org_handle");
@@ -109,18 +112,18 @@ export default function AgencyRegisterPage() {
             </p>
           </div>
           <button
-            onClick={() => router.push("/marketplace")}
+            onClick={() => router.push("/dashboard")}
             className="w-full h-12 lg:h-10 flex items-center justify-center gap-2 rounded-sm
                        bg-amber-400 hover:bg-amber-300 text-zinc-950 font-mono text-sm
                        font-medium transition-all active:scale-[0.98]"
           >
-            Go to Marketplace
+            Go to Dashboard
           </button>
           <button
-            onClick={() => router.push("/dashboard")}
+            onClick={() => router.push("/marketplace")}
             className="w-full text-center font-mono text-xs text-zinc-500 hover:text-zinc-400 transition-colors"
           >
-            Go to dashboard
+            Browse marketplace
           </button>
         </div>
       </div>

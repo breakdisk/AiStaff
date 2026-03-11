@@ -455,23 +455,34 @@ async fn create_agency(
 
     let agency_id = Uuid::now_v7();
 
-    // Mark the owner's profile as an agency account
+    // Both writes (profile update + agency insert) run inside a transaction.
+    // If the handle is already taken the UNIQUE violation rolls back the profile
+    // update too — no partial state left behind.
+    let mut tx = match pool.begin().await {
+        Ok(tx) => tx,
+        Err(e) => {
+            tracing::error!("create_agency begin tx: {e:#}");
+            return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
+        }
+    };
+
+    // Mark the owner's profile as an agency account + set role.
     if let Err(e) = sqlx::query(
         "UPDATE unified_profiles
-         SET account_type = 'agency', org_name = $2, updated_at = NOW()
+         SET account_type = 'agency', role = 'agent-owner', org_name = $2, updated_at = NOW()
          WHERE id = $1",
     )
     .bind(payload.owner_id)
     .bind(&payload.name)
-    .execute(&pool)
+    .execute(&mut *tx)
     .await
     {
         tracing::error!("create_agency profile update: {e:#}");
         return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
     }
 
-    // Insert the agency record
-    match sqlx::query(
+    // Insert the agency record.
+    let result = sqlx::query(
         "INSERT INTO agencies (id, owner_id, name, handle, description, website_url)
          VALUES ($1, $2, $3, $4, $5, $6)
          RETURNING created_at",
@@ -482,10 +493,15 @@ async fn create_agency(
     .bind(&handle)
     .bind(&payload.description)
     .bind(&payload.website_url)
-    .fetch_one(&pool)
-    .await
-    {
+    .fetch_one(&mut *tx)
+    .await;
+
+    match result {
         Ok(row) => {
+            if let Err(e) = tx.commit().await {
+                tracing::error!("create_agency commit: {e:#}");
+                return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
+            }
             let created_at: chrono::DateTime<chrono::Utc> = row.get("created_at");
             tracing::info!(%agency_id, handle = %handle, "agency created");
             (
@@ -500,6 +516,7 @@ async fn create_agency(
                 .into_response()
         }
         Err(e) if e.to_string().contains("agencies_handle_key") => {
+            // Transaction rolls back automatically on drop — profile update undone.
             (StatusCode::CONFLICT, "agency handle already taken").into_response()
         }
         Err(e) => {
