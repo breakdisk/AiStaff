@@ -7,6 +7,8 @@ declare module "next-auth" {
       identityTier: "UNVERIFIED" | "SOCIAL_VERIFIED" | "BIOMETRIC_VERIFIED";
       trustScore:   number;
       provider:     string;
+      accountType:  string;          // "individual" | "agency"
+      role:         string | null;   // "talent" | "client" | "agent-owner" | null
       roles:        string[];
     } & DefaultSession["user"];
   }
@@ -18,6 +20,8 @@ declare module "next-auth/jwt" {
     identityTier?: string;
     trustScore?:   number;
     provider?:     string;
+    accountType?:  string;           // "individual" | "agency"
+    role?:         string | null;    // "talent" | "client" | "agent-owner" | null
     roles?:        string[];
   }
 }

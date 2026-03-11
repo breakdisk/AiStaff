@@ -63,10 +63,22 @@ pub async fn handle_oauth_callback(
     .await
     .context("Update trust_score + tier")?;
 
+    // Read account_type + role set during onboarding / agency registration.
+    // Both columns have NOT NULL / nullable defaults so the row always exists.
+    let (account_type, role): (String, Option<String>) = sqlx::query_as(
+        "SELECT account_type, role FROM unified_profiles WHERE id = $1",
+    )
+    .bind(profile_id)
+    .fetch_one(db)
+    .await
+    .context("Fetch account_type + role")?;
+
     Ok(OAuthCallbackResponse {
         profile_id,
         identity_tier: tier_label(tier),
         trust_score: score,
+        account_type,
+        role,
     })
 }
 

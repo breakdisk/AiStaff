@@ -23,9 +23,11 @@ interface OAuthCallbackPayload {
 }
 
 interface OAuthCallbackResponse {
-  profile_id: string;
+  profile_id:    string;
   identity_tier: "UNVERIFIED" | "SOCIAL_VERIFIED" | "BIOMETRIC_VERIFIED";
-  trust_score: number;
+  trust_score:   number;
+  account_type:  string;         // "individual" | "agency"
+  role:          string | null;  // "talent" | "client" | "agent-owner" | null
 }
 
 async function callIdentityOAuthCallback(
@@ -59,9 +61,11 @@ async function callIdentityOAuthCallback(
 
   // Fallback: return Unverified tier so login still succeeds
   return {
-    profile_id: account.providerAccountId,
+    profile_id:   account.providerAccountId,
     identity_tier: "UNVERIFIED",
-    trust_score: 0,
+    trust_score:  0,
+    account_type: "individual",
+    role:         null,
   };
 }
 
@@ -114,7 +118,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.identityTier = result.identity_tier;
         token.trustScore   = result.trust_score;
         token.provider     = account.provider;
-        token.roles        = ["talent"]; // default; updated on profile page
+        token.accountType  = result.account_type;
+        token.role         = result.role ?? null;
+        token.roles        = result.role ? [result.role] : [];
       }
       return token;
     },
@@ -124,7 +130,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       session.user.identityTier = (token.identityTier as "UNVERIFIED" | "SOCIAL_VERIFIED" | "BIOMETRIC_VERIFIED") ?? "UNVERIFIED";
       session.user.trustScore   = token.trustScore   as number;
       session.user.provider     = token.provider     as string;
-      session.user.roles        = (token.roles       as string[]) ?? ["talent"];
+      session.user.accountType  = (token.accountType as string) ?? "individual";
+      session.user.role         = (token.role        as string | null) ?? null;
+      session.user.roles        = (token.roles       as string[]) ?? [];
       return session;
     },
   },

@@ -25,8 +25,29 @@ export default auth((req) => {
   }
 
   if (isAuthenticated && AUTH_ONLY.some((p) => pathname.startsWith(p))) {
-    const url = req.nextUrl.clone();
-    url.pathname = "/dashboard";
+    const url   = req.nextUrl.clone();
+    const token = req.auth?.user as {
+      accountType?: string;
+      role?:        string | null;
+    } | undefined;
+
+    const accountType = token?.accountType;
+    const role        = token?.role;
+
+    // New user — no role set yet → send to onboarding
+    if (!role) {
+      url.pathname = "/onboarding";
+    // Agency owner
+    } else if (accountType === "agency" || role === "agent-owner") {
+      url.pathname = "/dashboard";
+    // Client / buyer
+    } else if (role === "client") {
+      url.pathname = "/marketplace";
+    // Freelancer / talent (default)
+    } else {
+      url.pathname = "/dashboard";
+    }
+
     url.searchParams.delete("next");
     return NextResponse.redirect(url);
   }

@@ -105,5 +105,9 @@ pub struct OAuthCallbackResponse {
     pub profile_id: Uuid,
     /// "UNVERIFIED" | "SOCIAL_VERIFIED" | "BIOMETRIC_VERIFIED"
     pub identity_tier: String,
-    pub trust_score: i16,
+    pub trust_score:   i16,
+    /// "individual" | "agency" — from `unified_profiles.account_type`
+    pub account_type:  String,
+    /// "talent" | "client" | "agent-owner" | null (null = new user, not yet through onboarding)
+    pub role:          Option<String>,
 }
