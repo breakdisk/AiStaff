@@ -254,6 +254,7 @@ struct PublicProfileResponse {
     linkedin_connected: bool,
     google_connected:   bool,
     // Added in migration 0017 — used by matching page for candidate enrichment
+    bio:               Option<String>,
     hourly_rate_cents: Option<i32>,
     availability:      Option<String>,
     role:              Option<String>,
@@ -268,7 +269,7 @@ async fn public_profile(
     let res = sqlx::query(
         "SELECT display_name, trust_score, identity_tier::TEXT AS identity_tier,
                 github_uid, linkedin_uid, google_uid,
-                hourly_rate_cents, availability, role
+                bio, hourly_rate_cents, availability, role
          FROM unified_profiles WHERE id = $1",
     )
     .bind(id)
@@ -283,6 +284,7 @@ async fn public_profile(
             let github_uid: Option<String> = row.get("github_uid");
             let linkedin_uid: Option<String> = row.get("linkedin_uid");
             let google_uid: Option<String> = row.get("google_uid");
+            let bio: Option<String> = row.get("bio");
             let hourly_rate_cents: Option<i32> = row.get("hourly_rate_cents");
             let availability: Option<String> = row.get("availability");
             let role: Option<String> = row.get("role");
@@ -295,6 +297,7 @@ async fn public_profile(
                 github_connected:   github_uid.is_some(),
                 linkedin_connected: linkedin_uid.is_some(),
                 google_connected:   google_uid.is_some(),
+                bio,
                 hourly_rate_cents,
                 availability,
                 role,

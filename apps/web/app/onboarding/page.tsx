@@ -158,7 +158,7 @@ function StepRole({ onNext }: { onNext: (role: Role) => void }) {
 
 // ── Step 3a: Freelancer — upgrade tier ────────────────────────────────────────
 
-function StepFreelancer({ onDone }: { onDone: () => void }) {
+function StepFreelancer({ onDone }: { onDone: (dest?: string) => void }) {
   return (
     <div className="space-y-6">
       <div className="text-center space-y-1">
@@ -209,7 +209,7 @@ function StepFreelancer({ onDone }: { onDone: () => void }) {
       </div>
 
       <button
-        onClick={onDone}
+        onClick={() => onDone()}
         className="w-full text-center font-mono text-xs text-zinc-500 hover:text-zinc-400 transition-colors"
       >
         Skip for now — I&apos;ll do this later
@@ -220,8 +220,7 @@ function StepFreelancer({ onDone }: { onDone: () => void }) {
 
 // ── Step 3b: Client — post a job ───────────────────────────────────────────────
 
-function StepClient({ onDone }: { onDone: () => void }) {
-  const router = useRouter();
+function StepClient({ onDone }: { onDone: (dest?: string) => void }) {
   return (
     <div className="space-y-6">
       <div className="text-center space-y-1">
@@ -233,7 +232,7 @@ function StepClient({ onDone }: { onDone: () => void }) {
 
       <div className="space-y-3">
         <button
-          onClick={() => { onDone(); router.push("/post-job"); }}
+          onClick={() => onDone("/post-job")}
           className="w-full p-4 rounded-sm border border-amber-400/40 bg-amber-400/5
                      hover:bg-amber-400/10 transition-all active:scale-[0.98] text-left group"
         >
@@ -250,7 +249,7 @@ function StepClient({ onDone }: { onDone: () => void }) {
         </button>
 
         <button
-          onClick={() => { onDone(); router.push("/marketplace"); }}
+          onClick={() => onDone("/marketplace")}
           className="w-full p-4 rounded-sm border border-zinc-700 bg-zinc-900/60
                      hover:border-zinc-600 hover:bg-zinc-800 transition-all active:scale-[0.98] text-left group"
         >
@@ -268,10 +267,10 @@ function StepClient({ onDone }: { onDone: () => void }) {
       </div>
 
       <button
-        onClick={onDone}
+        onClick={() => onDone()}
         className="w-full text-center font-mono text-xs text-zinc-500 hover:text-zinc-400 transition-colors"
       >
-        Go to dashboard
+        Skip for now — go to marketplace
       </button>
     </div>
   );
@@ -382,8 +381,7 @@ function StepAgency({
 
 // ── Step 4: Agency done ────────────────────────────────────────────────────────
 
-function StepAgencyDone({ orgName, onDone }: { orgName: string; onDone: () => void }) {
-  const router = useRouter();
+function StepAgencyDone({ orgName, onDone }: { orgName: string; onDone: (dest?: string) => void }) {
   return (
     <div className="space-y-6">
       <div className="text-center space-y-2">
@@ -396,7 +394,7 @@ function StepAgencyDone({ orgName, onDone }: { orgName: string; onDone: () => vo
       </div>
 
       <button
-        onClick={() => { onDone(); router.push("/agency/register"); }}
+        onClick={() => onDone("/agency/register")}
         className="w-full p-4 rounded-sm border border-amber-400/40 bg-amber-400/5
                    hover:bg-amber-400/10 transition-all active:scale-[0.98] text-left"
       >
@@ -413,7 +411,7 @@ function StepAgencyDone({ orgName, onDone }: { orgName: string; onDone: () => vo
       </button>
 
       <button
-        onClick={onDone}
+        onClick={() => onDone()}
         className="w-full text-center font-mono text-xs text-zinc-500 hover:text-zinc-400 transition-colors"
       >
         Go to dashboard
@@ -449,7 +447,7 @@ export default function OnboardingPage() {
   const totalSteps = role === "agency" ? 4 : 3;
   const profileId  = session?.user?.profileId;
 
-  async function markDone() {
+  async function markDone(destination?: string) {
     if (typeof window !== "undefined") {
       localStorage.setItem("onboarding_done", "1");
       if (role) localStorage.setItem("user_role", role);
@@ -471,8 +469,10 @@ export default function OnboardingPage() {
         accountType: role === "agency" ? "agency" : "individual",
       }).catch(() => {/* non-fatal if session update fails */});
     }
-    // Route by role — same table as middleware
-    router.push(role === "client" ? "/marketplace" : "/dashboard");
+    // Use caller-supplied destination; fall back to role-based routing table.
+    // Components pass an explicit destination to avoid a double-push race where
+    // both the component and markDone each call router.push.
+    router.push(destination ?? (role === "client" ? "/marketplace" : "/dashboard"));
   }
 
   function chooseRole(r: Role) {
@@ -540,7 +540,7 @@ export default function OnboardingPage() {
 
         <p className="text-center font-mono text-xs text-zinc-600 mt-4">
           <button
-            onClick={markDone}
+            onClick={() => markDone()}
             className="hover:text-zinc-400 transition-colors"
           >
             Skip setup — take me to the dashboard

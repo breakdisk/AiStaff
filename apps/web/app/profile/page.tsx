@@ -11,7 +11,7 @@ import {
 import { VettingBadge }    from "@/components/VettingBadge";
 import { TrustScoreBadge } from "@/components/TrustScoreBadge";
 import {
-  updateProfile, fetchSkillTags, fetchTalentSkills, updateTalentSkills,
+  updateProfile, fetchPublicProfile, fetchSkillTags, fetchTalentSkills, updateTalentSkills,
   requestNonce, attestSkills, disconnectProvider,
   type SkillTag, type TalentSkill, type UpdateProfileRequest,
 } from "@/lib/api";
@@ -422,6 +422,18 @@ export default function ProfilePage() {
     fetchTalentSkills(profileId)
       .then(({ skills }) => setCurrentSkills(skills))
       .catch(() => {});
+    // Pre-populate editable fields from the backend — bio/hourlyRate/availability/role
+    // may have been set in a previous session; without this fetch they would
+    // display as empty even if the user already filled them in.
+    fetchPublicProfile(profileId)
+      .then((p) => {
+        if (p.bio           != null) setBio(p.bio);
+        if (p.hourly_rate_cents != null)
+          setHourlyRate(String(Math.round(p.hourly_rate_cents / 100)));
+        if (p.availability  != null) setAvailability(p.availability);
+        if (p.role          != null) setRole(p.role);
+      })
+      .catch(() => {/* backend offline — leave defaults */});
   }, [profileId]);
 
   if (status === "loading") {

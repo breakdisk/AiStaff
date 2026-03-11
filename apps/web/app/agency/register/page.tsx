@@ -10,11 +10,15 @@ import {
 } from "lucide-react";
 import { createAgency, updateProfile } from "@/lib/api";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type UpdateFn = (data?: any) => Promise<unknown>;
+
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function AgencyRegisterPage() {
   const router = useRouter();
-  const { data: session, status } = useSession();
+  const { data: session, status, update } = useSession() as
+    ReturnType<typeof useSession> & { update: UpdateFn };
 
   // Pre-fill from onboarding localStorage
   const [name,        setName]        = useState("");
@@ -75,9 +79,11 @@ export default function AgencyRegisterPage() {
         description: description.trim() || undefined,
         website_url: websiteUrl.trim()  || undefined,
       });
-      // Set role to agent-owner so next-login JWT reflects the correct role.
-      // Fire-and-forget — agency record already exists, non-fatal if this lags.
+      // Persist role to DB (backend also does this atomically, but belt-and-suspenders).
       updateProfile(profileId, { role: "agent-owner" }).catch(() => {});
+      // Patch the current JWT so middleware + session.user.role are correct
+      // immediately — without this, role stays null until the next full sign-in.
+      await update({ role: "agent-owner", accountType: "agency" }).catch(() => {});
       // Clear onboarding hints
       localStorage.removeItem("org_name");
       localStorage.removeItem("org_handle");
