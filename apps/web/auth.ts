@@ -40,7 +40,14 @@ async function callIdentityOAuthCallback(
     provider_uid: String(account.providerAccountId),
     email: (profile as { email?: string }).email ?? "",
     display_name: (profile as { name?: string }).name ?? "",
-    email_verified: (profile as { email_verified?: boolean }).email_verified,
+    // Normalise to boolean — LinkedIn sends email_verified as the string "true"
+    // which Rust's serde rejects with 422 (expected bool, got string).
+    email_verified: (() => {
+      const raw = (profile as { email_verified?: unknown }).email_verified;
+      if (raw === true || raw === "true") return true;
+      if (raw === false || raw === "false") return false;
+      return undefined;
+    })(),
     github_repos: githubExtra?.public_repos,
     github_created_at: githubExtra?.created_at,
   };
