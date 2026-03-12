@@ -162,31 +162,37 @@ pub async fn get_deployment(
 #[derive(Debug, Deserialize)]
 pub struct CreateListingRequest {
     pub developer_id: Uuid,
-    pub name:         String,
-    pub description:  String,
+    pub name: String,
+    pub description: String,
     /// SHA-256 hex of the Wasm artifact.
-    pub wasm_hash:    String,
+    pub wasm_hash: String,
     /// Price in USD cents.
-    pub price_cents:  i64,
+    pub price_cents: i64,
     /// "AiTalent" | "AiStaff" | "AiRobot"
-    pub category:     String,
+    pub category: String,
     /// "Agency" | "Freelancer"
-    pub seller_type:  String,
+    pub seller_type: String,
 }
 
 pub async fn create_listing(
     State(state): State<SharedState>,
     Json(req): Json<CreateListingRequest>,
 ) -> impl IntoResponse {
-    const VALID_CATS:    &[&str] = &["AiTalent", "AiStaff", "AiRobot"];
+    const VALID_CATS: &[&str] = &["AiTalent", "AiStaff", "AiRobot"];
     const VALID_SELLERS: &[&str] = &["Agency", "Freelancer"];
 
     if !VALID_CATS.contains(&req.category.as_str()) {
-        return (StatusCode::BAD_REQUEST, "category must be AiTalent|AiStaff|AiRobot")
+        return (
+            StatusCode::BAD_REQUEST,
+            "category must be AiTalent|AiStaff|AiRobot",
+        )
             .into_response();
     }
     if !VALID_SELLERS.contains(&req.seller_type.as_str()) {
-        return (StatusCode::BAD_REQUEST, "seller_type must be Agency|Freelancer")
+        return (
+            StatusCode::BAD_REQUEST,
+            "seller_type must be Agency|Freelancer",
+        )
             .into_response();
     }
 
@@ -354,7 +360,11 @@ pub async fn get_skill_tags(State(state): State<SharedState>) -> impl IntoRespon
                     serde_json::json!({ "id": id, "tag": tag, "domain": domain })
                 })
                 .collect();
-            (StatusCode::OK, Json(serde_json::json!({ "skill_tags": tags }))).into_response()
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({ "skill_tags": tags })),
+            )
+                .into_response()
         }
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
@@ -398,7 +408,11 @@ pub async fn get_talent_skills(
                     })
                 })
                 .collect();
-            (StatusCode::OK, Json(serde_json::json!({ "skills": skills }))).into_response()
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({ "skills": skills })),
+            )
+                .into_response()
         }
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
@@ -408,7 +422,7 @@ pub async fn get_talent_skills(
 
 #[derive(Debug, Deserialize)]
 pub struct SkillEntry {
-    pub tag_id:      Uuid,
+    pub tag_id: Uuid,
     pub proficiency: i16,
 }
 
@@ -448,15 +462,19 @@ pub async fn put_talent_skills(
         }
     }
 
-    (StatusCode::OK, Json(serde_json::json!({ "ok": true, "count": req.skills.len() }))).into_response()
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({ "ok": true, "count": req.skills.len() })),
+    )
+        .into_response()
 }
 
 // ── POST /express-interest ─────────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
 pub struct ExpressInterestRequest {
-    pub agent_id:        Uuid,
-    pub profile_id:      Uuid,
+    pub agent_id: Uuid,
+    pub profile_id: Uuid,
     pub required_skills: Vec<String>,
     pub min_trust_score: i16,
 }

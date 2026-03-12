@@ -29,7 +29,10 @@ pub fn create_router(state: AppState) -> axum::Router {
             "/hubs/{hub_id}/events",
             get(handlers::list_hub_events).post(handlers::create_hub_event),
         )
-        .route("/hubs/{hub_id}/events/{eid}/rsvp", post(handlers::rsvp_event))
+        .route(
+            "/hubs/{hub_id}/events/{eid}/rsvp",
+            post(handlers::rsvp_event),
+        )
         // ── Forum Threads & Posts ─────────────────────────────────────────────
         .route(
             "/hubs/{hub_id}/threads",
@@ -84,7 +87,10 @@ pub fn create_router(state: AppState) -> axum::Router {
             "/wellbeing/{user_id}/checkin",
             post(handlers::submit_checkin),
         )
-        .route("/wellbeing/{user_id}/checkins", get(handlers::list_checkins))
+        .route(
+            "/wellbeing/{user_id}/checkins",
+            get(handlers::list_checkins),
+        )
         .route(
             "/wellbeing/{user_id}/burnout",
             get(handlers::get_burnout_signal),

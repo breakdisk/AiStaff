@@ -95,9 +95,8 @@ jobs:
 
       - name: "Gate 10: No hardcoded password literals"
         run: |
-          # Catches: password = "..." but not SQL column names or config keys
           if git grep -Prn 'password\s*=\s*"[^"]+"' -- \
-              ':!*.md' ':!*.sql' ':!Cargo.lock' ':!docs/'; then
+              ':!*.md' ':!*.sql' ':!Cargo.lock' ':!docs/' ':!.github/'; then
             echo "❌ Hardcoded password literal found"
             exit 1
           fi

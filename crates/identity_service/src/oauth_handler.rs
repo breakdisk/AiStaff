@@ -65,13 +65,12 @@ pub async fn handle_oauth_callback(
 
     // Read account_type + role set during onboarding / agency registration.
     // Both columns have NOT NULL / nullable defaults so the row always exists.
-    let (account_type, role): (String, Option<String>) = sqlx::query_as(
-        "SELECT account_type, role FROM unified_profiles WHERE id = $1",
-    )
-    .bind(profile_id)
-    .fetch_one(db)
-    .await
-    .context("Fetch account_type + role")?;
+    let (account_type, role): (String, Option<String>) =
+        sqlx::query_as("SELECT account_type, role FROM unified_profiles WHERE id = $1")
+            .bind(profile_id)
+            .fetch_one(db)
+            .await
+            .context("Fetch account_type + role")?;
 
     Ok(OAuthCallbackResponse {
         profile_id,
@@ -109,12 +108,11 @@ async fn find_by_provider(db: &PgPool, p: &OAuthCallbackPayload) -> Result<Optio
 }
 
 async fn find_by_email(db: &PgPool, email: &str) -> Result<Option<Uuid>> {
-    let row: Option<(Uuid,)> =
-        sqlx::query_as("SELECT id FROM unified_profiles WHERE email = $1")
-            .bind(email)
-            .fetch_optional(db)
-            .await
-            .context("find_by_email")?;
+    let row: Option<(Uuid,)> = sqlx::query_as("SELECT id FROM unified_profiles WHERE email = $1")
+        .bind(email)
+        .fetch_optional(db)
+        .await
+        .context("find_by_email")?;
     Ok(row.map(|(id,)| id))
 }
 
@@ -152,33 +150,27 @@ fn github_uid_for_insert(p: &OAuthCallbackPayload) -> Option<String> {
 
 async fn link_provider(db: &PgPool, id: Uuid, p: &OAuthCallbackPayload) -> Result<()> {
     match p.provider {
-        OAuthProvider::GitHub => {
-            sqlx::query(
-                "UPDATE unified_profiles
+        OAuthProvider::GitHub => sqlx::query(
+            "UPDATE unified_profiles
                  SET github_uid = $1, github_connected_at = NOW(), updated_at = NOW()
                  WHERE id = $2",
-            )
-            .bind(&p.provider_uid)
-            .bind(id)
-        }
-        OAuthProvider::Google => {
-            sqlx::query(
-                "UPDATE unified_profiles
+        )
+        .bind(&p.provider_uid)
+        .bind(id),
+        OAuthProvider::Google => sqlx::query(
+            "UPDATE unified_profiles
                  SET google_uid = $1, google_connected_at = NOW(), updated_at = NOW()
                  WHERE id = $2",
-            )
-            .bind(&p.provider_uid)
-            .bind(id)
-        }
-        OAuthProvider::LinkedIn => {
-            sqlx::query(
-                "UPDATE unified_profiles
+        )
+        .bind(&p.provider_uid)
+        .bind(id),
+        OAuthProvider::LinkedIn => sqlx::query(
+            "UPDATE unified_profiles
                  SET linkedin_uid = $1, linkedin_connected_at = NOW(), updated_at = NOW()
                  WHERE id = $2",
-            )
-            .bind(&p.provider_uid)
-            .bind(id)
-        }
+        )
+        .bind(&p.provider_uid)
+        .bind(id),
     }
     .execute(db)
     .await
@@ -235,9 +227,15 @@ async fn fetch_and_score(
     };
 
     // Google score — verified email is guaranteed by Google's own auth
-    let google_score = if google_uid.is_some() { GOOGLE_EMAIL_PTS } else { 0.0 };
+    let google_score = if google_uid.is_some() {
+        GOOGLE_EMAIL_PTS
+    } else {
+        0.0
+    };
 
-    let total = (github_score + linkedin_score + google_score).round().clamp(0.0, 100.0) as i16;
+    let total = (github_score + linkedin_score + google_score)
+        .round()
+        .clamp(0.0, 100.0) as i16;
 
     let tier = if total > 0 {
         IdentityTier::SocialVerified
@@ -320,6 +318,9 @@ mod tests {
     fn tier_label_roundtrip() {
         assert_eq!(tier_label(IdentityTier::Unverified), "UNVERIFIED");
         assert_eq!(tier_label(IdentityTier::SocialVerified), "SOCIAL_VERIFIED");
-        assert_eq!(tier_label(IdentityTier::BiometricVerified), "BIOMETRIC_VERIFIED");
+        assert_eq!(
+            tier_label(IdentityTier::BiometricVerified),
+            "BIOMETRIC_VERIFIED"
+        );
     }
 }

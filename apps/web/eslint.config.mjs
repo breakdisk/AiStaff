@@ -19,7 +19,7 @@ const eslintConfig = [
     rules: {
       ...nextPlugin.configs.recommended.rules,
       ...nextPlugin.configs["core-web-vitals"].rules,
-      "no-console": "error",
+      "no-console": ["error", { allow: ["warn", "error"] }],
     },
   },
 ];

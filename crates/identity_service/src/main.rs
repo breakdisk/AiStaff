@@ -7,25 +7,29 @@ use axum::{
     routing::{delete, get, patch, post},
     Router,
 };
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 use dotenvy::dotenv;
+use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgPoolOptions;
 use tracing_subscriber::{fmt, EnvFilter};
+use uuid::Uuid;
 
 /// Composite app state — lets Axum extract each field independently via `FromRef`.
 #[derive(Clone)]
 struct AppState {
-    svc:  Arc<StitchService>,
+    svc: Arc<StitchService>,
     pool: sqlx::PgPool,
 }
 
 impl FromRef<AppState> for Arc<StitchService> {
-    fn from_ref(s: &AppState) -> Self { s.svc.clone() }
+    fn from_ref(s: &AppState) -> Self {
+        s.svc.clone()
+    }
 }
 
 impl FromRef<AppState> for sqlx::PgPool {
-    fn from_ref(s: &AppState) -> Self { s.pool.clone() }
+    fn from_ref(s: &AppState) -> Self {
+        s.pool.clone()
+    }
 }
 
 mod handlers;
@@ -72,7 +76,10 @@ async fn main() -> anyhow::Result<()> {
         // Legacy stitch endpoint (GitHub + LinkedIn together)
         .route("/identity/stitch", post(handlers::stitch_identity))
         .route("/identity/wallet-redirect", get(handlers::wallet_redirect))
-        .route("/identity/biometric-callback", post(handlers::biometric_callback))
+        .route(
+            "/identity/biometric-callback",
+            post(handlers::biometric_callback),
+        )
         // Single-provider OAuth (migration 0016)
         .route("/identity/oauth-callback", post(oauth_callback))
         .route("/identity/connect-provider", post(connect_provider))
@@ -81,7 +88,10 @@ async fn main() -> anyhow::Result<()> {
         // Freelancer profile update (migration 0017)
         .route("/profile/{id}", patch(update_profile))
         // Provider disconnect + audit log (migration 0018)
-        .route("/profile/{id}/provider/{provider}", delete(disconnect_provider))
+        .route(
+            "/profile/{id}/provider/{provider}",
+            delete(disconnect_provider),
+        )
         // Public profile endpoint (trust score + tier for marketplace)
         .route("/identity/public-profile/{id}", get(public_profile))
         // Agency registration
@@ -116,10 +126,10 @@ async fn oauth_callback(
 
 #[derive(Debug, Deserialize)]
 struct UpdateProfilePayload {
-    bio:               Option<String>,
+    bio: Option<String>,
     hourly_rate_cents: Option<i32>,
-    availability:      Option<String>,
-    role:              Option<String>,
+    availability: Option<String>,
+    role: Option<String>,
 }
 
 async fn update_profile(
@@ -189,8 +199,8 @@ struct NonceRequestPayload {
 
 #[derive(Debug, Serialize)]
 struct NonceResponse {
-    nonce_hex:       String,
-    expires_at:      String,
+    nonce_hex: String,
+    expires_at: String,
     wallet_deep_link: String,
 }
 
@@ -200,9 +210,7 @@ async fn nonce_request(
 ) -> impl IntoResponse {
     // Generate 32-byte nonce from UUID v4 randomness + blake3
     let raw = Uuid::new_v4();
-    let nonce_hex = hex::encode(
-        blake3::hash(raw.as_bytes()).as_bytes()
-    );
+    let nonce_hex = hex::encode(blake3::hash(raw.as_bytes()).as_bytes());
 
     let res = sqlx::query(
         "INSERT INTO biometric_nonces (profile_id, nonce_hex)
@@ -246,18 +254,18 @@ async fn nonce_request(
 
 #[derive(Debug, Serialize)]
 struct PublicProfileResponse {
-    profile_id:    Uuid,
-    display_name:  String,
-    trust_score:   i16,
+    profile_id: Uuid,
+    display_name: String,
+    trust_score: i16,
     identity_tier: String,
-    github_connected:   bool,
+    github_connected: bool,
     linkedin_connected: bool,
-    google_connected:   bool,
+    google_connected: bool,
     // Added in migration 0017 — used by matching page for candidate enrichment
-    bio:               Option<String>,
+    bio: Option<String>,
     hourly_rate_cents: Option<i32>,
-    availability:      Option<String>,
-    role:              Option<String>,
+    availability: Option<String>,
+    role: Option<String>,
 }
 
 async fn public_profile(
@@ -294,9 +302,9 @@ async fn public_profile(
                 display_name,
                 trust_score,
                 identity_tier,
-                github_connected:   github_uid.is_some(),
+                github_connected: github_uid.is_some(),
                 linkedin_connected: linkedin_uid.is_some(),
-                google_connected:   google_uid.is_some(),
+                google_connected: google_uid.is_some(),
                 bio,
                 hourly_rate_cents,
                 availability,
@@ -373,8 +381,12 @@ async fn disconnect_provider(
             let score: i16 = (if gh.is_some() { 10.0_f64 } else { 0.0 }
                 + if li.is_some() { 15.0 } else { 0.0 }
                 + if go.is_some() { 15.0 } else { 0.0 })
-                .round() as i16;
-            let tier = if score > 0 { "SOCIAL_VERIFIED" } else { "UNVERIFIED" };
+            .round() as i16;
+            let tier = if score > 0 {
+                "SOCIAL_VERIFIED"
+            } else {
+                "UNVERIFIED"
+            };
             (score, tier.to_string())
         }
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
@@ -425,18 +437,18 @@ async fn disconnect_provider(
 
 #[derive(Debug, Deserialize)]
 struct CreateAgencyPayload {
-    owner_id:    Uuid,
-    name:        String,
-    handle:      String,
+    owner_id: Uuid,
+    name: String,
+    handle: String,
     description: Option<String>,
     website_url: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
 struct CreateAgencyResponse {
-    agency_id:  Uuid,
-    handle:     String,
-    name:       String,
+    agency_id: Uuid,
+    handle: String,
+    name: String,
     created_at: String,
 }
 
@@ -451,9 +463,15 @@ async fn create_agency(
     if handle.len() < 3 || handle.len() > 40 {
         return (StatusCode::BAD_REQUEST, "handle must be 3–40 characters").into_response();
     }
-    if !handle.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
-        return (StatusCode::BAD_REQUEST,
-            "handle must be lowercase alphanumeric or hyphens").into_response();
+    if !handle
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-')
+    {
+        return (
+            StatusCode::BAD_REQUEST,
+            "handle must be lowercase alphanumeric or hyphens",
+        )
+            .into_response();
     }
 
     let agency_id = Uuid::now_v7();
