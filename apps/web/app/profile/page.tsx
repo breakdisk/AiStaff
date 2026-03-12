@@ -693,33 +693,31 @@ export default function ProfilePage() {
               {tier === 0 ? [
                 "Connect GitHub — unlocks technical job matching (+30 pts)",
                 "Connect LinkedIn — unlocks consulting roles (+15 pts)",
-              ] : [
-                "Complete ZK biometric liveness proof via identity wallet",
-                "Unlocks high-value contracts + auto escrow release",
               ].map((step) => (
                 <li key={step} className="flex items-start gap-2 font-mono text-xs text-zinc-400">
                   <Clock className="w-3 h-3 text-amber-600 flex-shrink-0 mt-0.5" />
                   {step}
                 </li>
-              ))}
+              )) : (
+                <>
+                  <li className="flex items-start gap-2 font-mono text-xs text-zinc-400 list-none">
+                    <Shield className="w-3 h-3 text-zinc-600 flex-shrink-0 mt-0.5" />
+                    ZK biometric liveness proof — unlocks high-value contracts &amp; auto escrow release
+                  </li>
+                  <li className="flex items-start gap-2 font-mono text-xs text-zinc-500 list-none">
+                    <Clock className="w-3 h-3 text-zinc-700 flex-shrink-0 mt-0.5" />
+                    Identity wallet integration launching soon
+                  </li>
+                </>
+              )}
             </ul>
-            {zkError && (
-              <p className="font-mono text-[10px] text-red-400 border border-red-900 bg-red-950/20 px-2 py-1 rounded-sm">
-                {zkError}
-              </p>
+            {tier === 1 && (
+              <div className="flex items-center gap-2 h-10 px-4 rounded-sm border border-zinc-800 bg-zinc-900
+                              text-zinc-500 font-mono text-xs uppercase tracking-widest w-full justify-center cursor-not-allowed select-none">
+                <Shield className="w-3.5 h-3.5" />
+                Biometric Verification — Coming Soon
+              </div>
             )}
-            <button
-              onClick={handleOpenWallet}
-              disabled={zkLoading || tier >= 2}
-              className="flex items-center gap-2 h-10 px-4 rounded-sm border border-amber-800 bg-amber-950
-                         text-amber-400 font-mono text-xs uppercase tracking-widest
-                         hover:border-amber-600 active:scale-[0.98] transition-all w-full justify-center
-                         disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {zkLoading
-                ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Requesting nonce…</>
-                : <><Shield className="w-3.5 h-3.5" /> Open Identity Wallet</>}
-            </button>
           </div>
         )}
 

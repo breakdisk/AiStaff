@@ -122,8 +122,13 @@ jobs:
       - name: Build (catches TypeScript + missing imports)
         run: npm run build
         env:
-          # Silence Next.js telemetry in CI; suppress dynamic NEXT_PUBLIC_ warnings
+          # Silence Next.js telemetry in CI
           NEXT_TELEMETRY_DISABLED: 1
+          # Auth.js v5 requires NEXTAUTH_SECRET at build time (not used, just must be set)
+          NEXTAUTH_SECRET: ci-build-placeholder
+          # Service URLs default to localhost:300x — fine for type-checking; not used at build
+          IDENTITY_SERVICE_URL: http://localhost:3001
+          MARKETPLACE_SERVICE_URL: http://localhost:3002
 
 # ── Gates 5–8: Rust tests (unit + integration) ────────────────────────────────
   test:

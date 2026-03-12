@@ -39,7 +39,7 @@ async fn main() -> Result<()> {
         .route("/health", get(handlers::health))
         .route("/match", post(handlers::match_talent))
         .route(
-            "/talent/:id/skills",
+            "/talent/{id}/skills",
             get(handlers::get_talent_skills).post(handlers::upsert_skill),
         )
         .with_state(state)

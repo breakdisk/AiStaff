@@ -95,7 +95,7 @@ async fn main() -> Result<()> {
         )
         .route("/device-tokens", post(handlers::register_device_token))
         .route(
-            "/device-tokens/:token",
+            "/device-tokens/{token}",
             delete(handlers::unregister_device_token),
         )
         .route("/integrations/whatsapp/init", post(handlers::init_whatsapp))
@@ -119,7 +119,7 @@ async fn main() -> Result<()> {
         )
         .route("/integrations/status", get(handlers::integration_status))
         .route(
-            "/integrations/:provider",
+            "/integrations/{provider}",
             delete(handlers::revoke_integration),
         )
         .layer(tower_http::cors::CorsLayer::permissive())

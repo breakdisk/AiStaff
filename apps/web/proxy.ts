@@ -18,6 +18,12 @@ export default auth((req) => {
     /\.(?:png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|otf)$/i.test(pathname);
 
   if (!isAuthenticated && !isPublic) {
+    // API routes must return 401 — never redirect to login.
+    // Redirecting an API POST to /login causes NextAuth to replay it as
+    // a GET after authentication, hitting a non-existent route → 404.
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const url = req.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("next", pathname);

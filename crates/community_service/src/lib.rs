@@ -26,18 +26,18 @@ pub fn create_router(state: AppState) -> axum::Router {
         .route("/hubs/{hub_id}/leave", delete(handlers::leave_hub))
         // ── Community Events ──────────────────────────────────────────────────
         .route(
-            "/hubs/:hub_id/events",
+            "/hubs/{hub_id}/events",
             get(handlers::list_hub_events).post(handlers::create_hub_event),
         )
         .route("/hubs/{hub_id}/events/{eid}/rsvp", post(handlers::rsvp_event))
         // ── Forum Threads & Posts ─────────────────────────────────────────────
         .route(
-            "/hubs/:hub_id/threads",
+            "/hubs/{hub_id}/threads",
             get(handlers::list_threads).post(handlers::create_thread),
         )
         .route("/hubs/{hub_id}/threads/{tid}", get(handlers::get_thread))
         .route(
-            "/hubs/:hub_id/threads/:tid/posts",
+            "/hubs/{hub_id}/threads/{tid}/posts",
             get(handlers::list_posts).post(handlers::create_post),
         )
         // ── Mentor Profiles ───────────────────────────────────────────────────
@@ -51,11 +51,11 @@ pub fn create_router(state: AppState) -> axum::Router {
         .route("/mentorship/pairs", get(handlers::list_pairs))
         .route("/mentorship/pairs/{pid}", get(handlers::get_pair))
         .route(
-            "/mentorship/pairs/:pid/sessions",
+            "/mentorship/pairs/{pid}/sessions",
             get(handlers::list_sessions).post(handlers::schedule_session),
         )
         .route(
-            "/mentorship/pairs/:pid/sessions/:sid/complete",
+            "/mentorship/pairs/{pid}/sessions/{sid}/complete",
             post(handlers::complete_session),
         )
         // ── Cohorts ───────────────────────────────────────────────────────────
@@ -67,32 +67,32 @@ pub fn create_router(state: AppState) -> axum::Router {
         // ── Career Growth ─────────────────────────────────────────────────────
         .route("/career/{user_id}", get(handlers::get_career_profile))
         .route(
-            "/career/:user_id/milestones",
+            "/career/{user_id}/milestones",
             get(handlers::list_milestones).post(handlers::award_milestone),
         )
         .route("/career/{user_id}/gaps", get(handlers::list_skill_gaps))
         .route(
-            "/career/:user_id/paths",
+            "/career/{user_id}/paths",
             get(handlers::list_learning_paths).post(handlers::assign_learning_path),
         )
         .route(
-            "/career/:user_id/paths/:path_id/progress",
+            "/career/{user_id}/paths/{path_id}/progress",
             put(handlers::update_path_progress),
         )
         // ── Well-Being ────────────────────────────────────────────────────────
         .route(
-            "/wellbeing/:user_id/checkin",
+            "/wellbeing/{user_id}/checkin",
             post(handlers::submit_checkin),
         )
         .route("/wellbeing/{user_id}/checkins", get(handlers::list_checkins))
         .route(
-            "/wellbeing/:user_id/burnout",
+            "/wellbeing/{user_id}/burnout",
             get(handlers::get_burnout_signal),
         )
         // ── Carbon ────────────────────────────────────────────────────────────
         .route("/carbon/{user_id}/log", post(handlers::log_carbon_offset))
         .route(
-            "/carbon/:user_id/footprint",
+            "/carbon/{user_id}/footprint",
             get(handlers::get_carbon_footprint),
         )
         .with_state(state)
