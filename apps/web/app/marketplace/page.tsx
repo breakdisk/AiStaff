@@ -40,8 +40,8 @@ const SELLER_META: Record<SellerType, { icon: React.ElementType; label: string }
 
 const DEMO_LISTINGS: AgentListing[] = [
   {
-    id:           "agt-00000001-0000-0000-0000-aaaaaaaaaaaa",
-    developer_id: "dev-00000001-0000-0000-0000-111111111111",
+    id:           "a6000001-0000-0000-0000-a1a1a1a1a1a1",
+    developer_id: "de000001-0000-0000-0000-111111111111",
     name:         "DataSync Agent v2.1",
     description:  "Bidirectional ETL sync between PostgreSQL and S3. Handles schema drift, deduplication, and incremental loads. 99.9% SLA.",
     wasm_hash:    "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
@@ -53,8 +53,8 @@ const DEMO_LISTINGS: AgentListing[] = [
     updated_at:   "2026-02-01T00:00:00Z",
   },
   {
-    id:           "agt-00000002-0000-0000-0000-bbbbbbbbbbbb",
-    developer_id: "dev-00000002-0000-0000-0000-222222222222",
+    id:           "a6000002-0000-0000-0000-b2b2b2b2b2b2",
+    developer_id: "de000002-0000-0000-0000-222222222222",
     name:         "LogAudit Sentinel",
     description:  "Real-time log ingestion, anomaly detection, and compliance tagging for SOC 2 / ISO 27001 environments. Outputs structured alerts.",
     wasm_hash:    "b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3",
@@ -66,8 +66,8 @@ const DEMO_LISTINGS: AgentListing[] = [
     updated_at:   "2026-02-10T00:00:00Z",
   },
   {
-    id:           "agt-00000003-0000-0000-0000-cccccccccccc",
-    developer_id: "dev-00000001-0000-0000-0000-111111111111",
+    id:           "a6000003-0000-0000-0000-c3c3c3c3c3c3",
+    developer_id: "de000001-0000-0000-0000-111111111111",
     name:         "HireAssist Pro",
     description:  "AI-driven candidate screening, skills verification, and interview scheduling. Integrates with LinkedIn, GitHub, and ATS systems.",
     wasm_hash:    "c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4",
@@ -79,8 +79,8 @@ const DEMO_LISTINGS: AgentListing[] = [
     updated_at:   "2026-02-15T00:00:00Z",
   },
   {
-    id:           "agt-00000004-0000-0000-0000-dddddddddddd",
-    developer_id: "dev-00000003-0000-0000-0000-333333333333",
+    id:           "a6000004-0000-0000-0000-d4d4d4d4d4d4",
+    developer_id: "de000003-0000-0000-0000-333333333333",
     name:         "K8s Scaler Agent",
     description:  "Autonomous HPA tuning for Kubernetes workloads. Reads Prometheus metrics and adjusts replica counts within user-defined bounds.",
     wasm_hash:    "d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5",
@@ -92,8 +92,8 @@ const DEMO_LISTINGS: AgentListing[] = [
     updated_at:   "2026-02-20T00:00:00Z",
   },
   {
-    id:           "agt-00000005-0000-0000-0000-eeeeeeeeeeee",
-    developer_id: "dev-00000002-0000-0000-0000-222222222222",
+    id:           "a6000005-0000-0000-0000-e5e5e5e5e5e5",
+    developer_id: "de000002-0000-0000-0000-222222222222",
     name:         "SecretRotator",
     description:  "Zero-downtime rotation of database passwords, API keys, and TLS certificates across AWS Secrets Manager, Vault, and Kubernetes secrets.",
     wasm_hash:    "e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6",
@@ -105,8 +105,8 @@ const DEMO_LISTINGS: AgentListing[] = [
     updated_at:   "2026-02-25T00:00:00Z",
   },
   {
-    id:           "agt-00000006-0000-0000-0000-ffffffffffff",
-    developer_id: "dev-00000003-0000-0000-0000-333333333333",
+    id:           "a6000006-0000-0000-0000-f6f6f6f6f6f6",
+    developer_id: "de000003-0000-0000-0000-333333333333",
     name:         "RoboticArm Calibrator",
     description:  "Vision-guided calibration and trajectory planning for 6-DOF robotic arms. Supports FANUC, ABB, and UR hardware via Wasm bridge.",
     wasm_hash:    "f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1",
@@ -118,8 +118,8 @@ const DEMO_LISTINGS: AgentListing[] = [
     updated_at:   "2026-03-01T00:00:00Z",
   },
   {
-    id:           "agt-00000007-0000-0000-0000-777777777777",
-    developer_id: "dev-00000001-0000-0000-0000-111111111111",
+    id:           "a6000007-0000-0000-0000-a7a7a7a7a7a7",
+    developer_id: "de000001-0000-0000-0000-111111111111",
     name:         "ContractReviewer",
     description:  "Extracts risk clauses, compares against template SOWs, and flags deviations. Outputs structured diff with severity ratings.",
     wasm_hash:    "77a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1",
@@ -136,8 +136,8 @@ const DEMO_LISTINGS: AgentListing[] = [
 // Maps developer_id → their identity tier for badge display
 
 const DEV_TIERS: Record<string, VettingTier> = {
-  "dev-00000001-0000-0000-0000-111111111111": 2,  // Agency — fully vetted
-  "dev-00000002-0000-0000-0000-222222222222": 1,  // Freelancer — social verified
+  "de000001-0000-0000-0000-111111111111": 2,  // Agency — fully vetted
+  "de000002-0000-0000-0000-222222222222": 1,  // Freelancer — social verified
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────

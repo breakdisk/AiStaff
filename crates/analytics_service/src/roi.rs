@@ -108,6 +108,10 @@ pub async fn leaderboard(db: &PgPool, limit: i64) -> Result<Vec<RoiReport>> {
         })
         .collect();
 
-    reports.sort_by(|a, b| b.reputation_score.partial_cmp(&a.reputation_score).unwrap());
+    reports.sort_by(|a, b| {
+        b.reputation_score
+            .partial_cmp(&a.reputation_score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     Ok(reports)
 }

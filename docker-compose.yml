@@ -15,9 +15,9 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB:       aistaffapp
-      POSTGRES_USER:     dev
-      POSTGRES_PASSWORD: devpassword
+      POSTGRES_DB:       ${POSTGRES_DB:-aistaff}
+      POSTGRES_USER:     ${POSTGRES_USER:-aistaff}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports: ["5432:5432"]
     volumes: ["pg_data:/var/lib/postgresql/data"]
     command: >
@@ -25,7 +25,7 @@ services:
         -c shared_buffers=128MB
         -c max_connections=50
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U dev -d aistaffapp"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aistaff} -d ${POSTGRES_DB:-aistaff}"]
       interval: 5s
       timeout: 5s
       retries: 10

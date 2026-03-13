@@ -226,7 +226,7 @@ export interface PublicProfile {
 export function fetchPublicProfile(profileId: string): Promise<PublicProfile> {
   // Proxy: /api/identity/* → http://localhost:3001/*
   // Identity service route: /identity/public-profile/{id}
-  return apiFetch(`/api/identity/identity/public-profile/${profileId}`);
+  return apiFetch(`/api/identity/public-profile/${profileId}`);
 }
 
 export function requestNonce(

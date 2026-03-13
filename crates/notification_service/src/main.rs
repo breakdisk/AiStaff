@@ -13,7 +13,9 @@ use consumer::NotificationConsumer;
 use dotenvy::dotenv;
 use fanout::{AppConfig, Fanout};
 use handlers::AppState;
-use lettre::{AsyncSmtpTransport, Tokio1Executor};
+use lettre::{
+    transport::smtp::authentication::Credentials, AsyncSmtpTransport, Tokio1Executor,
+};
 use serde_json::json;
 use sqlx::PgPool;
 use std::sync::Arc;
@@ -35,6 +37,12 @@ async fn main() -> Result<()> {
     let smtp_host = std::env::var("SMTP_HOST").expect("SMTP_HOST");
     let smtp_from = std::env::var("SMTP_FROM").unwrap_or_else(|_| "noreply@aistaff.app".into());
     let http_port = std::env::var("NOTIFICATION_HTTP_PORT").unwrap_or_else(|_| "3012".into());
+    let smtp_port: u16 = std::env::var("SMTP_PORT")
+        .unwrap_or_else(|_| "587".into())
+        .parse()
+        .unwrap_or(587);
+    let smtp_username = std::env::var("SMTP_USERNAME").unwrap_or_default();
+    let smtp_password = std::env::var("SMTP_PASSWORD").unwrap_or_default();
 
     // ─────────────────────────────────────────────────────────────────────────
     // Third-party integration config (all channels)
@@ -45,7 +53,21 @@ async fn main() -> Result<()> {
     // Infrastructure clients
     // ─────────────────────────────────────────────────────────────────────────
     let db = PgPool::connect(&db_url).await?;
-    let smtp = AsyncSmtpTransport::<Tokio1Executor>::relay(&smtp_host)?.build();
+
+    // Build SMTP transport. Port 465 uses implicit TLS (relay); all other ports
+    // (587 is the SES default) use STARTTLS. Credentials are optional for dev
+    // (Mailhog accepts anonymous) but required for SES and most production SMTP.
+    let smtp = {
+        let mut builder = if smtp_port == 465 {
+            AsyncSmtpTransport::<Tokio1Executor>::relay(&smtp_host)?
+        } else {
+            AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&smtp_host)?
+        };
+        if !smtp_username.is_empty() && !smtp_password.is_empty() {
+            builder = builder.credentials(Credentials::new(smtp_username, smtp_password));
+        }
+        builder.build()
+    };
 
     let fanout = Arc::new(Fanout::new(db.clone(), smtp, smtp_from));
 
