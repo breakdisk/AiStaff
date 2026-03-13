@@ -80,7 +80,7 @@ services:
       <<: *rust-build
       args: { SERVICE: identity_service }
     environment:
-      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
       KAFKA_BROKERS: kafka:9092
       RUST_LOG: info
     ports: ["3001:3001"]
@@ -94,7 +94,7 @@ services:
       <<: *rust-build
       args: { SERVICE: marketplace_service }
     environment:
-      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
       KAFKA_BROKERS: kafka:9092
       RUST_LOG: info
     ports: ["3002:3002"]
@@ -108,7 +108,7 @@ services:
       <<: *rust-build
       args: { SERVICE: checklist_service }
     environment:
-      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
       KAFKA_BROKERS: kafka:9092
       RUST_LOG: info
     ports: ["3003:3003"]
@@ -122,7 +122,7 @@ services:
       <<: *rust-build
       args: { SERVICE: license_service }
     environment:
-      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
       KAFKA_BROKERS: kafka:9092
       RUST_LOG: info
     ports: ["3004:3004"]
@@ -136,7 +136,7 @@ services:
       <<: *rust-build
       args: { SERVICE: matching_service }
     environment:
-      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
       KAFKA_BROKERS: kafka:9092
       COMPLIANCE_SERVICE_URL: http://compliance-service:3006
       RUST_LOG: info
@@ -152,7 +152,7 @@ services:
       <<: *rust-build
       args: { SERVICE: compliance_service }
     environment:
-      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
       RUST_LOG: info
     ports: ["3006:3006"]
     depends_on:
@@ -164,7 +164,7 @@ services:
       <<: *rust-build
       args: { SERVICE: telemetry_service }
     environment:
-      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
       KAFKA_BROKERS: kafka:9092
       RUST_LOG: info
     ports: ["3007:3007"]
@@ -178,7 +178,7 @@ services:
       <<: *rust-build
       args: { SERVICE: analytics_service }
     environment:
-      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
       RUST_LOG: info
     ports: ["3008:3008"]
     depends_on:
@@ -190,7 +190,7 @@ services:
       <<: *rust-build
       args: { SERVICE: reputation_service }
     environment:
-      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
       KAFKA_BROKERS: kafka:9092
       PLATFORM_DID: did:aistaff:platform
       RUST_LOG: info
@@ -205,7 +205,7 @@ services:
       <<: *rust-build
       args: { SERVICE: payout_service }
     environment:
-      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
       KAFKA_BROKERS: kafka:9092
       RUST_LOG: info
     ports: ["3010:3010"]
@@ -219,7 +219,7 @@ services:
       <<: *rust-build
       args: { SERVICE: community_service }
     environment:
-      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
       KAFKA_BROKERS: kafka:9092
       RUST_LOG: info
     ports: ["3011:3011"]
@@ -234,7 +234,7 @@ services:
       <<: *rust-build
       args: { SERVICE: deployment_engine }
     environment:
-      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
       KAFKA_BROKERS: kafka:9092
       MCP_SERVER_URL: http://mcp-server:4040
       RUST_LOG: info
@@ -249,7 +249,7 @@ services:
       <<: *rust-build
       args: { SERVICE: environment_orchestrator }
     environment:
-      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
       KAFKA_BROKERS: kafka:9092
       RUST_LOG: info
     depends_on:
@@ -263,10 +263,13 @@ services:
       args: { SERVICE: notification_service }
     ports: ["3012:3012"]
     environment:
-      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
       KAFKA_BROKERS: kafka:9092
-      SMTP_HOST: mailhog
-      SMTP_FROM: noreply@aistaff.app
+      SMTP_HOST: ${SMTP_HOST:-mailhog}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_FROM: ${SMTP_FROM:-noreply@aistaff.app}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       NOTIFICATION_HTTP_PORT: "3012"
       BASE_URL: http://localhost:3012
       # Twilio (SMS + WhatsApp)
@@ -296,7 +299,7 @@ services:
       <<: *rust-build
       args: { SERVICE: mcp_server }
     environment:
-      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
       MCP_FS_ROOT: /workspace
       RUST_LOG: info
     ports: ["4040:4040"]
