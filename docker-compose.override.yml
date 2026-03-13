@@ -1,0 +1,16 @@
+# Local development only — auto-loaded by `docker compose up`.
+# Adds host port bindings removed from docker-compose.yml for production safety.
+# Never use this file in Dokploy / production.
+
+services:
+  web:
+    ports: ["3000:3000"]
+
+  postgres:
+    ports: ["5432:5432"]
+
+  kafka:
+    ports: ["9092:9092"]
+
+  mailhog:
+    profiles: []   # re-enable mailhog for local dev

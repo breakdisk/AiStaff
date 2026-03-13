@@ -337,6 +337,8 @@ services:
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
       LINKEDIN_CLIENT_ID:     ${LINKEDIN_CLIENT_ID}
       LINKEDIN_CLIENT_SECRET: ${LINKEDIN_CLIENT_SECRET}
+      # Anthropic — required for LangGraph routes (/api/pm-agent, /api/proposal-copilot)
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       # Backend service URLs — Docker container names
       IDENTITY_SERVICE_URL:     http://identity-service:3001
       MARKETPLACE_SERVICE_URL:  http://marketplace-service:3002
@@ -350,7 +352,10 @@ services:
       PAYOUT_SERVICE_URL:       http://payout-service:3010
       COMMUNITY_SERVICE_URL:    http://community-service:3011
       NOTIFICATION_SERVICE_URL: http://notification-service:3012
-    ports: ["3000:3000"]
+    # No host port binding — Traefik (Dokploy) routes via container network.
+    # For local dev, use docker-compose.override.yml which re-adds 3000:3000.
+    expose:
+      - "3000"
     depends_on:
       - identity-service
       - marketplace-service
