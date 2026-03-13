@@ -1,0 +1,147 @@
+# Production overlay for Dokploy / Traefik
+# Usage: set "Compose Files" in Dokploy to:  docker-compose.yml:docker-compose.prod.yml
+#
+# What this file does:
+#   1. Removes all host-port bindings (Traefik routes internally).
+#   2. Adds Traefik labels to the web service for HTTPS on aistaffglobal.com.
+#   3. Attaches web to dokploy-network so Traefik can reach it.
+#   4. Disables mailhog (dev-only).
+#   5. Overrides all dev credentials with production env vars.
+
+services:
+  # ── Infrastructure ──────────────────────────────────────────────────────────
+  postgres:
+    ports: []        # no host exposure in production
+    environment:
+      POSTGRES_DB:       ${POSTGRES_DB:-aistaff}
+      POSTGRES_USER:     ${POSTGRES_USER:-aistaff}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
+  kafka:
+    ports: []        # no host exposure in production
+
+  mailhog:
+    profiles: ["dev"]   # never starts in production
+
+  # ── Rust services — swap dev DATABASE_URL for production ────────────────────
+  identity-service:
+    ports: []
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
+      JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY}
+      JWT_PUBLIC_KEY:  ${JWT_PUBLIC_KEY}
+
+  marketplace-service:
+    ports: []
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
+
+  checklist-service:
+    ports: []
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
+
+  license-service:
+    ports: []
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
+
+  matching-service:
+    ports: []
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
+
+  compliance-service:
+    ports: []
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
+
+  telemetry-service:
+    ports: []
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
+
+  analytics-service:
+    ports: []
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
+
+  reputation-service:
+    ports: []
+    environment:
+      DATABASE_URL:  postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
+      PLATFORM_DID:  ${PLATFORM_DID:-did:web:aistaffglobal.com}
+
+  payout-service:
+    ports: []
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
+
+  community-service:
+    ports: []
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
+
+  notification-service:
+    ports: []
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
+      SMTP_HOST:    ${SMTP_HOST:-email-smtp.us-east-1.amazonaws.com}
+      SMTP_PORT:    ${SMTP_PORT:-587}
+      SMTP_FROM:    ${SMTP_FROM:-noreply@aistaffglobal.com}
+      SMTP_USERNAME: ${SMTP_USERNAME}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      INTEGRATION_TOKEN_ENCRYPTION_KEY: ${INTEGRATION_TOKEN_ENCRYPTION_KEY}
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka:    { condition: service_healthy }
+      # mailhog removed — using SES in production
+
+  mcp-server:
+    ports: []    # 4040 is internal only — never expose publicly
+
+  deployment-engine:
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
+
+  environment-orchestrator:
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
+
+  # ── Frontend — Traefik HTTPS routing ────────────────────────────────────────
+  web:
+    ports: []    # Traefik handles routing — no host port binding
+    networks:
+      - default
+      - dokploy-network
+    labels:
+      - "traefik.enable=true"
+      # HTTPS router
+      - "traefik.http.routers.aistaff-web.rule=Host(`aistaffglobal.com`) || Host(`www.aistaffglobal.com`)"
+      - "traefik.http.routers.aistaff-web.entrypoints=websecure"
+      - "traefik.http.routers.aistaff-web.tls=true"
+      - "traefik.http.routers.aistaff-web.tls.certresolver=letsencrypt"
+      - "traefik.http.services.aistaff-web.loadbalancer.server.port=3000"
+      - "traefik.docker.network=dokploy-network"
+      # HTTP → HTTPS redirect
+      - "traefik.http.routers.aistaff-web-http.rule=Host(`aistaffglobal.com`) || Host(`www.aistaffglobal.com`)"
+      - "traefik.http.routers.aistaff-web-http.entrypoints=web"
+      - "traefik.http.routers.aistaff-web-http.middlewares=redirect-to-https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true"
+    environment:
+      NODE_ENV:        production
+      NEXTAUTH_URL:    https://aistaffglobal.com
+      AUTH_URL:        https://aistaffglobal.com
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      GITHUB_CLIENT_ID:       ${GITHUB_CLIENT_ID}
+      GITHUB_CLIENT_SECRET:   ${GITHUB_CLIENT_SECRET}
+      GOOGLE_CLIENT_ID:       ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET:   ${GOOGLE_CLIENT_SECRET}
+      LINKEDIN_CLIENT_ID:     ${LINKEDIN_CLIENT_ID}
+      LINKEDIN_CLIENT_SECRET: ${LINKEDIN_CLIENT_SECRET}
+      ANTHROPIC_API_KEY:      ${ANTHROPIC_API_KEY}
+
+networks:
+  dokploy-network:
+    external: true   # Dokploy's Traefik network — must already exist
