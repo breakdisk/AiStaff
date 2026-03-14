@@ -125,18 +125,48 @@ async fn handle_deployment_complete(
         }
 
         _ = &mut window => {
-            info!(%did, "Veto window elapsed — awaiting biometric sign-off");
-            set_state(&db, did, "BIOMETRIC_PENDING").await.ok();
+            // SKIP_BIOMETRIC=true (default) bypasses ZK sign-off for Tier 1 users,
+            // releasing escrow immediately after the veto window.  Set to false in
+            // production once the biometric wallet integration is live.
+            let skip_biometric = std::env::var("SKIP_BIOMETRIC")
+                .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+                .unwrap_or(true);
 
-            // ── Wait for biometric sign-off ───────────────────────────
-            let bio_result = tokio::time::timeout(
-                Duration::from_secs(BIOMETRIC_TIMEOUT_SECS),
-                wait_for_biometric(&brokers, did),
-            ).await;
+            if skip_biometric {
+                info!(%did, "Veto window elapsed — releasing escrow (biometric skipped)");
+                let (dev_cents, talent_cents) = split_70_30(event.total_cents);
 
-            match bio_result {
-                Ok(Some(bio)) => {
-                    match verify_zk_proof(&bio) {
+                let release = EscrowRelease {
+                    deployment_id:   did,
+                    developer_id:    event.developer_id,
+                    developer_cents: dev_cents,
+                    talent_id:       event.talent_id,
+                    talent_cents,
+                };
+
+                let env = EventEnvelope::new("EscrowRelease", &release);
+                if let Err(e) = producer
+                    .publish(TOPIC_ESCROW_COMMANDS, &did.to_string(), &env)
+                    .await
+                {
+                    error!(%did, "Kafka publish EscrowRelease: {e}");
+                }
+
+                set_state(&db, did, "RELEASED").await.ok();
+                info!(%did, dev_cents, talent_cents, "Escrow RELEASED 70/30 (veto-first)");
+            } else {
+                // Full ZK biometric flow — requires SKIP_BIOMETRIC=false in env.
+                info!(%did, "Veto window elapsed — awaiting biometric sign-off");
+                set_state(&db, did, "BIOMETRIC_PENDING").await.ok();
+
+                let bio_result = tokio::time::timeout(
+                    Duration::from_secs(BIOMETRIC_TIMEOUT_SECS),
+                    wait_for_biometric(&brokers, did),
+                )
+                .await;
+
+                match bio_result {
+                    Ok(Some(bio)) => match verify_zk_proof(&bio) {
                         Ok(true) => {
                             let (dev_cents, talent_cents) = split_70_30(event.total_cents);
 
@@ -167,11 +197,11 @@ async fn handle_deployment_complete(
                             error!(%did, "ZK verification error: {e}");
                             set_state(&db, did, "FAILED").await.ok();
                         }
+                    },
+                    _ => {
+                        warn!(%did, "Biometric sign-off timeout — marking FAILED");
+                        set_state(&db, did, "FAILED").await.ok();
                     }
-                }
-                _ => {
-                    warn!(%did, "Biometric sign-off timeout — marking FAILED");
-                    set_state(&db, did, "FAILED").await.ok();
                 }
             }
         }

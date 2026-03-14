@@ -1,7 +1,8 @@
 use anyhow::Result;
 use chrono::Utc;
 use common::events::{
-    ChecklistFinalized, ChecklistStepCompleted, EventEnvelope, TOPIC_CHECKLIST_EVENTS,
+    ChecklistFinalized, ChecklistStepCompleted, DeploymentComplete,
+    EventEnvelope, TOPIC_CHECKLIST_EVENTS, TOPIC_DEPLOYMENT_COMPLETE,
 };
 use common::kafka::producer::KafkaProducer;
 use sqlx::PgPool;
@@ -116,7 +117,7 @@ impl ChecklistService {
         .execute(&self.db)
         .await?;
 
-        let event = ChecklistFinalized {
+        let finalized_event = ChecklistFinalized {
             deployment_id,
             all_passed,
             failed_steps,
@@ -125,11 +126,62 @@ impl ChecklistService {
             .publish(
                 TOPIC_CHECKLIST_EVENTS,
                 &deployment_id.to_string(),
-                &EventEnvelope::new("ChecklistFinalized", &event),
+                &EventEnvelope::new("ChecklistFinalized", &finalized_event),
             )
             .await?;
 
         tracing::info!(%deployment_id, %all_passed, "checklist finalized");
+
+        // When all DoD steps pass, emit DeploymentComplete to start the
+        // 30-second veto window in payout_service.
+        if all_passed {
+            self.emit_deployment_complete(deployment_id).await?;
+        }
+
+        Ok(())
+    }
+
+    async fn emit_deployment_complete(&self, deployment_id: Uuid) -> Result<()> {
+        use sqlx::Row;
+
+        let row = sqlx::query(
+            "SELECT developer_id, freelancer_id, escrow_amount_cents, agent_artifact_hash
+             FROM deployments WHERE id = $1",
+        )
+        .bind(deployment_id)
+        .fetch_optional(&self.db)
+        .await?;
+
+        let Some(row) = row else {
+            tracing::warn!(%deployment_id, "emit_deployment_complete: deployment not found");
+            return Ok(());
+        };
+
+        let developer_id: Option<Uuid> = row.get("developer_id");
+        let freelancer_id: Uuid        = row.get("freelancer_id");
+        let escrow_cents: i64          = row.get("escrow_amount_cents");
+        let artifact_hash: String      = row.get("agent_artifact_hash");
+
+        let event = DeploymentComplete {
+            deployment_id,
+            developer_id:  developer_id.unwrap_or(freelancer_id),
+            talent_id:     freelancer_id,
+            total_cents:   escrow_cents as u64,
+            artifact_hash,
+        };
+
+        self.producer
+            .publish(
+                TOPIC_DEPLOYMENT_COMPLETE,
+                &deployment_id.to_string(),
+                &EventEnvelope::new("DeploymentComplete", &event),
+            )
+            .await?;
+
+        tracing::info!(
+            %deployment_id,
+            "DeploymentComplete emitted — 30s veto window starting in payout_service"
+        );
         Ok(())
     }
 }

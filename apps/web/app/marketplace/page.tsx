@@ -8,10 +8,11 @@ import {
   AlertTriangle, Github, Linkedin, Handshake,
 } from "lucide-react";
 import {
-  fetchListings, createListing, createDeployment, expressInterest, fetchPublicProfile,
+  fetchListings, createListing, expressInterest, fetchPublicProfile,
   type AgentListing, type ListingCategory, type SellerType,
 } from "@/lib/api";
-import { VettingBadge } from "@/components/VettingBadge";
+import { PaymentModal }  from "@/components/PaymentModal";
+import { VettingBadge }  from "@/components/VettingBadge";
 import type { VettingTier } from "@/components/VettingBadge";
 
 function tierStringToNum(t: string | undefined): VettingTier {
@@ -234,29 +235,11 @@ interface ActionButtonProps {
 }
 
 function ActionButton({ listing, userTier, profileId, marketView, compact }: ActionButtonProps) {
-  const [busy,     setBusy]     = useState(false);
-  const [done,     setDone]     = useState<string | null>(null); // deployment_id | "applied" | "demo"
-  const [showGate, setShowGate] = useState(false);
+  const [done,        setDone]        = useState<string | null>(null); // deployment_id | "applied"
+  const [busy,        setBusy]        = useState(false);
+  const [showGate,    setShowGate]    = useState(false);
+  const [showPayment, setShowPayment] = useState(false);
   const [offlineNote, setOfflineNote] = useState(false);
-
-  async function handleClient() {
-    if (userTier === "UNVERIFIED") { setShowGate(true); return; }
-    setBusy(true);
-    try {
-      const result = await createDeployment({
-        agent_id:            listing.id,
-        client_id:           profileId,
-        freelancer_id:       listing.developer_id,
-        agent_artifact_hash: listing.wasm_hash,
-        escrow_amount_cents: listing.price_cents,
-      });
-      setDone(result.deployment_id);
-    } catch {
-      setDone("demo");
-    } finally {
-      setBusy(false);
-    }
-  }
 
   async function handleFreelancer() {
     if (userTier === "UNVERIFIED") { setShowGate(true); return; }
@@ -272,7 +255,7 @@ function ActionButton({ listing, userTier, profileId, marketView, compact }: Act
     }
   }
 
-  const h = compact ? "h-7" : "h-8";
+  const h  = compact ? "h-7" : "h-8";
   const px = compact ? "px-2" : "px-3";
 
   if (done) {
@@ -286,8 +269,7 @@ function ActionButton({ listing, userTier, profileId, marketView, compact }: Act
     }
     return (
       <span className="flex items-center gap-1 font-mono text-xs text-emerald-400">
-        <CheckCircle className="w-3 h-3" />
-        {done === "demo" ? "DEMO" : done.slice(0, 8) + "…"}
+        <CheckCircle className="w-3 h-3" /> {done.slice(0, 8)}…
       </span>
     );
   }
@@ -306,16 +288,32 @@ function ActionButton({ listing, userTier, profileId, marketView, compact }: Act
         </button>
       ) : (
         <button
-          onClick={handleClient}
-          disabled={busy}
+          onClick={() => {
+            if (userTier === "UNVERIFIED") { setShowGate(true); return; }
+            setShowPayment(true);
+          }}
           className={`flex items-center gap-1 ${px} ${h} rounded-sm border border-amber-900
                      bg-amber-950 text-amber-400 font-mono text-xs uppercase tracking-widest
-                     hover:border-amber-700 active:scale-[0.97] transition-all disabled:opacity-40`}
+                     hover:border-amber-700 active:scale-[0.97] transition-all`}
         >
-          {busy ? "…" : <>Deploy <ChevronRight className="w-3 h-3" /></>}
+          Deploy <ChevronRight className="w-3 h-3" />
         </button>
       )}
+
       {showGate && <TierGateSheet onClose={() => setShowGate(false)} />}
+
+      {/* Payment modal — bottom sheet with Stripe Elements */}
+      {showPayment && (
+        <PaymentModal
+          listing={listing}
+          clientId={profileId}
+          onSuccess={(deploymentId) => {
+            setDone(deploymentId);
+            setShowPayment(false);
+          }}
+          onClose={() => setShowPayment(false)}
+        />
+      )}
     </>
   );
 }

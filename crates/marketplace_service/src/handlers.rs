@@ -7,7 +7,10 @@ use axum::{
     Json,
 };
 use common::{
-    events::{DeploymentStarted, EventEnvelope, TOPIC_DEPLOYMENT_STARTED},
+    events::{
+        DeploymentComplete, DeploymentStarted, EventEnvelope,
+        TOPIC_DEPLOYMENT_COMPLETE, TOPIC_DEPLOYMENT_STARTED,
+    },
     kafka::producer::KafkaProducer,
 };
 use serde::{Deserialize, Serialize};
@@ -29,10 +32,17 @@ pub struct CreateDeploymentRequest {
     pub agent_id: Uuid,
     pub client_id: Uuid,
     pub freelancer_id: Uuid,
+    /// Agent builder — defaults to `freelancer_id` when omitted.
+    pub developer_id: Option<Uuid>,
     /// SHA-256 hex of the agent Wasm artifact — used for drift detection.
     pub agent_artifact_hash: String,
     /// Total escrow in USD cents (developer 70% + talent 30%).
     pub escrow_amount_cents: i64,
+    /// UUID v7 idempotency key.  If provided and a deployment already exists
+    /// with this transaction_id, the existing record is returned (HTTP 200).
+    pub transaction_id: Option<Uuid>,
+    /// Stripe PaymentIntent ID — populated after payment confirmation.
+    pub stripe_payment_intent_id: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -45,21 +55,56 @@ pub async fn create_deployment(
     State(state): State<SharedState>,
     Json(req): Json<CreateDeploymentRequest>,
 ) -> impl IntoResponse {
-    // 1. Insert deployment record in PENDING state.
-    let deployment_id = Uuid::new_v4();
+    use sqlx::Row;
+
+    let transaction_id = req.transaction_id.unwrap_or_else(Uuid::now_v7);
+    let developer_id   = req.developer_id.unwrap_or(req.freelancer_id);
+
+    // 1. Idempotency: if this transaction_id was already used, return the
+    //    existing deployment so the client can safely retry.
+    let existing = sqlx::query(
+        "SELECT id, state::TEXT AS state FROM deployments WHERE transaction_id = $1",
+    )
+    .bind(transaction_id)
+    .fetch_optional(&state.db)
+    .await;
+
+    if let Ok(Some(row)) = existing {
+        let dep_id: Uuid  = row.get("id");
+        let dep_state: &str = row.get("state");
+        tracing::info!(%dep_id, "deployment idempotency hit — returning existing record");
+        return (
+            StatusCode::OK,
+            Json(CreateDeploymentResponse {
+                deployment_id: dep_id,
+                state: dep_state.into(),
+            }),
+        )
+            .into_response();
+    }
+
+    // 2. Insert deployment record in PENDING state.
+    //    Use Uuid::now_v7() for the primary key so events are time-ordered.
+    let deployment_id = Uuid::now_v7();
 
     let insert = sqlx::query(
         "INSERT INTO deployments
-             (id, agent_id, client_id, freelancer_id,
-              agent_artifact_hash, escrow_amount_cents, state)
-         VALUES ($1, $2, $3, $4, $5, $6, 'PENDING'::deployment_status)",
+             (id, agent_id, client_id, freelancer_id, developer_id,
+              agent_artifact_hash, escrow_amount_cents,
+              transaction_id, stripe_payment_intent_id,
+              payment_status, state)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'PENDING'::deployment_status)",
     )
     .bind(deployment_id)
     .bind(req.agent_id)
     .bind(req.client_id)
     .bind(req.freelancer_id)
+    .bind(developer_id)
     .bind(&req.agent_artifact_hash)
     .bind(req.escrow_amount_cents)
+    .bind(transaction_id)
+    .bind(&req.stripe_payment_intent_id)
+    .bind(if req.stripe_payment_intent_id.is_some() { "confirmed" } else { "pending" })
     .execute(&state.db)
     .await;
 
@@ -67,7 +112,7 @@ pub async fn create_deployment(
         return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
     }
 
-    // 2. Publish DeploymentStarted → wakes the environment_orchestrator.
+    // 3. Publish DeploymentStarted → wakes the environment_orchestrator.
     let event = DeploymentStarted {
         deployment_id,
         agent_id: req.agent_id,
@@ -85,14 +130,13 @@ pub async fn create_deployment(
         )
         .await
     {
-        // Kafka unavailable — deployment row is already created, log the gap.
         tracing::error!(
             %deployment_id,
             "DeploymentStarted publish failed (pipeline will not auto-start): {e}"
         );
     }
 
-    tracing::info!(%deployment_id, "deployment created, DeploymentStarted emitted");
+    tracing::info!(%deployment_id, %transaction_id, "deployment created, DeploymentStarted emitted");
 
     (
         StatusCode::CREATED,
@@ -100,6 +144,72 @@ pub async fn create_deployment(
             deployment_id,
             state: "PENDING".into(),
         }),
+    )
+        .into_response()
+}
+
+// ── POST /deployments/:id/complete ────────────────────────────────────────────
+// Admin / worker endpoint: marks a deployment done and fires DeploymentComplete,
+// which starts the 30-second veto window in payout_service.
+
+pub async fn complete_deployment(
+    State(state): State<SharedState>,
+    Path(id): Path<Uuid>,
+) -> impl IntoResponse {
+    use sqlx::Row;
+
+    let row = sqlx::query(
+        "SELECT developer_id, freelancer_id, escrow_amount_cents, agent_artifact_hash
+         FROM deployments WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await;
+
+    let row = match row {
+        Ok(Some(r)) => r,
+        Ok(None)    => return StatusCode::NOT_FOUND.into_response(),
+        Err(e)      => return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    };
+
+    let developer_id: Option<Uuid> = row.get("developer_id");
+    let freelancer_id: Uuid        = row.get("freelancer_id");
+    let escrow_cents: i64          = row.get("escrow_amount_cents");
+    let artifact_hash: String      = row.get("agent_artifact_hash");
+
+    let event = DeploymentComplete {
+        deployment_id:  id,
+        developer_id:   developer_id.unwrap_or(freelancer_id),
+        talent_id:      freelancer_id,
+        total_cents:    escrow_cents as u64,
+        artifact_hash,
+    };
+
+    let envelope = EventEnvelope::new("DeploymentComplete", &event);
+    if let Err(e) = state
+        .producer
+        .publish(TOPIC_DEPLOYMENT_COMPLETE, &id.to_string(), &envelope)
+        .await
+    {
+        tracing::error!(%id, "DeploymentComplete publish failed: {e}");
+        return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
+    }
+
+    // Transition state to VERIFYING so the UI reflects progress.
+    sqlx::query(
+        "UPDATE deployments SET state = 'VERIFYING'::deployment_status, updated_at = NOW()
+         WHERE id = $1",
+    )
+    .bind(id)
+    .execute(&state.db)
+    .await
+    .ok();
+
+    tracing::info!(%id, "DeploymentComplete emitted — veto window starting");
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({ "ok": true, "deployment_id": id, "state": "VERIFYING" })),
     )
         .into_response()
 }

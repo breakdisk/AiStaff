@@ -62,11 +62,17 @@ async function apiFetch<T>(
 // ── Marketplace service (:3002) ───────────────────────────────────────────
 
 export interface CreateDeploymentRequest {
-  agent_id:            string;
-  client_id:           string;
-  freelancer_id:       string;
-  agent_artifact_hash: string;
-  escrow_amount_cents: number;
+  agent_id:                  string;
+  client_id:                 string;
+  freelancer_id:             string;
+  /** Agent builder — defaults to freelancer_id when omitted. */
+  developer_id?:             string;
+  agent_artifact_hash:       string;
+  escrow_amount_cents:       number;
+  /** UUID v7 idempotency key — generated server-side if omitted. */
+  transaction_id?:           string;
+  /** Stripe PaymentIntent ID set after payment confirmation. */
+  stripe_payment_intent_id?: string;
 }
 
 export interface DeploymentSummary {

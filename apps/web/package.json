@@ -14,6 +14,8 @@
     "@langchain/google-genai": "^2.1.25",
     "@langchain/langgraph": "^1.2.1",
     "@langchain/openai": "^1.2.13",
+    "@stripe/react-stripe-js": "^3.10.0",
+    "@stripe/stripe-js": "^5.10.0",
     "@types/pg": "^8.18.0",
     "lucide-react": "^0.475.0",
     "next": "^16.1.6",
@@ -21,6 +23,7 @@
     "pg": "^8.20.0",
     "react": "19.0.0",
     "react-dom": "19.0.0",
+    "stripe": "^17.7.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
