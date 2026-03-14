@@ -28,7 +28,9 @@ export default auth((req) => {
     }
     const url = req.nextUrl.clone();
     url.pathname = "/login";
-    url.searchParams.set("next", pathname);
+    // Preserve full path + search so query params (e.g. ?listing=UUID) survive
+    // the login round-trip — the login page passes this as callbackUrl to signIn().
+    url.searchParams.set("next", pathname + (req.nextUrl.search ?? ""));
     return NextResponse.redirect(url);
   }
 

@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSession, signIn } from "next-auth/react";
 import {
   Package, Cpu, Hash, ChevronRight, CheckCircle,
@@ -797,22 +797,35 @@ export default function MarketplacePage() {
       .catch(() => setStatus("demo"));
   }, []);
 
-  // ── Deep-link: ?listing=<id> ────────────────────────────────────────────
+  // ── Deep-link: ?listing=<uuid-or-slug> ────────────────────────────────────
+  // Resolves the ?listing= param to a UUID, handling three cases:
+  //   1. Param is already a UUID (normal path when backend is fully deployed).
+  //   2. Param is a slug (fallback when backend returns null on /listings/by-slug).
+  //   3. Listings load after the initial render (API call takes > 400 ms).
+  const hasScrolled = useRef(false);
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const id = params.get("listing");
-    if (!id) return;
-    setHighlightId(id);
-    // Scroll after listings have rendered
+    const params    = new URLSearchParams(window.location.search);
+    const idOrSlug  = params.get("listing");
+    if (!idOrSlug || hasScrolled.current || allListings.length === 0) return;
+
+    // Resolve slug → UUID so the element ID lookup and highlight comparison work.
+    const matched    = allListings.find(l => l.id === idOrSlug || l.slug === idOrSlug);
+    const resolvedId = matched?.id ?? idOrSlug;
+
+    setHighlightId(resolvedId);
+
     const t = setTimeout(() => {
-      document.getElementById(`listing-${id}`)?.scrollIntoView({
-        behavior: "smooth", block: "center",
-      });
-    }, 400);
-    // Clear highlight after 4 seconds
-    const clear = setTimeout(() => setHighlightId(null), 4400);
+      const el = document.getElementById(`listing-${resolvedId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        hasScrolled.current = true;
+      }
+    }, 300);
+
+    // Clear the amber highlight ring after 5 seconds
+    const clear = setTimeout(() => setHighlightId(null), 5300);
     return () => { clearTimeout(t); clearTimeout(clear); };
-  }, []);
+  }, [allListings]); // re-run when listings load from API
 
   const visible = allListings.filter(l =>
     (catFilter    === "All" || l.category    === catFilter) &&
