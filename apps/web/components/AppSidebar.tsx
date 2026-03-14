@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 
 // ── Nav definitions ─────────────────────────────────────────────────────────
 
@@ -94,9 +95,13 @@ interface AppSidebarProps {
 
 export function AppSidebar({ status }: AppSidebarProps) {
   const pathname = usePathname();
+  const { data: session } = useSession();
+  const role        = (session?.user as { role?: string | null })?.role ?? null;
+  const accountType = (session?.user as { accountType?: string })?.accountType ?? "";
+  const showEnterprise = role === "agent-owner" || role === "client" || accountType === "agency";
 
   return (
-    <aside className="hidden lg:flex lg:flex-col w-56 border-r border-zinc-800 bg-zinc-950 p-4 gap-6 overflow-y-auto">
+    <aside className="hidden lg:flex lg:flex-col w-56 border-r border-zinc-800 bg-zinc-950 p-4 gap-6 lg:h-screen lg:sticky lg:top-0 overflow-y-auto">
       {/* Brand + status badge */}
       <div className="flex items-center justify-between">
         <span className="font-mono text-xs text-zinc-500 uppercase tracking-widest">AiStaffApp</span>
@@ -134,22 +139,25 @@ export function AppSidebar({ status }: AppSidebarProps) {
       </nav>
 
       {/* Section groups */}
-      {SECTION_NAV.map(({ heading, items }) => (
-        <div key={heading} className="space-y-1">
-          <p className="font-mono text-[10px] text-zinc-700 uppercase tracking-widest px-3">
-            {heading}
-          </p>
-          {items.map(({ label, href }) => (
-            <a
-              key={label}
-              href={href}
-              className="block px-3 py-1.5 rounded-sm font-mono text-xs text-zinc-600 hover:text-zinc-300 hover:bg-zinc-900 transition-colors"
-            >
-              {label}
-            </a>
-          ))}
-        </div>
-      ))}
+      {SECTION_NAV.map(({ heading, items }) => {
+        if (heading === "Enterprise" && !showEnterprise) return null;
+        return (
+          <div key={heading} className="space-y-1">
+            <p className="font-mono text-[10px] text-zinc-300 uppercase tracking-widest px-3">
+              {heading}
+            </p>
+            {items.map(({ label, href }) => (
+              <a
+                key={label}
+                href={href}
+                className="block px-3 py-1.5 rounded-sm font-mono text-xs text-zinc-600 hover:text-zinc-300 hover:bg-zinc-900 transition-colors"
+              >
+                {label}
+              </a>
+            ))}
+          </div>
+        );
+      })}
     </aside>
   );
 }

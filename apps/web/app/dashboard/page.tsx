@@ -322,7 +322,7 @@ export default function DashboardPage() {
   return (
     <div className="flex flex-col lg:flex-row min-h-screen">
       {/* Sidebar — hidden on mobile */}
-      <aside className="hidden lg:flex lg:flex-col w-56 border-r border-zinc-800 bg-zinc-950 p-4 gap-6">
+      <aside className="hidden lg:flex lg:flex-col w-56 border-r border-zinc-800 bg-zinc-950 p-4 gap-6 lg:h-screen lg:sticky lg:top-0 overflow-y-auto">
         <div className="flex items-center justify-between">
           <img src="/logo.png" alt="AiStaff" className="h-20 w-auto" />
           {/* Live / demo indicator */}
