@@ -326,6 +326,113 @@ function ActionButton({ listing, userTier, profileId, marketView, compact }: Act
   );
 }
 
+// ── Listing detail bottom sheet ────────────────────────────────────────────
+// Opens when the user taps/clicks the listing name on either mobile or desktop.
+
+function ListingDetailSheet({ listing, userTier, profileId, marketView, onClose }: {
+  listing:    AgentListing;
+  userTier:   string;
+  profileId:  string;
+  marketView: MarketView;
+  onClose:    () => void;
+}) {
+  return (
+    <>
+      {/* Backdrop */}
+      <div className="fixed inset-0 z-40 bg-black/60" onClick={onClose} />
+
+      {/* Sheet — slides up from bottom on all screen sizes */}
+      <div className="fixed inset-x-0 bottom-0 z-50 bg-zinc-900 border-t border-zinc-800
+                      rounded-t-sm max-h-[88vh] flex flex-col">
+        {/* Drag handle */}
+        <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
+          <div className="w-10 h-1 rounded-full bg-zinc-700" />
+        </div>
+
+        {/* Header */}
+        <div className="flex items-start justify-between px-4 py-3 border-b border-zinc-800 flex-shrink-0">
+          <div className="space-y-1.5 min-w-0 pr-3">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <CategoryBadge category={listing.category} />
+              <SellerBadge sellerType={listing.seller_type} />
+            </div>
+            <p className="font-mono text-sm font-semibold text-zinc-100 leading-snug">
+              {listing.name}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Close detail panel"
+            className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors flex-shrink-0"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Scrollable body */}
+        <div className="overflow-y-auto flex-1 px-4 py-4 space-y-5">
+          {/* Full description */}
+          <div>
+            <p className="text-[10px] font-mono text-zinc-600 uppercase tracking-widest mb-2">
+              Description
+            </p>
+            <p className="text-sm text-zinc-300 leading-relaxed">{listing.description}</p>
+          </div>
+
+          {/* Price + escrow split */}
+          <div className="flex items-end gap-6">
+            <div>
+              <p className="text-[10px] font-mono text-zinc-600 uppercase tracking-widest mb-1">
+                Escrow
+              </p>
+              <p className="font-mono text-xl font-semibold text-amber-400 tabular-nums">
+                {fmtUSD(listing.price_cents)}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] font-mono text-zinc-600 uppercase tracking-widest mb-1">
+                Split
+              </p>
+              <p className="font-mono text-xs text-zinc-400">70% dev · 30% talent</p>
+            </div>
+          </div>
+
+          {/* Wasm hash */}
+          <div>
+            <p className="text-[10px] font-mono text-zinc-600 uppercase tracking-widest mb-1.5">
+              Artifact hash
+            </p>
+            <p className="font-mono text-[11px] text-zinc-500 break-all leading-relaxed">
+              {listing.wasm_hash}
+            </p>
+          </div>
+
+          {/* Developer ID */}
+          <div>
+            <p className="text-[10px] font-mono text-zinc-600 uppercase tracking-widest mb-1.5">
+              Developer
+            </p>
+            <p className="font-mono text-[11px] text-zinc-500 break-all">{listing.developer_id}</p>
+          </div>
+        </div>
+
+        {/* Footer — action buttons always visible */}
+        <div className="flex-shrink-0 border-t border-zinc-800 px-4 py-3 flex items-center gap-2">
+          <div className="flex-1">
+            <ActionButton
+              listing={listing}
+              userTier={userTier}
+              profileId={profileId}
+              marketView={marketView}
+            />
+          </div>
+          <ShareButton listing={listing} />
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ── Listing card (mobile) ──────────────────────────────────────────────────
 
 function ListingCard({ listing, userTier, profileId, marketView, devTierMap, highlighted }: {
@@ -336,47 +443,82 @@ function ListingCard({ listing, userTier, profileId, marketView, devTierMap, hig
   marketView: MarketView;
   devTierMap: Map<string, VettingTier>;
 }) {
-  const devTier = devTierMap.get(listing.developer_id) ?? DEV_TIERS[listing.developer_id] ?? 0;
+  const devTier     = devTierMap.get(listing.developer_id) ?? DEV_TIERS[listing.developer_id] ?? 0;
+  const [showDetail, setShowDetail] = useState(false);
+
   return (
-    <div
-      id={`listing-${listing.id}`}
-      className={`border rounded-sm bg-zinc-900 p-3 space-y-2 hover:border-zinc-700 transition-colors ${
-        highlighted ? "border-amber-500 ring-1 ring-amber-500/30" : "border-zinc-800"
-      }`}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 space-y-1">
-          <p className="font-mono text-sm font-medium text-zinc-100 truncate">{listing.name}</p>
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <CategoryBadge category={listing.category} />
-            <SellerBadge sellerType={listing.seller_type} />
-            <VettingBadge tier={devTier} compact />
+    <>
+      <div
+        id={`listing-${listing.id}`}
+        className={`border rounded-sm bg-zinc-900 p-3 space-y-2 hover:border-zinc-700 transition-colors ${
+          highlighted ? "border-amber-500 ring-1 ring-amber-500/30" : "border-zinc-800"
+        }`}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 space-y-1">
+            {/* Clickable name → opens detail sheet */}
+            <button
+              onClick={() => setShowDetail(true)}
+              className="font-mono text-sm font-medium text-zinc-100 hover:text-amber-400
+                         transition-colors text-left w-full truncate"
+            >
+              {listing.name}
+            </button>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <CategoryBadge category={listing.category} />
+              <SellerBadge sellerType={listing.seller_type} />
+              <VettingBadge tier={devTier} compact />
+            </div>
           </div>
+          <span className="font-mono text-sm font-medium text-amber-400 tabular-nums whitespace-nowrap flex-shrink-0">
+            {fmtUSD(listing.price_cents)}
+          </span>
         </div>
-        <span className="font-mono text-sm font-medium text-amber-400 tabular-nums whitespace-nowrap flex-shrink-0">
-          {fmtUSD(listing.price_cents)}
-        </span>
+
+        {/* Description — 2-line clamp with tap-to-expand hint */}
+        <div>
+          <p className="text-xs text-zinc-400 leading-relaxed line-clamp-2">
+            {listing.description}
+          </p>
+          {listing.description.length > 100 && (
+            <button
+              onClick={() => setShowDetail(true)}
+              className="text-[10px] font-mono text-amber-600 hover:text-amber-400
+                         transition-colors mt-0.5"
+            >
+              read more
+            </button>
+          )}
+        </div>
+
+        <p className="font-mono text-[10px] text-zinc-600 flex items-center gap-1">
+          <Hash className="w-3 h-3" />{shortHash(listing.wasm_hash)}
+        </p>
+
+        <div className="flex items-center gap-2 pt-1 border-t border-zinc-800">
+          <span className="font-mono text-[10px] text-zinc-600 truncate flex-1">
+            dev: {listing.developer_id.slice(0, 8)}…
+          </span>
+          <ShareButton listing={listing} />
+          <ActionButton
+            listing={listing}
+            userTier={userTier}
+            profileId={profileId}
+            marketView={marketView}
+          />
+        </div>
       </div>
 
-      <p className="text-xs text-zinc-400 leading-relaxed line-clamp-2">{listing.description}</p>
-
-      <p className="font-mono text-[10px] text-zinc-600 flex items-center gap-1">
-        <Hash className="w-3 h-3" />{shortHash(listing.wasm_hash)}
-      </p>
-
-      <div className="flex items-center gap-2 pt-1 border-t border-zinc-800">
-        <span className="font-mono text-[10px] text-zinc-600 truncate flex-1">
-          dev: {listing.developer_id.slice(0, 8)}…
-        </span>
-        <ShareButton listing={listing} />
-        <ActionButton
+      {showDetail && (
+        <ListingDetailSheet
           listing={listing}
           userTier={userTier}
           profileId={profileId}
           marketView={marketView}
+          onClose={() => setShowDetail(false)}
         />
-      </div>
-    </div>
+      )}
+    </>
   );
 }
 
@@ -391,47 +533,78 @@ function TableRow({ listing, userTier, profileId, marketView, devTierMap, highli
   devTierMap: Map<string, VettingTier>;
 }) {
   const devTier = devTierMap.get(listing.developer_id) ?? DEV_TIERS[listing.developer_id] ?? 0;
+  const [showDetail, setShowDetail] = useState(false);
+
   return (
-    <tr
-      id={`listing-${listing.id}`}
-      className={`border-b border-zinc-800 hover:bg-zinc-900 transition-colors ${
-        highlighted ? "bg-amber-950/20 outline outline-1 outline-amber-700/50" : ""
-      }`}
-    >
-      <td className="px-3 py-2">
-        <div className="space-y-1">
-          <p className="font-mono text-xs font-medium text-zinc-200">{listing.name}</p>
-          <p className="font-mono text-[10px] text-zinc-600 flex items-center gap-1">
-            <Cpu className="w-2.5 h-2.5" />{shortHash(listing.wasm_hash)}
-          </p>
-        </div>
-      </td>
-      <td className="px-3 py-2">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <CategoryBadge category={listing.category} />
-          <SellerBadge sellerType={listing.seller_type} />
-          <VettingBadge tier={devTier} compact />
-        </div>
-      </td>
-      <td className="px-3 py-2 font-mono text-xs text-zinc-400 max-w-xs">
-        <span className="line-clamp-1">{listing.description}</span>
-      </td>
-      <td className="px-3 py-2 font-mono text-sm font-medium text-amber-400 tabular-nums whitespace-nowrap">
-        {fmtUSD(listing.price_cents)}
-      </td>
-      <td className="px-3 py-2">
-        <div className="flex items-center gap-1.5">
-          <ShareButton listing={listing} compact />
-          <ActionButton
-            listing={listing}
-            userTier={userTier}
-            profileId={profileId}
-            marketView={marketView}
-            compact
-          />
-        </div>
-      </td>
-    </tr>
+    <>
+      <tr
+        id={`listing-${listing.id}`}
+        className={`border-b border-zinc-800 hover:bg-zinc-900 transition-colors ${
+          highlighted ? "bg-amber-950/20 outline outline-1 outline-amber-700/50" : ""
+        }`}
+      >
+        <td className="px-3 py-2">
+          <div className="space-y-1">
+            {/* Clickable name → opens detail sheet */}
+            <button
+              onClick={() => setShowDetail(true)}
+              className="font-mono text-xs font-medium text-zinc-200 hover:text-amber-400
+                         transition-colors text-left"
+            >
+              {listing.name}
+            </button>
+            <p className="font-mono text-[10px] text-zinc-600 flex items-center gap-1">
+              <Cpu className="w-2.5 h-2.5" />{shortHash(listing.wasm_hash)}
+            </p>
+          </div>
+        </td>
+        <td className="px-3 py-2">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <CategoryBadge category={listing.category} />
+            <SellerBadge sellerType={listing.seller_type} />
+            <VettingBadge tier={devTier} compact />
+          </div>
+        </td>
+        {/* Description — 2 lines + "read more" link that opens detail sheet */}
+        <td className="px-3 py-2 text-xs text-zinc-400 w-80">
+          <p className="line-clamp-2 leading-relaxed">{listing.description}</p>
+          {listing.description.length > 80 && (
+            <button
+              onClick={() => setShowDetail(true)}
+              className="text-[10px] font-mono text-amber-600 hover:text-amber-400
+                         transition-colors mt-0.5"
+            >
+              read more
+            </button>
+          )}
+        </td>
+        <td className="px-3 py-2 font-mono text-sm font-medium text-amber-400 tabular-nums whitespace-nowrap">
+          {fmtUSD(listing.price_cents)}
+        </td>
+        <td className="px-3 py-2">
+          <div className="flex items-center gap-1.5">
+            <ShareButton listing={listing} compact />
+            <ActionButton
+              listing={listing}
+              userTier={userTier}
+              profileId={profileId}
+              marketView={marketView}
+              compact
+            />
+          </div>
+        </td>
+      </tr>
+
+      {showDetail && (
+        <ListingDetailSheet
+          listing={listing}
+          userTier={userTier}
+          profileId={profileId}
+          marketView={marketView}
+          onClose={() => setShowDetail(false)}
+        />
+      )}
+    </>
   );
 }
 
