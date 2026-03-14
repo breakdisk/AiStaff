@@ -16,6 +16,22 @@ import {
   type SkillTag, type TalentSkill, type UpdateProfileRequest,
 } from "@/lib/api";
 
+// ── AI provider UI config (client-safe — no LangChain imports) ────────────────
+
+type AiProvider = "anthropic" | "openai" | "gemini" | "xai" | "openrouter" | "deepseek" | "kimi" | "qwen" | "minimax";
+
+const AI_PROVIDERS: { id: AiProvider; label: string; placeholder: string }[] = [
+  { id: "anthropic",  label: "Anthropic",  placeholder: "sk-ant-api03-…" },
+  { id: "openai",     label: "OpenAI",     placeholder: "sk-proj-…"      },
+  { id: "gemini",     label: "Gemini",     placeholder: "AIzaSy…"        },
+  { id: "xai",        label: "xAI Grok",   placeholder: "xai-…"          },
+  { id: "openrouter", label: "OpenRouter", placeholder: "sk-or-v1-…"     },
+  { id: "deepseek",   label: "DeepSeek",   placeholder: "sk-…"           },
+  { id: "kimi",       label: "Kimi",       placeholder: "sk-…"           },
+  { id: "qwen",       label: "Qwen",       placeholder: "sk-…"           },
+  { id: "minimax",    label: "MiniMax",    placeholder: "…"              },
+];
+
 // ── Tier helpers ───────────────────────────────────────────────────────────────
 
 type TierString = "UNVERIFIED" | "SOCIAL_VERIFIED" | "BIOMETRIC_VERIFIED";
@@ -229,44 +245,6 @@ function EditForm({
     });
   }
 
-  function handleSaveApiKey() {
-    localStorage.setItem("aistaff_anthropic_key", apiKey.trim());
-    setApiKeyStatus("idle");
-    setApiKeyError(null);
-  }
-
-  function handleClearApiKey() {
-    localStorage.removeItem("aistaff_anthropic_key");
-    setApiKey("");
-    setApiKeyStatus("idle");
-    setApiKeyError(null);
-  }
-
-  async function handleTestApiKey() {
-    const key = apiKey.trim();
-    if (!key) return;
-    setApiKeyStatus("testing");
-    setApiKeyError(null);
-    try {
-      const res = await fetch("/api/test-anthropic-key", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ api_key: key }),
-      });
-      const data = await res.json() as { valid: boolean; error?: string };
-      if (data.valid) {
-        setApiKeyStatus("valid");
-        localStorage.setItem("aistaff_anthropic_key", key);
-      } else {
-        setApiKeyStatus("invalid");
-        setApiKeyError(data.error ?? "Invalid key");
-      }
-    } catch {
-      setApiKeyStatus("invalid");
-      setApiKeyError("Network error — try again");
-    }
-  }
-
   async function handleSave() {
     setSaving(true);
     setError(null);
@@ -450,7 +428,8 @@ export default function ProfilePage() {
   const [liveScore,       setLiveScore]       = useState<number | null>(null);
   const [liveTier,        setLiveTier]        = useState<string | null>(null);
 
-  // BYOK — Anthropic API key stored in localStorage
+  // BYOK — provider + key stored in localStorage
+  const [aiProvider,      setAiProvider]      = useState<AiProvider>("anthropic");
   const [apiKey,          setApiKey]          = useState("");
   const [apiKeyVisible,   setApiKeyVisible]   = useState(false);
   const [apiKeyStatus,    setApiKeyStatus]    = useState<"idle" | "testing" | "valid" | "invalid">("idle");
@@ -478,9 +457,11 @@ export default function ProfilePage() {
         if (p.role          != null) setRole(p.role);
       })
       .catch(() => {/* backend offline — leave defaults */});
-    // Load saved API key from localStorage
-    const saved = localStorage.getItem("aistaff_anthropic_key") ?? "";
-    if (saved) setApiKey(saved);
+    // Load saved provider + key from localStorage
+    const savedProvider = localStorage.getItem("aistaff_ai_provider") as AiProvider | null;
+    const savedKey      = localStorage.getItem("aistaff_ai_key") ?? "";
+    if (savedProvider && AI_PROVIDERS.some((p) => p.id === savedProvider)) setAiProvider(savedProvider);
+    if (savedKey) setApiKey(savedKey);
   }, [profileId]);
 
   if (status === "loading") {
@@ -537,6 +518,48 @@ export default function ProfilePage() {
   function handleDisconnect(_provider: string, newScore: number, newTier: string) {
     setLiveScore(newScore);
     setLiveTier(newTier);
+  }
+
+  function handleSaveApiKey() {
+    localStorage.setItem("aistaff_ai_provider", aiProvider);
+    localStorage.setItem("aistaff_ai_key", apiKey.trim());
+    setApiKeyStatus("idle");
+    setApiKeyError(null);
+  }
+
+  function handleClearApiKey() {
+    localStorage.removeItem("aistaff_ai_provider");
+    localStorage.removeItem("aistaff_ai_key");
+    setApiKey("");
+    setAiProvider("anthropic");
+    setApiKeyStatus("idle");
+    setApiKeyError(null);
+  }
+
+  async function handleTestApiKey() {
+    const key = apiKey.trim();
+    if (!key) return;
+    setApiKeyStatus("testing");
+    setApiKeyError(null);
+    try {
+      const res = await fetch("/api/test-ai-key", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: aiProvider, api_key: key }),
+      });
+      const data = await res.json() as { valid: boolean; error?: string };
+      if (data.valid) {
+        setApiKeyStatus("valid");
+        localStorage.setItem("aistaff_ai_provider", aiProvider);
+        localStorage.setItem("aistaff_ai_key", key);
+      } else {
+        setApiKeyStatus("invalid");
+        setApiKeyError(data.error ?? "Invalid key");
+      }
+    } catch {
+      setApiKeyStatus("invalid");
+      setApiKeyError("Network error — try again");
+    }
   }
 
   const currentSkillMap = new Map<string, number>(
@@ -740,19 +763,42 @@ export default function ProfilePage() {
               <div className="flex items-start gap-2">
                 <Key className="w-3.5 h-3.5 text-amber-400 flex-shrink-0 mt-0.5" />
                 <div className="space-y-0.5">
-                  <p className="font-mono text-xs text-zinc-200">Anthropic API Key</p>
+                  <p className="font-mono text-xs text-zinc-200">Bring Your Own API Key</p>
                   <p className="font-mono text-[10px] text-zinc-500">
-                    Your key is used for Proposal Copilot and AI PM Agent. Stored locally — never sent to our servers.
+                    Used for Proposal Copilot and AI PM Agent. Stored locally — never sent to our servers.
                   </p>
                 </div>
               </div>
+
+              {/* Provider selector */}
+              <div className="space-y-1.5">
+                <p className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest">Provider</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {AI_PROVIDERS.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => { setAiProvider(p.id); setApiKey(""); setApiKeyStatus("idle"); setApiKeyError(null); }}
+                      className={`h-7 px-2.5 rounded-sm border font-mono text-[10px] transition-all ${
+                        aiProvider === p.id
+                          ? "border-amber-400/60 bg-amber-400/10 text-amber-400"
+                          : "border-zinc-700 bg-zinc-900 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300"
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Key input row */}
               <div className="flex gap-2">
                 <div className="relative flex-1">
                   <input
                     type={apiKeyVisible ? "text" : "password"}
                     value={apiKey}
                     onChange={(e) => { setApiKey(e.target.value); setApiKeyStatus("idle"); }}
-                    placeholder="sk-ant-api03-…"
+                    placeholder={AI_PROVIDERS.find((p) => p.id === aiProvider)?.placeholder ?? "API key…"}
                     className="w-full h-8 px-2.5 pr-8 rounded-sm border border-zinc-700 bg-zinc-950
                                font-mono text-xs text-zinc-200 placeholder-zinc-600
                                focus:outline-none focus:border-amber-400/60"
@@ -793,9 +839,10 @@ export default function ProfilePage() {
                   </button>
                 )}
               </div>
+
               {apiKeyStatus === "valid" && (
                 <p className="flex items-center gap-1.5 font-mono text-[10px] text-emerald-400">
-                  <CheckCircle2 className="w-3 h-3" /> Connected — your key will be used for AI features
+                  <CheckCircle2 className="w-3 h-3" /> Connected — {AI_PROVIDERS.find((p) => p.id === aiProvider)?.label} key active
                 </p>
               )}
               {apiKeyStatus === "invalid" && (
@@ -803,7 +850,7 @@ export default function ProfilePage() {
                   <AlertTriangle className="w-3 h-3" /> {apiKeyError}
                 </p>
               )}
-              {apiKeyStatus === "idle" && localStorage.getItem("aistaff_anthropic_key") && (
+              {apiKeyStatus === "idle" && apiKey && (
                 <p className="font-mono text-[10px] text-zinc-500">Key saved — click Test to verify</p>
               )}
             </div>

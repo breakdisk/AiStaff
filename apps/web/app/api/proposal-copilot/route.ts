@@ -10,6 +10,7 @@ import {
   generate_draft_node,
 } from "@/lib/proposal-copilot/graph";
 import type { CopilotRequest, CopilotResponse } from "@/lib/proposal-copilot/types";
+import type { AiProvider } from "@/lib/ai-provider";
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   let body: CopilotRequest;
@@ -27,10 +28,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const userApiKey = req.headers.get("x-user-api-key") ?? "";
+  const userApiKey   = req.headers.get("x-user-api-key") ?? "";
+  const userProvider = (req.headers.get("x-user-ai-provider") ?? "anthropic") as AiProvider;
 
-  // Load or init session — pass job_brief and user API key on first call
-  let state = getSession(session_id) ?? initSession(session_id, job_brief ?? null, userApiKey);
+  // Load or init session — pass job_brief, user API key and provider on first call
+  let state = getSession(session_id) ?? initSession(session_id, job_brief ?? null, userApiKey, userProvider);
 
   // If a brief was provided and not yet stored, attach it
   if (job_brief && !state.job_brief) {

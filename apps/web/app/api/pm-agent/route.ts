@@ -12,6 +12,7 @@ import {
   generate_sow_node,
   trigger_matching_node,
 } from "@/lib/pm-agent/graph";
+import type { AiProvider } from "@/lib/pm-agent/graph";
 import type { PMAgentRequest, PMAgentResponse } from "@/lib/pm-agent/types";
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
@@ -30,10 +31,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const userApiKey = req.headers.get("x-user-api-key") ?? "";
+  const userApiKey    = req.headers.get("x-user-api-key") ?? "";
+  const userProvider  = (req.headers.get("x-user-ai-provider") ?? "anthropic") as AiProvider;
 
-  // Load or initialise session — pass user API key on first call
-  let state = getSession(session_id) ?? initSession(session_id, userApiKey);
+  // Load or initialise session — pass user API key + provider on first call
+  let state = getSession(session_id) ?? initSession(session_id, userApiKey, userProvider);
 
   // Append the human message and update conversation context
   state = {

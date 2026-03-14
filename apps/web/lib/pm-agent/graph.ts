@@ -6,7 +6,6 @@ import {
   Annotation,
   messagesStateReducer,
 } from "@langchain/langgraph";
-import { ChatAnthropic } from "@langchain/anthropic";
 import {
   HumanMessage,
   AIMessage,
@@ -15,6 +14,13 @@ import {
 } from "@langchain/core/messages";
 import { z } from "zod";
 import type { Sow, MatchCandidate, PMAgentState } from "./types";
+import {
+  type AiProvider,
+  resolveFastLlm,
+  resolveCapableLlm,
+} from "@/lib/ai-provider";
+
+export type { AiProvider };
 
 // ── Zod schema for structured SOW output ──────────────────────────────────
 
@@ -47,36 +53,13 @@ const GraphState = Annotation.Root({
   sow:             Annotation<Sow | null>({ reducer: (_, n) => n, default: () => null }),
   top_freelancers: Annotation<MatchCandidate[]>({ reducer: (_, n) => n, default: () => [] }),
   user_api_key:    Annotation<string>({ reducer: (_, n) => n, default: () => "" }),
+  user_provider:   Annotation<AiProvider>({ reducer: (_, n) => n, default: () => "anthropic" }),
 });
 
 export type GraphStateType = typeof GraphState.State;
 
-// ── LLM helpers — use user key if provided, else fall back to platform key ─
-
-const PLACEHOLDER = "build-placeholder";
-
-let _intakeLlm: ChatAnthropic | null = null;
-function getIntakeLlm(userKey?: string) {
-  if (userKey && userKey !== PLACEHOLDER) {
-    return new ChatAnthropic({ apiKey: userKey, model: "claude-haiku-4-5-20251001", maxTokens: 350 });
-  }
-  if (!_intakeLlm) _intakeLlm = new ChatAnthropic({ model: "claude-haiku-4-5-20251001", maxTokens: 350 });
-  return _intakeLlm;
-}
-
-let _sowLlmStructured: ReturnType<typeof buildSowLlm> | null = null;
-function buildSowLlm(userKey?: string) {
-  return new ChatAnthropic({
-    ...(userKey && userKey !== PLACEHOLDER ? { apiKey: userKey } : {}),
-    model: "claude-sonnet-4-6",
-    maxTokens: 2000,
-  }).withStructuredOutput(SowSchema, { name: "generate_sow" });
-}
-function getSowLlmStructured(userKey?: string) {
-  if (userKey && userKey !== PLACEHOLDER) return buildSowLlm(userKey);
-  if (!_sowLlmStructured) _sowLlmStructured = buildSowLlm();
-  return _sowLlmStructured;
-}
+// ── LLM helpers — delegate to multi-provider factory ─────────────────────
+// resolveFastLlm / resolveCapableLlm handle platform-key fallback internally.
 
 // ── Helper: extract text from AIMessage content ────────────────────────────
 
@@ -120,7 +103,7 @@ ${state.answers.map((a, i) => `Answer ${i + 1}: ${a}`).join("\n")}
 
 You have asked ${state.question_count} question(s). Ask your next discovery question. Do not revisit topics already answered.`;
 
-  const response = await getIntakeLlm(state.user_api_key).invoke([
+  const response = await resolveFastLlm(state.user_provider, state.user_api_key, 350).invoke([
     new SystemMessage(INTAKE_SYSTEM),
     ...state.messages,
     new HumanMessage(userPrompt),
@@ -158,12 +141,14 @@ export async function generate_sow_node(
     .map((a, i) => `Discovery Answer ${i + 1}: ${a}`)
     .join("\n");
 
-  const sow = (await getSowLlmStructured(state.user_api_key).invoke([
-    new SystemMessage(SOW_SYSTEM),
-    new HumanMessage(
-      `Project Brief: ${state.brief}\n\nDiscovery Conversation:\n${conversationText}\n\nGenerate a complete SOW with exactly 4 milestone phases.`,
-    ),
-  ])) as Sow;
+  const sow = (await resolveCapableLlm(state.user_provider, state.user_api_key, 2000)
+    .withStructuredOutput(SowSchema, { name: "generate_sow" })
+    .invoke([
+      new SystemMessage(SOW_SYSTEM),
+      new HumanMessage(
+        `Project Brief: ${state.brief}\n\nDiscovery Conversation:\n${conversationText}\n\nGenerate a complete SOW with exactly 4 milestone phases.`,
+      ),
+    ])) as Sow;
 
   const aiReply = `I've generated your Statement of Work based on our conversation. Review it below — it covers ${sow.milestones.length} phases with a total budget of ${sow.total_budget} over ${sow.timeline}. Post it to the Marketplace when ready.`;
 
@@ -305,7 +290,11 @@ export function setSession(id: string, state: GraphStateType): void {
   SESSION_MAP.set(id, { state, lastAccess: Date.now() });
 }
 
-export function initSession(id: string, userApiKey = ""): GraphStateType {
+export function initSession(
+  id: string,
+  userApiKey = "",
+  userProvider: AiProvider = "anthropic",
+): GraphStateType {
   const fresh: GraphStateType = {
     messages:        [],
     question_count:  0,
@@ -314,6 +303,7 @@ export function initSession(id: string, userApiKey = ""): GraphStateType {
     sow:             null,
     top_freelancers: [],
     user_api_key:    userApiKey,
+    user_provider:   userProvider,
   };
   setSession(id, fresh);
   return fresh;

@@ -388,12 +388,14 @@ export default function ProposalDraftPage() {
     setApiError(null);
 
     try {
-      const userApiKey = localStorage.getItem("aistaff_anthropic_key") ?? "";
+      const userApiKey   = localStorage.getItem("aistaff_ai_key") ?? "";
+      const userProvider = localStorage.getItem("aistaff_ai_provider") ?? "anthropic";
       const res = await fetch("/api/proposal-copilot", {
         method:  "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(userApiKey ? { "x-user-api-key": userApiKey } : {}),
+          ...(userApiKey   ? { "x-user-api-key":     userApiKey   } : {}),
+          ...(userProvider ? { "x-user-ai-provider": userProvider } : {}),
         },
         body:    JSON.stringify({
           session_id: sessionId,
