@@ -321,7 +321,7 @@ export default function OutcomeListingsPage() {
           ))}
         </nav>
         <div className="space-y-1">
-          <p className="font-mono text-[10px] text-zinc-700 uppercase tracking-widest px-3">Payments</p>
+          <p className="font-mono text-[10px] text-zinc-300 uppercase tracking-widest px-3">Payments</p>
           {PAYMENTS_NAV.map(({ label, href, active }) => (
             <Link key={label} href={href}
               className={`block px-3 py-1.5 rounded-sm font-mono text-xs transition-colors ${

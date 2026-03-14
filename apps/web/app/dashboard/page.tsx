@@ -358,7 +358,7 @@ export default function DashboardPage() {
           ))}
         </nav>
         <div className="space-y-1">
-          <p className="font-mono text-[10px] text-zinc-700 uppercase tracking-widest px-3">AI Tools</p>
+          <p className="font-mono text-[10px] text-zinc-300 uppercase tracking-widest px-3">AI Tools</p>
           {[
             { label: "Scoping",      href: "/scoping"      },
             { label: "Outcomes",     href: "/outcomes"     },
@@ -371,7 +371,7 @@ export default function DashboardPage() {
           ))}
         </div>
         <div className="space-y-1">
-          <p className="font-mono text-[10px] text-zinc-700 uppercase tracking-widest px-3">Payments</p>
+          <p className="font-mono text-[10px] text-zinc-300 uppercase tracking-widest px-3">Payments</p>
           {[
             { label: "Escrow",             href: "/escrow"             },
             { label: "Payouts",            href: "/payouts"            },
@@ -386,7 +386,7 @@ export default function DashboardPage() {
           ))}
         </div>
         <div className="space-y-1">
-          <p className="font-mono text-[10px] text-zinc-700 uppercase tracking-widest px-3">Workspace</p>
+          <p className="font-mono text-[10px] text-zinc-300 uppercase tracking-widest px-3">Workspace</p>
           {[
             { label: "Work Diaries",  href: "/work-diaries"  },
             { label: "Async Collab",  href: "/async-collab"  },
@@ -400,7 +400,7 @@ export default function DashboardPage() {
           ))}
         </div>
         <div className="space-y-1">
-          <p className="font-mono text-[10px] text-zinc-700 uppercase tracking-widest px-3">Legal</p>
+          <p className="font-mono text-[10px] text-zinc-300 uppercase tracking-widest px-3">Legal</p>
           {[
             { label: "Legal Toolkit",    href: "/legal-toolkit"     },
             { label: "Tax Engine",       href: "/tax-engine"        },
@@ -413,7 +413,7 @@ export default function DashboardPage() {
           ))}
         </div>
         <div className="space-y-1">
-          <p className="font-mono text-[10px] text-zinc-700 uppercase tracking-widest px-3">Notifications</p>
+          <p className="font-mono text-[10px] text-zinc-300 uppercase tracking-widest px-3">Notifications</p>
           {[
             { label: "Alerts",    href: "/notifications"         },
             { label: "Reminders", href: "/reminders"             },
@@ -425,7 +425,7 @@ export default function DashboardPage() {
           ))}
         </div>
         <div className="space-y-1">
-          <p className="font-mono text-[10px] text-zinc-700 uppercase tracking-widest px-3">Enterprise</p>
+          <p className="font-mono text-[10px] text-zinc-300 uppercase tracking-widest px-3">Enterprise</p>
           {[
             { label: "Industry Suites", href: "/vertical"               },
             { label: "Enterprise Hub",  href: "/enterprise"             },
@@ -440,7 +440,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="space-y-1">
-          <p className="font-mono text-[10px] text-zinc-700 uppercase tracking-widest px-3">Trust</p>
+          <p className="font-mono text-[10px] text-zinc-300 uppercase tracking-widest px-3">Trust</p>
           {[
             { label: "Proof of Human", href: "/proof-of-human" },
           ].map(({ label, href }) => (

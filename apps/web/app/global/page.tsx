@@ -327,7 +327,7 @@ function Sidebar() {
         { label: "Enterprise",    items: [["Industry Suites","/vertical"],["Enterprise Hub","/enterprise"],["Talent Pools","/enterprise/talent-pools"],["SLA Dashboard","/enterprise/sla"],["Global & Access","/global"]] },
       ].map(({ label, items }) => (
         <div key={label} className="space-y-1">
-          <p className="font-mono text-[10px] text-zinc-700 uppercase tracking-widest px-3">{label}</p>
+          <p className="font-mono text-[10px] text-zinc-300 uppercase tracking-widest px-3">{label}</p>
           {items.map(([lbl, href]) => (
             <a key={lbl} href={href}
               className={`block px-3 py-1.5 rounded-sm font-mono text-xs transition-colors ${
