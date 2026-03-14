@@ -119,9 +119,13 @@ export default function ScopingPage() {
     setApiError(null);
 
     try {
+      const userApiKey = localStorage.getItem("aistaff_anthropic_key") ?? "";
       const res = await fetch("/api/pm-agent", {
         method:  "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(userApiKey ? { "x-user-api-key": userApiKey } : {}),
+        },
         body:    JSON.stringify({ session_id: sessionId, message: trimmed }),
       });
 

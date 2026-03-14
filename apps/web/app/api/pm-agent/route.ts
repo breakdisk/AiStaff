@@ -30,8 +30,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // Load or initialise session
-  let state = getSession(session_id) ?? initSession(session_id);
+  const userApiKey = req.headers.get("x-user-api-key") ?? "";
+
+  // Load or initialise session — pass user API key on first call
+  let state = getSession(session_id) ?? initSession(session_id, userApiKey);
 
   // Append the human message and update conversation context
   state = {

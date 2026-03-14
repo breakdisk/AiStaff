@@ -53,24 +53,34 @@ const GraphState = Annotation.Root({
   answers:        Annotation<string[]>({ reducer: (_, n) => n, default: () => [] }),
   job_brief:      Annotation<JobBrief | null>({ reducer: (_, n) => n, default: () => null }),
   draft:          Annotation<ProposalDraft | null>({ reducer: (_, n) => n, default: () => null }),
+  user_api_key:   Annotation<string>({ reducer: (_, n) => n, default: () => "" }),
 });
 
 export type CopilotStateType = typeof GraphState.State;
 
-// ── LLM instances (lazy — created on first use to avoid build-time key check) ─
+// ── LLM helpers — use user key if provided, else fall back to platform key ─
+
+const PLACEHOLDER = "build-placeholder";
 
 let _intakeLlm: ChatAnthropic | null = null;
-function getIntakeLlm() {
+function getIntakeLlm(userKey?: string) {
+  if (userKey && userKey !== PLACEHOLDER) {
+    return new ChatAnthropic({ apiKey: userKey, model: "claude-haiku-4-5-20251001", maxTokens: 300 });
+  }
   if (!_intakeLlm) _intakeLlm = new ChatAnthropic({ model: "claude-haiku-4-5-20251001", maxTokens: 300 });
   return _intakeLlm;
 }
 
-function buildDraftLlm() {
-  return new ChatAnthropic({ model: "claude-sonnet-4-6", maxTokens: 2000 })
-    .withStructuredOutput(ProposalSchema, { name: "generate_proposal" });
+function buildDraftLlm(userKey?: string) {
+  return new ChatAnthropic({
+    ...(userKey && userKey !== PLACEHOLDER ? { apiKey: userKey } : {}),
+    model: "claude-sonnet-4-6",
+    maxTokens: 2000,
+  }).withStructuredOutput(ProposalSchema, { name: "generate_proposal" });
 }
 let _draftLlmStructured: ReturnType<typeof buildDraftLlm> | null = null;
-function getDraftLlmStructured() {
+function getDraftLlmStructured(userKey?: string) {
+  if (userKey && userKey !== PLACEHOLDER) return buildDraftLlm(userKey);
   if (!_draftLlmStructured) _draftLlmStructured = buildDraftLlm();
   return _draftLlmStructured;
 }
@@ -124,7 +134,7 @@ export async function intake_node(
         .map((a, i) => `Answer ${i + 1}: ${a}`)
         .join("\n")}\n\nYou have asked ${state.question_count} question(s). Ask your next question. Do not repeat topics already covered.`;
 
-  const response = await getIntakeLlm().invoke([
+  const response = await getIntakeLlm(state.user_api_key).invoke([
     new SystemMessage(INTAKE_SYSTEM),
     ...state.messages,
     new HumanMessage(userPrompt),
@@ -162,7 +172,7 @@ export async function generate_draft_node(
     .map((a, i) => `Freelancer answer ${i + 1}: ${a}`)
     .join("\n");
 
-  const draft = (await getDraftLlmStructured().invoke([
+  const draft = (await getDraftLlmStructured(state.user_api_key).invoke([
     new SystemMessage(DRAFT_SYSTEM),
     new HumanMessage(
       `Job brief:\n${briefText}\n\nFreelancer background (from intake):\n${answersText}\n\nGenerate a complete proposal draft.`,
@@ -212,13 +222,14 @@ export function setSession(id: string, state: CopilotStateType): void {
   SESSION_MAP.set(id, { state, lastAccess: Date.now() });
 }
 
-export function initSession(id: string, jobBrief: JobBrief | null): CopilotStateType {
+export function initSession(id: string, jobBrief: JobBrief | null, userApiKey = ""): CopilotStateType {
   const fresh: CopilotStateType = {
     messages:       [],
     question_count: 0,
     answers:        [],
     job_brief:      jobBrief,
     draft:          null,
+    user_api_key:   userApiKey,
   };
   setSession(id, fresh);
   return fresh;

@@ -6,7 +6,7 @@ import Link from "next/link";
 import {
   ArrowLeft, Bot, Star, TrendingUp, Rocket,
   CheckCircle2, Clock, Shield, Github, Linkedin, CheckCheck, AlertTriangle,
-  Pencil, X, Save, Loader2, DollarSign,
+  Pencil, X, Save, Loader2, DollarSign, Key, Eye, EyeOff,
 } from "lucide-react";
 import { VettingBadge }    from "@/components/VettingBadge";
 import { TrustScoreBadge } from "@/components/TrustScoreBadge";
@@ -229,6 +229,44 @@ function EditForm({
     });
   }
 
+  function handleSaveApiKey() {
+    localStorage.setItem("aistaff_anthropic_key", apiKey.trim());
+    setApiKeyStatus("idle");
+    setApiKeyError(null);
+  }
+
+  function handleClearApiKey() {
+    localStorage.removeItem("aistaff_anthropic_key");
+    setApiKey("");
+    setApiKeyStatus("idle");
+    setApiKeyError(null);
+  }
+
+  async function handleTestApiKey() {
+    const key = apiKey.trim();
+    if (!key) return;
+    setApiKeyStatus("testing");
+    setApiKeyError(null);
+    try {
+      const res = await fetch("/api/test-anthropic-key", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ api_key: key }),
+      });
+      const data = await res.json() as { valid: boolean; error?: string };
+      if (data.valid) {
+        setApiKeyStatus("valid");
+        localStorage.setItem("aistaff_anthropic_key", key);
+      } else {
+        setApiKeyStatus("invalid");
+        setApiKeyError(data.error ?? "Invalid key");
+      }
+    } catch {
+      setApiKeyStatus("invalid");
+      setApiKeyError("Network error — try again");
+    }
+  }
+
   async function handleSave() {
     setSaving(true);
     setError(null);
@@ -412,6 +450,12 @@ export default function ProfilePage() {
   const [liveScore,       setLiveScore]       = useState<number | null>(null);
   const [liveTier,        setLiveTier]        = useState<string | null>(null);
 
+  // BYOK — Anthropic API key stored in localStorage
+  const [apiKey,          setApiKey]          = useState("");
+  const [apiKeyVisible,   setApiKeyVisible]   = useState(false);
+  const [apiKeyStatus,    setApiKeyStatus]    = useState<"idle" | "testing" | "valid" | "invalid">("idle");
+  const [apiKeyError,     setApiKeyError]     = useState<string | null>(null);
+
   const profileId = session?.user?.profileId;
 
   useEffect(() => {
@@ -434,6 +478,9 @@ export default function ProfilePage() {
         if (p.role          != null) setRole(p.role);
       })
       .catch(() => {/* backend offline — leave defaults */});
+    // Load saved API key from localStorage
+    const saved = localStorage.getItem("aistaff_anthropic_key") ?? "";
+    if (saved) setApiKey(saved);
   }, [profileId]);
 
   if (status === "loading") {
@@ -682,6 +729,84 @@ export default function ProfilePage() {
               profileId={profileId}
               onDisconnect={handleDisconnect}
             />
+          </div>
+        )}
+
+        {/* AI Integration — BYOK */}
+        {!editing && (
+          <div className="space-y-2">
+            <p className="font-mono text-xs text-zinc-500 uppercase tracking-widest">AI Integration</p>
+            <div className="border border-zinc-800 rounded-sm bg-zinc-900 p-4 space-y-3">
+              <div className="flex items-start gap-2">
+                <Key className="w-3.5 h-3.5 text-amber-400 flex-shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <p className="font-mono text-xs text-zinc-200">Anthropic API Key</p>
+                  <p className="font-mono text-[10px] text-zinc-500">
+                    Your key is used for Proposal Copilot and AI PM Agent. Stored locally — never sent to our servers.
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type={apiKeyVisible ? "text" : "password"}
+                    value={apiKey}
+                    onChange={(e) => { setApiKey(e.target.value); setApiKeyStatus("idle"); }}
+                    placeholder="sk-ant-api03-…"
+                    className="w-full h-8 px-2.5 pr-8 rounded-sm border border-zinc-700 bg-zinc-950
+                               font-mono text-xs text-zinc-200 placeholder-zinc-600
+                               focus:outline-none focus:border-amber-400/60"
+                  />
+                  <button
+                    onClick={() => setApiKeyVisible((v) => !v)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
+                  >
+                    {apiKeyVisible
+                      ? <EyeOff className="w-3.5 h-3.5" />
+                      : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+                <button
+                  onClick={handleTestApiKey}
+                  disabled={!apiKey.trim() || apiKeyStatus === "testing"}
+                  className="h-8 px-3 rounded-sm border border-zinc-700 font-mono text-xs text-zinc-300
+                             hover:border-zinc-500 hover:text-zinc-100 disabled:opacity-40 transition-colors"
+                >
+                  {apiKeyStatus === "testing" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Test"}
+                </button>
+                <button
+                  onClick={handleSaveApiKey}
+                  disabled={!apiKey.trim()}
+                  className="h-8 px-3 rounded-sm border border-amber-400/40 bg-amber-400/5
+                             font-mono text-xs text-amber-400 hover:bg-amber-400/10
+                             disabled:opacity-40 transition-colors"
+                >
+                  Save
+                </button>
+                {apiKey && (
+                  <button
+                    onClick={handleClearApiKey}
+                    className="h-8 px-2 rounded-sm border border-zinc-800 font-mono text-xs text-zinc-600
+                               hover:text-red-400 hover:border-red-900 transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+              {apiKeyStatus === "valid" && (
+                <p className="flex items-center gap-1.5 font-mono text-[10px] text-emerald-400">
+                  <CheckCircle2 className="w-3 h-3" /> Connected — your key will be used for AI features
+                </p>
+              )}
+              {apiKeyStatus === "invalid" && (
+                <p className="flex items-center gap-1.5 font-mono text-[10px] text-red-400">
+                  <AlertTriangle className="w-3 h-3" /> {apiKeyError}
+                </p>
+              )}
+              {apiKeyStatus === "idle" && localStorage.getItem("aistaff_anthropic_key") && (
+                <p className="font-mono text-[10px] text-zinc-500">Key saved — click Test to verify</p>
+              )}
+            </div>
           </div>
         )}
 

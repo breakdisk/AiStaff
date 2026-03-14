@@ -46,24 +46,34 @@ const GraphState = Annotation.Root({
   brief:           Annotation<string>({ reducer: (_, n) => n, default: () => "" }),
   sow:             Annotation<Sow | null>({ reducer: (_, n) => n, default: () => null }),
   top_freelancers: Annotation<MatchCandidate[]>({ reducer: (_, n) => n, default: () => [] }),
+  user_api_key:    Annotation<string>({ reducer: (_, n) => n, default: () => "" }),
 });
 
 export type GraphStateType = typeof GraphState.State;
 
-// ── LLM instances (lazy — created on first use to avoid build-time key check) ─
+// ── LLM helpers — use user key if provided, else fall back to platform key ─
+
+const PLACEHOLDER = "build-placeholder";
 
 let _intakeLlm: ChatAnthropic | null = null;
-function getIntakeLlm() {
+function getIntakeLlm(userKey?: string) {
+  if (userKey && userKey !== PLACEHOLDER) {
+    return new ChatAnthropic({ apiKey: userKey, model: "claude-haiku-4-5-20251001", maxTokens: 350 });
+  }
   if (!_intakeLlm) _intakeLlm = new ChatAnthropic({ model: "claude-haiku-4-5-20251001", maxTokens: 350 });
   return _intakeLlm;
 }
 
 let _sowLlmStructured: ReturnType<typeof buildSowLlm> | null = null;
-function buildSowLlm() {
-  return new ChatAnthropic({ model: "claude-sonnet-4-6", maxTokens: 2000 })
-    .withStructuredOutput(SowSchema, { name: "generate_sow" });
+function buildSowLlm(userKey?: string) {
+  return new ChatAnthropic({
+    ...(userKey && userKey !== PLACEHOLDER ? { apiKey: userKey } : {}),
+    model: "claude-sonnet-4-6",
+    maxTokens: 2000,
+  }).withStructuredOutput(SowSchema, { name: "generate_sow" });
 }
-function getSowLlmStructured() {
+function getSowLlmStructured(userKey?: string) {
+  if (userKey && userKey !== PLACEHOLDER) return buildSowLlm(userKey);
   if (!_sowLlmStructured) _sowLlmStructured = buildSowLlm();
   return _sowLlmStructured;
 }
@@ -110,7 +120,7 @@ ${state.answers.map((a, i) => `Answer ${i + 1}: ${a}`).join("\n")}
 
 You have asked ${state.question_count} question(s). Ask your next discovery question. Do not revisit topics already answered.`;
 
-  const response = await getIntakeLlm().invoke([
+  const response = await getIntakeLlm(state.user_api_key).invoke([
     new SystemMessage(INTAKE_SYSTEM),
     ...state.messages,
     new HumanMessage(userPrompt),
@@ -148,7 +158,7 @@ export async function generate_sow_node(
     .map((a, i) => `Discovery Answer ${i + 1}: ${a}`)
     .join("\n");
 
-  const sow = (await getSowLlmStructured().invoke([
+  const sow = (await getSowLlmStructured(state.user_api_key).invoke([
     new SystemMessage(SOW_SYSTEM),
     new HumanMessage(
       `Project Brief: ${state.brief}\n\nDiscovery Conversation:\n${conversationText}\n\nGenerate a complete SOW with exactly 4 milestone phases.`,
@@ -295,7 +305,7 @@ export function setSession(id: string, state: GraphStateType): void {
   SESSION_MAP.set(id, { state, lastAccess: Date.now() });
 }
 
-export function initSession(id: string): GraphStateType {
+export function initSession(id: string, userApiKey = ""): GraphStateType {
   const fresh: GraphStateType = {
     messages:        [],
     question_count:  0,
@@ -303,6 +313,7 @@ export function initSession(id: string): GraphStateType {
     brief:           "",
     sow:             null,
     top_freelancers: [],
+    user_api_key:    userApiKey,
   };
   setSession(id, fresh);
   return fresh;

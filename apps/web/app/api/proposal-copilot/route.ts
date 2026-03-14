@@ -27,8 +27,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // Load or init session — pass job_brief on first call to seed state
-  let state = getSession(session_id) ?? initSession(session_id, job_brief ?? null);
+  const userApiKey = req.headers.get("x-user-api-key") ?? "";
+
+  // Load or init session — pass job_brief and user API key on first call
+  let state = getSession(session_id) ?? initSession(session_id, job_brief ?? null, userApiKey);
 
   // If a brief was provided and not yet stored, attach it
   if (job_brief && !state.job_brief) {
