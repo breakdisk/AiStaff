@@ -13,6 +13,7 @@ import {
 } from "@/lib/api";
 import { PaymentModal }  from "@/components/PaymentModal";
 import { VettingBadge }  from "@/components/VettingBadge";
+import { ShareButton }   from "@/components/ShareSheet";
 import type { VettingTier } from "@/components/VettingBadge";
 
 function tierStringToNum(t: string | undefined): VettingTier {
@@ -320,16 +321,22 @@ function ActionButton({ listing, userTier, profileId, marketView, compact }: Act
 
 // ── Listing card (mobile) ──────────────────────────────────────────────────
 
-function ListingCard({ listing, userTier, profileId, marketView, devTierMap }: {
-  listing:    AgentListing;
-  userTier:   string;
+function ListingCard({ listing, userTier, profileId, marketView, devTierMap, highlighted }: {
+  listing:     AgentListing;
+  userTier:    string;
+  highlighted?: boolean;
   profileId:  string;
   marketView: MarketView;
   devTierMap: Map<string, VettingTier>;
 }) {
   const devTier = devTierMap.get(listing.developer_id) ?? DEV_TIERS[listing.developer_id] ?? 0;
   return (
-    <div className="border border-zinc-800 rounded-sm bg-zinc-900 p-3 space-y-2 hover:border-zinc-700 transition-colors">
+    <div
+      id={`listing-${listing.id}`}
+      className={`border rounded-sm bg-zinc-900 p-3 space-y-2 hover:border-zinc-700 transition-colors ${
+        highlighted ? "border-amber-500 ring-1 ring-amber-500/30" : "border-zinc-800"
+      }`}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
           <p className="font-mono text-sm font-medium text-zinc-100 truncate">{listing.name}</p>
@@ -354,6 +361,7 @@ function ListingCard({ listing, userTier, profileId, marketView, devTierMap }: {
         <span className="font-mono text-[10px] text-zinc-600 truncate flex-1">
           dev: {listing.developer_id.slice(0, 8)}…
         </span>
+        <ShareButton listing={listing} />
         <ActionButton
           listing={listing}
           userTier={userTier}
@@ -367,16 +375,22 @@ function ListingCard({ listing, userTier, profileId, marketView, devTierMap }: {
 
 // ── Desktop table row ──────────────────────────────────────────────────────
 
-function TableRow({ listing, userTier, profileId, marketView, devTierMap }: {
-  listing:    AgentListing;
-  userTier:   string;
+function TableRow({ listing, userTier, profileId, marketView, devTierMap, highlighted }: {
+  listing:     AgentListing;
+  userTier:    string;
+  highlighted?: boolean;
   profileId:  string;
   marketView: MarketView;
   devTierMap: Map<string, VettingTier>;
 }) {
   const devTier = devTierMap.get(listing.developer_id) ?? DEV_TIERS[listing.developer_id] ?? 0;
   return (
-    <tr className="border-b border-zinc-800 hover:bg-zinc-900 transition-colors">
+    <tr
+      id={`listing-${listing.id}`}
+      className={`border-b border-zinc-800 hover:bg-zinc-900 transition-colors ${
+        highlighted ? "bg-amber-950/20 outline outline-1 outline-amber-700/50" : ""
+      }`}
+    >
       <td className="px-3 py-2">
         <div className="space-y-1">
           <p className="font-mono text-xs font-medium text-zinc-200">{listing.name}</p>
@@ -399,13 +413,16 @@ function TableRow({ listing, userTier, profileId, marketView, devTierMap }: {
         {fmtUSD(listing.price_cents)}
       </td>
       <td className="px-3 py-2">
-        <ActionButton
-          listing={listing}
-          userTier={userTier}
-          profileId={profileId}
-          marketView={marketView}
-          compact
-        />
+        <div className="flex items-center gap-1.5">
+          <ShareButton listing={listing} compact />
+          <ActionButton
+            listing={listing}
+            userTier={userTier}
+            profileId={profileId}
+            marketView={marketView}
+            compact
+          />
+        </div>
       </td>
     </tr>
   );
@@ -720,13 +737,14 @@ export default function MarketplacePage() {
   // Session role: "talent" | "client" | "agent-owner" | null
   const sessionRole = (session?.user as { role?: string | null })?.role ?? null;
 
-  const [allListings, setAllListings] = useState<AgentListing[]>(DEMO_LISTINGS);
-  const [status,      setStatus]      = useState<"live" | "demo" | "loading">("loading");
-  const [catFilter,   setCatFilter]   = useState<CategoryFilter>("All");
-  const [sellerFilter,setSellerFilter]= useState<SellerFilter>("All");
-  const [showPanel,   setShowPanel]   = useState(false);
-  const [devTierMap,  setDevTierMap]  = useState<Map<string, VettingTier>>(new Map());
-  const [marketView,  setMarketView]  = useState<MarketView>(() => {
+  const [allListings,   setAllListings]   = useState<AgentListing[]>(DEMO_LISTINGS);
+  const [status,        setStatus]        = useState<"live" | "demo" | "loading">("loading");
+  const [catFilter,     setCatFilter]     = useState<CategoryFilter>("All");
+  const [sellerFilter,  setSellerFilter]  = useState<SellerFilter>("All");
+  const [showPanel,     setShowPanel]     = useState(false);
+  const [devTierMap,    setDevTierMap]    = useState<Map<string, VettingTier>>(new Map());
+  const [highlightId,   setHighlightId]  = useState<string | null>(null);
+  const [marketView,    setMarketView]    = useState<MarketView>(() => {
     if (typeof window !== "undefined") {
       return (localStorage.getItem("market_view") as MarketView) ?? "client";
     }
@@ -767,6 +785,23 @@ export default function MarketplacePage() {
         }
       })
       .catch(() => setStatus("demo"));
+  }, []);
+
+  // ── Deep-link: ?listing=<id> ────────────────────────────────────────────
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("listing");
+    if (!id) return;
+    setHighlightId(id);
+    // Scroll after listings have rendered
+    const t = setTimeout(() => {
+      document.getElementById(`listing-${id}`)?.scrollIntoView({
+        behavior: "smooth", block: "center",
+      });
+    }, 400);
+    // Clear highlight after 4 seconds
+    const clear = setTimeout(() => setHighlightId(null), 4400);
+    return () => { clearTimeout(t); clearTimeout(clear); };
   }, []);
 
   const visible = allListings.filter(l =>
@@ -1001,7 +1036,7 @@ export default function MarketplacePage() {
                 </tr>
               </thead>
               <tbody>
-                {visible.map((l) => <TableRow key={l.id} listing={l} userTier={userTier} profileId={profileId} marketView={marketView} devTierMap={devTierMap} />)}
+                {visible.map((l) => <TableRow key={l.id} listing={l} userTier={userTier} profileId={profileId} marketView={marketView} devTierMap={devTierMap} highlighted={highlightId === l.id} />)}
               </tbody>
             </table>
           </div>
@@ -1010,7 +1045,7 @@ export default function MarketplacePage() {
         {/* Mobile cards */}
         {visible.length > 0 && (
           <div className="sm:hidden space-y-2">
-            {visible.map((l) => <ListingCard key={l.id} listing={l} userTier={userTier} profileId={profileId} marketView={marketView} devTierMap={devTierMap} />)}
+            {visible.map((l) => <ListingCard key={l.id} listing={l} userTier={userTier} profileId={profileId} marketView={marketView} devTierMap={devTierMap} highlighted={highlightId === l.id} />)}
           </div>
         )}
 
