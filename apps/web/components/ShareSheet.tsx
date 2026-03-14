@@ -14,21 +14,23 @@ const BASE_URL =
     ? window.location.origin
     : "https://aistaffglobal.com";
 
-function listingUrl(id: string) {
-  return `${BASE_URL}/listings/${id}`;
+function listingUrl(listing: AgentListing) {
+  // Prefer slug for a short, human-readable URL; fall back to UUID if slug is absent.
+  const path = listing.slug || listing.id;
+  return `${BASE_URL}/listings/${path}`;
 }
 
 function twitterIntent(listing: AgentListing) {
   const text = `Check out "${listing.name}" on AiStaff — ${fmtPrice(listing.price_cents)} escrow deployment`;
-  return `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(listingUrl(listing.id))}`;
+  return `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(listingUrl(listing))}`;
 }
 
 function linkedinShare(listing: AgentListing) {
-  return `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(listingUrl(listing.id))}`;
+  return `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(listingUrl(listing))}`;
 }
 
 function whatsappShare(listing: AgentListing) {
-  const text = `"${listing.name}" — ${fmtPrice(listing.price_cents)} · Deploy with AiStaff escrow: ${listingUrl(listing.id)}`;
+  const text = `"${listing.name}" — ${fmtPrice(listing.price_cents)} · Deploy with AiStaff escrow: ${listingUrl(listing)}`;
   return `https://wa.me/?text=${encodeURIComponent(text)}`;
 }
 
@@ -38,7 +40,7 @@ function mailtoLink(listing: AgentListing) {
     `Hi,\n\nI found this AI agent listing that might interest you:\n\n` +
     `${listing.name}\n${listing.description}\n\n` +
     `Price: ${fmtPrice(listing.price_cents)} (held in escrow)\n\n` +
-    `View it here: ${listingUrl(listing.id)}\n\n— Shared via AiStaff`;
+    `View it here: ${listingUrl(listing)}\n\n— Shared via AiStaff`;
   return `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
@@ -91,7 +93,7 @@ interface ShareSheetProps {
 export function ShareSheet({ listing, onClose }: ShareSheetProps) {
   const [copied, setCopied] = useState(false);
 
-  const url = listingUrl(listing.id);
+  const url = listingUrl(listing);
 
   const handleCopy = useCallback(async () => {
     try {

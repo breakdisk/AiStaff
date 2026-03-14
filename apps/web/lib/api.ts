@@ -117,6 +117,8 @@ export interface AgentListing {
   active:       boolean;
   category:     ListingCategory;
   seller_type:  SellerType;
+  /** Human-readable kebab-case slug used in share URLs. */
+  slug:         string;
   created_at:   string;
   updated_at:   string;
 }
@@ -137,6 +139,10 @@ export function fetchListings(): Promise<{ listings: AgentListing[] }> {
 
 export function fetchListing(listingId: string): Promise<AgentListing> {
   return apiFetch(`/api/marketplace/listings/${listingId}`);
+}
+
+export function fetchListingBySlug(slug: string): Promise<AgentListing> {
+  return apiFetch(`/api/marketplace/listings/by-slug/${slug}`);
 }
 
 export function createListing(req: CreateListingRequest): Promise<{ listing_id: string }> {

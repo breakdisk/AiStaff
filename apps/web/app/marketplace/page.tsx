@@ -51,6 +51,7 @@ const DEMO_LISTINGS: AgentListing[] = [
     active:       true,
     category:     "AiStaff",
     seller_type:  "Agency",
+    slug:         "datasync-agent-v2-1",
     created_at:   "2026-02-01T00:00:00Z",
     updated_at:   "2026-02-01T00:00:00Z",
   },
@@ -64,6 +65,7 @@ const DEMO_LISTINGS: AgentListing[] = [
     active:       true,
     category:     "AiStaff",
     seller_type:  "Freelancer",
+    slug:         "logaudit-sentinel",
     created_at:   "2026-02-10T00:00:00Z",
     updated_at:   "2026-02-10T00:00:00Z",
   },
@@ -77,6 +79,7 @@ const DEMO_LISTINGS: AgentListing[] = [
     active:       true,
     category:     "AiTalent",
     seller_type:  "Agency",
+    slug:         "hireassist-pro",
     created_at:   "2026-02-15T00:00:00Z",
     updated_at:   "2026-02-15T00:00:00Z",
   },
@@ -90,6 +93,7 @@ const DEMO_LISTINGS: AgentListing[] = [
     active:       true,
     category:     "AiRobot",
     seller_type:  "Agency",
+    slug:         "k8s-scaler-agent",
     created_at:   "2026-02-20T00:00:00Z",
     updated_at:   "2026-02-20T00:00:00Z",
   },
@@ -103,6 +107,7 @@ const DEMO_LISTINGS: AgentListing[] = [
     active:       true,
     category:     "AiStaff",
     seller_type:  "Freelancer",
+    slug:         "secretrotator",
     created_at:   "2026-02-25T00:00:00Z",
     updated_at:   "2026-02-25T00:00:00Z",
   },
@@ -116,6 +121,7 @@ const DEMO_LISTINGS: AgentListing[] = [
     active:       true,
     category:     "AiRobot",
     seller_type:  "Freelancer",
+    slug:         "roboticarm-calibrator",
     created_at:   "2026-03-01T00:00:00Z",
     updated_at:   "2026-03-01T00:00:00Z",
   },
@@ -129,6 +135,7 @@ const DEMO_LISTINGS: AgentListing[] = [
     active:       true,
     category:     "AiTalent",
     seller_type:  "Freelancer",
+    slug:         "contractreviewer",
     created_at:   "2026-03-03T00:00:00Z",
     updated_at:   "2026-03-03T00:00:00Z",
   },
@@ -467,8 +474,9 @@ function ListProductPanel({ onClose, onCreated, profileId }: {
       // API down — optimistic local insert
     }
 
+    const newId   = crypto.randomUUID();
     const newListing: AgentListing = {
-      id:           crypto.randomUUID(),
+      id:           newId,
       developer_id: profileId,
       name:         name.trim(),
       description:  description.trim(),
@@ -477,6 +485,8 @@ function ListProductPanel({ onClose, onCreated, profileId }: {
       active:       true,
       category,
       seller_type:  sellerType,
+      // Derive a best-effort slug from the name; the real slug is set by the backend.
+      slug:         name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || newId.slice(0, 8),
       created_at:   new Date().toISOString(),
       updated_at:   new Date().toISOString(),
     };

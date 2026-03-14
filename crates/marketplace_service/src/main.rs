@@ -51,6 +51,7 @@ async fn main() -> Result<()> {
             "/listings",
             get(handlers::list_listings).post(handlers::create_listing),
         )
+        .route("/listings/by-slug/{slug}", get(handlers::get_listing_by_slug))
         .route("/listings/{id}", get(handlers::get_listing))
         .route("/skill-tags", get(handlers::get_skill_tags))
         .route(

@@ -284,6 +284,21 @@ pub struct CreateListingRequest {
     pub seller_type: String,
 }
 
+/// Convert a listing name to a URL-safe kebab-case slug.
+/// e.g. "DataSync Agent v2.1" → "datasync-agent-v2-1"
+fn to_slug(name: &str) -> String {
+    let base: String = name
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '-' })
+        .collect();
+
+    // Collapse consecutive dashes and strip leading/trailing ones.
+    base.split('-')
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join("-")
+}
+
 pub async fn create_listing(
     State(state): State<SharedState>,
     Json(req): Json<CreateListingRequest>,
@@ -307,11 +322,28 @@ pub async fn create_listing(
     }
 
     let listing_id = Uuid::now_v7();
+    let base_slug = to_slug(&req.name);
+
+    // Check for slug collision; if taken, append first 8 chars of the new UUID.
+    let slug_taken = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM agent_listings WHERE slug = $1)",
+    )
+    .bind(&base_slug)
+    .fetch_one(&state.db)
+    .await
+    .unwrap_or(false);
+
+    let slug = if slug_taken {
+        format!("{}-{}", base_slug, &listing_id.to_string()[..8])
+    } else {
+        base_slug
+    };
 
     let insert = sqlx::query(
         "INSERT INTO agent_listings
-             (id, developer_id, name, description, wasm_hash, price_cents, category, seller_type)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+             (id, developer_id, name, description, wasm_hash,
+              price_cents, category, seller_type, slug)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
     )
     .bind(listing_id)
     .bind(req.developer_id)
@@ -321,15 +353,16 @@ pub async fn create_listing(
     .bind(req.price_cents)
     .bind(&req.category)
     .bind(&req.seller_type)
+    .bind(&slug)
     .execute(&state.db)
     .await;
 
     match insert {
         Ok(_) => {
-            tracing::info!(%listing_id, "agent listing created");
+            tracing::info!(%listing_id, %slug, "agent listing created");
             (
                 StatusCode::CREATED,
-                Json(serde_json::json!({ "listing_id": listing_id })),
+                Json(serde_json::json!({ "listing_id": listing_id, "slug": slug })),
             )
                 .into_response()
         }
@@ -344,7 +377,7 @@ pub async fn list_listings(State(state): State<SharedState>) -> impl IntoRespons
 
     let rows = sqlx::query(
         "SELECT id, developer_id, name, description, wasm_hash,
-                price_cents, active, category, seller_type, created_at, updated_at
+                price_cents, active, category, seller_type, slug, created_at, updated_at
          FROM agent_listings
          WHERE active = TRUE
          ORDER BY created_at DESC
@@ -367,6 +400,7 @@ pub async fn list_listings(State(state): State<SharedState>) -> impl IntoRespons
                     let active: bool = r.get("active");
                     let category: &str = r.get("category");
                     let seller_type: &str = r.get("seller_type");
+                    let slug: &str = r.get("slug");
                     let created: chrono::DateTime<chrono::Utc> = r.get("created_at");
                     let updated: chrono::DateTime<chrono::Utc> = r.get("updated_at");
 
@@ -380,6 +414,7 @@ pub async fn list_listings(State(state): State<SharedState>) -> impl IntoRespons
                         "active":       active,
                         "category":     category,
                         "seller_type":  seller_type,
+                        "slug":         slug,
                         "created_at":   created.to_rfc3339(),
                         "updated_at":   updated.to_rfc3339(),
                     })
@@ -406,7 +441,7 @@ pub async fn get_listing(
 
     let row = sqlx::query(
         "SELECT id, developer_id, name, description, wasm_hash,
-                price_cents, active, category, seller_type, created_at, updated_at
+                price_cents, active, category, seller_type, slug, created_at, updated_at
          FROM agent_listings WHERE id = $1",
     )
     .bind(id)
@@ -414,40 +449,68 @@ pub async fn get_listing(
     .await;
 
     match row {
-        Ok(Some(r)) => {
-            let listing_id: Uuid = r.get("id");
-            let developer_id: Uuid = r.get("developer_id");
-            let name: &str = r.get("name");
-            let description: &str = r.get("description");
-            let wasm_hash: &str = r.get("wasm_hash");
-            let price_cents: i64 = r.get("price_cents");
-            let active: bool = r.get("active");
-            let category: &str = r.get("category");
-            let seller_type: &str = r.get("seller_type");
-            let created: chrono::DateTime<chrono::Utc> = r.get("created_at");
-            let updated: chrono::DateTime<chrono::Utc> = r.get("updated_at");
-
-            (
-                StatusCode::OK,
-                Json(serde_json::json!({
-                    "id":           listing_id,
-                    "developer_id": developer_id,
-                    "name":         name,
-                    "description":  description,
-                    "wasm_hash":    wasm_hash,
-                    "price_cents":  price_cents,
-                    "active":       active,
-                    "category":     category,
-                    "seller_type":  seller_type,
-                    "created_at":   created.to_rfc3339(),
-                    "updated_at":   updated.to_rfc3339(),
-                })),
-            )
-                .into_response()
-        }
-        Ok(None) => StatusCode::NOT_FOUND.into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Ok(Some(r)) => (StatusCode::OK, Json(listing_row_to_json(&r))).into_response(),
+        Ok(None)    => StatusCode::NOT_FOUND.into_response(),
+        Err(e)      => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
+}
+
+// ── GET /listings/by-slug/:slug ───────────────────────────────────────────────
+// Lets the OG share page (`/listings/[slug]`) resolve a human-readable slug
+// to a full listing record (including UUID `id`) for the redirect.
+
+pub async fn get_listing_by_slug(
+    State(state): State<SharedState>,
+    Path(slug): Path<String>,
+) -> impl IntoResponse {
+    use sqlx::Row;
+
+    let row = sqlx::query(
+        "SELECT id, developer_id, name, description, wasm_hash,
+                price_cents, active, category, seller_type, slug, created_at, updated_at
+         FROM agent_listings WHERE slug = $1",
+    )
+    .bind(&slug)
+    .fetch_optional(&state.db)
+    .await;
+
+    match row {
+        Ok(Some(r)) => (StatusCode::OK, Json(listing_row_to_json(&r))).into_response(),
+        Ok(None)    => StatusCode::NOT_FOUND.into_response(),
+        Err(e)      => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+/// Map a fetched agent_listings row to a JSON value.
+fn listing_row_to_json(r: &sqlx::postgres::PgRow) -> serde_json::Value {
+    use sqlx::Row;
+    let id: uuid::Uuid = r.get("id");
+    let developer_id: uuid::Uuid = r.get("developer_id");
+    let name: &str = r.get("name");
+    let description: &str = r.get("description");
+    let wasm_hash: &str = r.get("wasm_hash");
+    let price_cents: i64 = r.get("price_cents");
+    let active: bool = r.get("active");
+    let category: &str = r.get("category");
+    let seller_type: &str = r.get("seller_type");
+    let slug: &str = r.get("slug");
+    let created: chrono::DateTime<chrono::Utc> = r.get("created_at");
+    let updated: chrono::DateTime<chrono::Utc> = r.get("updated_at");
+
+    serde_json::json!({
+        "id":           id,
+        "developer_id": developer_id,
+        "name":         name,
+        "description":  description,
+        "wasm_hash":    wasm_hash,
+        "price_cents":  price_cents,
+        "active":       active,
+        "category":     category,
+        "seller_type":  seller_type,
+        "slug":         slug,
+        "created_at":   created.to_rfc3339(),
+        "updated_at":   updated.to_rfc3339(),
+    })
 }
 
 // ── GET /skill-tags ───────────────────────────────────────────────────────────
