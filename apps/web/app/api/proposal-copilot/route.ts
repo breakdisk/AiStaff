@@ -84,9 +84,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       } satisfies CopilotResponse);
     }
   } catch (err) {
-    void err;
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[proposal-copilot] error:", msg);
     return NextResponse.json(
-      { error: "Copilot error — check ANTHROPIC_API_KEY in .env.local" },
+      { error: `Copilot error: ${msg}` },
       { status: 500 },
     );
   }
