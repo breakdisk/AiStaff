@@ -3,7 +3,7 @@
 import { useState, useCallback } from "react";
 import {
   X, Link2, Check, Mail, Twitter, Linkedin,
-  MessageCircle, Share2,
+  MessageCircle, Share2, Facebook,
 } from "lucide-react";
 import type { AgentListing } from "@/lib/api";
 
@@ -32,6 +32,10 @@ function linkedinShare(listing: AgentListing) {
 function whatsappShare(listing: AgentListing) {
   const text = `"${listing.name}" — ${fmtPrice(listing.price_cents)} · Deploy with AiStaff escrow: ${listingUrl(listing)}`;
   return `https://wa.me/?text=${encodeURIComponent(text)}`;
+}
+
+function facebookShare(listing: AgentListing) {
+  return `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(listingUrl(listing))}`;
 }
 
 function mailtoLink(listing: AgentListing) {
@@ -156,6 +160,13 @@ export function ShareSheet({ listing, onClose }: ShareSheetProps) {
       action: () => { window.open(linkedinShare(listing), "_blank", "noopener,noreferrer"); },
     },
     {
+      id:    "facebook",
+      label: "Share on Facebook",
+      icon:  Facebook,
+      color: "text-blue-400",
+      action: () => { window.open(facebookShare(listing), "_blank", "noopener,noreferrer"); },
+    },
+    {
       id:    "whatsapp",
       label: "Share on WhatsApp",
       icon:  MessageCircle,
@@ -172,17 +183,17 @@ export function ShareSheet({ listing, onClose }: ShareSheetProps) {
   ];
 
   return (
-    <>
-      {/* Backdrop */}
+    /* Backdrop — click outside to close */
+    <div
+      className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm
+                 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      {/* Card — centered on all screen sizes */}
       <div
-        className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm"
-        onClick={onClose}
-      />
-
-      {/* Sheet */}
-      <div className="fixed z-50 bottom-0 left-0 right-0 max-w-lg mx-auto
-                      bg-zinc-900 border-t border-zinc-700 rounded-t-sm
-                      safe-area-inset-bottom">
+        className="w-full max-w-sm bg-zinc-900 border border-zinc-700 rounded-sm shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-start justify-between p-4 border-b border-zinc-800">
           <div className="min-w-0 pr-3">
@@ -235,10 +246,7 @@ export function ShareSheet({ listing, onClose }: ShareSheetProps) {
             </button>
           ))}
         </div>
-
-        {/* Bottom safe area spacer */}
-        <div className="h-4" />
       </div>
-    </>
+    </div>
   );
 }
