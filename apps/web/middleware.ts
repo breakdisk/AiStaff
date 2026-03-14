@@ -8,6 +8,11 @@ export default auth((req) => {
   const { pathname } = req.nextUrl;
   const isAuthenticated = !!req.auth;
 
+  // Social crawlers must reach /listings/[slug] so OG metadata is served.
+  const BOT_UA =
+    /facebookexternalhit|facebot|twitterbot|linkedinbot|whatsapp|slackbot|telegrambot|discordbot|applebot|googlebot|bingbot/i;
+  const isSocialBot = BOT_UA.test(req.headers.get("user-agent") ?? "");
+
   // Public paths — no session required
   const isPublic =
     pathname === "/" ||
@@ -15,7 +20,9 @@ export default auth((req) => {
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico" ||
-    /\.(?:png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|otf)$/i.test(pathname);
+    pathname.startsWith("/listings/") ||   // OG share pages — public
+    /\.(?:png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|otf)$/i.test(pathname) ||
+    isSocialBot;                           // Any social crawler — pass through
 
   if (!isAuthenticated && !isPublic) {
     // API routes must return 401 — never redirect to login.
