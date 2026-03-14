@@ -11,6 +11,7 @@ import {
   fetchListings, createListing, expressInterest, fetchPublicProfile,
   type AgentListing, type ListingCategory, type SellerType,
 } from "@/lib/api";
+import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
 import { PaymentModal }  from "@/components/PaymentModal";
 import { VettingBadge }  from "@/components/VettingBadge";
 import { ShareButton }   from "@/components/ShareSheet";
@@ -338,14 +339,27 @@ function ListingDetailSheet({ listing, userTier, profileId, marketView, onClose 
 }) {
   return (
     <>
-      {/* Backdrop */}
-      <div className="fixed inset-0 z-40 bg-black/60" onClick={onClose} />
+      {/* Backdrop — on desktop starts after the sidebar (lg:left-56 = 224px) */}
+      <div
+        className="fixed inset-0 z-40 bg-black/60 lg:left-56"
+        onClick={onClose}
+      />
 
-      {/* Sheet — slides up from bottom on all screen sizes */}
-      <div className="fixed inset-x-0 bottom-0 z-50 bg-zinc-900 border-t border-zinc-800
-                      rounded-t-sm max-h-[88vh] flex flex-col">
-        {/* Drag handle */}
-        <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
+      {/* Positioning wrapper:
+          mobile  → anchored to viewport bottom, full width
+          desktop → centred inside the content column (lg:left-56 to lg:right-0) */}
+      <div className="fixed inset-x-0 bottom-0 z-50
+                      lg:top-0 lg:bottom-0 lg:left-56 lg:right-0
+                      lg:flex lg:items-center lg:justify-center lg:p-8">
+
+        {/* Panel */}
+        <div className="bg-zinc-900 border-t border-zinc-800 rounded-t-sm
+                        max-h-[88vh] flex flex-col w-full
+                        lg:border lg:border-zinc-800 lg:rounded-sm
+                        lg:max-w-2xl lg:max-h-[85vh]">
+
+        {/* Drag handle — mobile only */}
+        <div className="flex justify-center pt-3 pb-1 flex-shrink-0 lg:hidden">
           <div className="w-10 h-1 rounded-full bg-zinc-700" />
         </div>
 
@@ -428,7 +442,9 @@ function ListingDetailSheet({ listing, userTier, profileId, marketView, onClose 
           </div>
           <ShareButton listing={listing} />
         </div>
-      </div>
+
+        </div> {/* end panel */}
+      </div>   {/* end positioning wrapper */}
     </>
   );
 }
@@ -845,72 +861,6 @@ function ListProductPanel({ onClose, onCreated, profileId }: {
   );
 }
 
-// ── Nav config ─────────────────────────────────────────────────────────────
-
-const SIDEBAR_NAV = [
-  { label: "Dashboard",   href: "/dashboard"   },
-  { label: "Marketplace", href: "/marketplace", active: true },
-  { label: "Leaderboard", href: "/leaderboard" },
-  { label: "Matching",    href: "/matching"    },
-  { label: "Profile",     href: "/profile"     },
-];
-
-const AI_TOOLS_NAV = [
-  { label: "Scoping",      href: "/scoping"      },
-  { label: "Outcomes",     href: "/outcomes"     },
-  { label: "Proposals",    href: "/proposals"    },
-  { label: "Pricing Tool", href: "/pricing-tool" },
-];
-
-const PAYMENTS_NAV = [
-  { label: "Escrow",             href: "/escrow"             },
-  { label: "Payouts",            href: "/payouts"            },
-  { label: "Billing",            href: "/billing"            },
-  { label: "Smart Contracts",    href: "/smart-contracts"    },
-  { label: "Outcome Listings",   href: "/outcome-listings"   },
-  { label: "Pricing Calculator", href: "/pricing-calculator" },
-];
-
-const WORKSPACE_NAV = [
-  { label: "Work Diaries",  href: "/work-diaries"  },
-  { label: "Async Collab",  href: "/async-collab"  },
-  { label: "Collaboration", href: "/collab"         },
-  { label: "Success Layer", href: "/success-layer"  },
-  { label: "Quality Gate",  href: "/quality-gate"   },
-];
-
-const LEGAL_NAV = [
-  { label: "Legal Toolkit",    href: "/legal-toolkit"     },
-  { label: "Tax Engine",       href: "/tax-engine"        },
-  { label: "Reputation",       href: "/reputation-export" },
-  { label: "Transparency",     href: "/transparency"      },
-];
-
-const NOTIF_NAV = [
-  { label: "Alerts",    href: "/notifications"         },
-  { label: "Reminders", href: "/reminders"             },
-  { label: "Settings",  href: "/notification-settings" },
-];
-
-const ENTERPRISE_NAV = [
-  { label: "Industry Suites", href: "/vertical"                },
-  { label: "Enterprise Hub",  href: "/enterprise"              },
-  { label: "Talent Pools",    href: "/enterprise/talent-pools" },
-  { label: "SLA Dashboard",   href: "/enterprise/sla"          },
-  { label: "Global & Access", href: "/global"                  },
-];
-
-const TRUST_NAV = [
-  { label: "Proof of Human", href: "/proof-of-human" },
-];
-
-const MOBILE_NAV = [
-  { label: "Dash",    href: "/dashboard",   active: false },
-  { label: "Market",  href: "/marketplace", active: true  },
-  { label: "Matching", href: "/matching",    active: false },
-  { label: "Profile", href: "/profile",     active: false },
-];
-
 // ── Page ───────────────────────────────────────────────────────────────────
 
 export default function MarketplacePage() {
@@ -1014,92 +964,8 @@ export default function MarketplacePage() {
 
   return (
     <div className="flex flex-col lg:flex-row min-h-screen">
-      {/* Sidebar */}
-      <aside className="hidden lg:flex lg:flex-col w-56 border-r border-zinc-800 bg-zinc-950 p-4 gap-6">
-        <div className="flex items-center justify-between">
-          <span className="font-mono text-xs text-zinc-500 uppercase tracking-widest">AiStaffApp</span>
-          <span className={`font-mono text-[9px] px-1.5 py-0.5 rounded-sm border ${
-            status === "live"
-              ? "border-green-800 text-green-400"
-              : status === "demo"
-              ? "border-zinc-700 text-zinc-500"
-              : "border-zinc-800 text-zinc-700"
-          }`}>
-            {status === "live" ? "LIVE" : status === "demo" ? "DEMO" : "…"}
-          </span>
-        </div>
-        <nav className="flex flex-col gap-1">
-          {SIDEBAR_NAV.map(({ label, href, active }) => (
-            <a
-              key={label}
-              href={href}
-              className={`px-3 py-2 rounded-sm font-mono text-xs transition-colors ${
-                active
-                  ? "text-zinc-100 bg-zinc-800"
-                  : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900"
-              }`}
-            >
-              {label}
-            </a>
-          ))}
-        </nav>
-        <div className="space-y-1">
-          <p className="font-mono text-[10px] text-zinc-700 uppercase tracking-widest px-3">AI Tools</p>
-          {AI_TOOLS_NAV.map(({ label, href }) => (
-            <a key={label} href={href}
-              className="block px-3 py-1.5 rounded-sm font-mono text-xs text-zinc-600 hover:text-zinc-300 hover:bg-zinc-900 transition-colors"
-            >{label}</a>
-          ))}
-        </div>
-        <div className="space-y-1">
-          <p className="font-mono text-[10px] text-zinc-700 uppercase tracking-widest px-3">Payments</p>
-          {PAYMENTS_NAV.map(({ label, href }) => (
-            <a key={label} href={href}
-              className="block px-3 py-1.5 rounded-sm font-mono text-xs text-zinc-600 hover:text-zinc-300 hover:bg-zinc-900 transition-colors"
-            >{label}</a>
-          ))}
-        </div>
-        <div className="space-y-1">
-          <p className="font-mono text-[10px] text-zinc-700 uppercase tracking-widest px-3">Workspace</p>
-          {WORKSPACE_NAV.map(({ label, href }) => (
-            <a key={label} href={href}
-              className="block px-3 py-1.5 rounded-sm font-mono text-xs text-zinc-600 hover:text-zinc-300 hover:bg-zinc-900 transition-colors"
-            >{label}</a>
-          ))}
-        </div>
-        <div className="space-y-1">
-          <p className="font-mono text-[10px] text-zinc-700 uppercase tracking-widest px-3">Legal</p>
-          {LEGAL_NAV.map(({ label, href }) => (
-            <a key={label} href={href}
-              className="block px-3 py-1.5 rounded-sm font-mono text-xs text-zinc-600 hover:text-zinc-300 hover:bg-zinc-900 transition-colors"
-            >{label}</a>
-          ))}
-        </div>
-        <div className="space-y-1">
-          <p className="font-mono text-[10px] text-zinc-700 uppercase tracking-widest px-3">Notifications</p>
-          {NOTIF_NAV.map(({ label, href }) => (
-            <a key={label} href={href}
-              className="block px-3 py-1.5 rounded-sm font-mono text-xs text-zinc-600 hover:text-zinc-300 hover:bg-zinc-900 transition-colors"
-            >{label}</a>
-          ))}
-        </div>
-        <div className="space-y-1">
-          <p className="font-mono text-[10px] text-zinc-700 uppercase tracking-widest px-3">Enterprise</p>
-          {ENTERPRISE_NAV.map(({ label, href }) => (
-            <a key={label} href={href}
-              className="block px-3 py-1.5 rounded-sm font-mono text-xs text-zinc-600 hover:text-zinc-300 hover:bg-zinc-900 transition-colors"
-            >{label}</a>
-          ))}
-        </div>
-        <div className="space-y-1">
-          <p className="font-mono text-[10px] text-zinc-700 uppercase tracking-widest px-3">Trust</p>
-          {TRUST_NAV.map(({ label, href }) => (
-            <a key={label} href={href}
-              className="block px-3 py-1.5 rounded-sm font-mono text-xs text-zinc-600 hover:text-zinc-300 hover:bg-zinc-900 transition-colors"
-            >{label}</a>
-          ))}
-        </div>
-      </aside>
+      {/* Shared sidebar — active state driven by usePathname() */}
+      <AppSidebar status={status} />
 
       {/* Main */}
       <main className="flex-1 p-4 pb-20 lg:pb-4 space-y-4 max-w-5xl mx-auto w-full">
@@ -1274,20 +1140,8 @@ export default function MarketplacePage() {
         />
       )}
 
-      {/* Mobile bottom nav */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 h-16 flex items-center border-t border-zinc-800 bg-zinc-950">
-        {MOBILE_NAV.map(({ label, href, active }) => (
-          <a
-            key={label}
-            href={href}
-            className={`flex-1 flex flex-col items-center justify-center gap-0.5 h-full font-mono text-[10px] uppercase tracking-widest transition-colors ${
-              active ? "text-amber-400" : "text-zinc-600 hover:text-zinc-400"
-            }`}
-          >
-            {label}
-          </a>
-        ))}
-      </nav>
+      {/* Mobile bottom nav — shared, active state from usePathname() */}
+      <AppMobileNav />
     </div>
   );
 }

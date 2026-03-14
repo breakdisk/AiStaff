@@ -2,14 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { useSession, signIn } from "next-auth/react";
-import Link from "next/link";
 import {
-  ArrowLeft, Bot, Star, TrendingUp, Rocket,
+  Bot, Star, TrendingUp, Rocket,
   CheckCircle2, Clock, Shield, Github, Linkedin, CheckCheck, AlertTriangle,
   Pencil, X, Save, Loader2, DollarSign, Key, Eye, EyeOff,
 } from "lucide-react";
 import { VettingBadge }    from "@/components/VettingBadge";
 import { TrustScoreBadge } from "@/components/TrustScoreBadge";
+import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
 import {
   updateProfile, fetchPublicProfile, fetchSkillTags, fetchTalentSkills, updateTalentSkills,
   requestNonce, attestSkills, disconnectProvider,
@@ -576,36 +576,34 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950">
+    <div className="flex flex-col lg:flex-row min-h-screen bg-zinc-950">
 
-      {/* Top bar */}
-      <header className="sticky top-0 z-30 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur-sm">
-        <div className="max-w-2xl mx-auto px-4 h-12 flex items-center gap-3">
-          <Link
-            href="/dashboard"
-            className="flex items-center gap-1.5 text-zinc-500 hover:text-zinc-300 transition-colors font-mono text-xs"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            Dashboard
-          </Link>
-          <span className="text-zinc-800">/</span>
-          <span className="font-mono text-xs text-zinc-400">Profile</span>
-          <div className="ml-auto flex items-center gap-2">
-            <TrustScoreBadge score={trustScore} biometricVerified={tier === 2} />
-            {!editing && (
-              <button
-                onClick={() => setEditing(true)}
-                className="flex items-center gap-1.5 h-7 px-3 rounded-sm border border-zinc-700
-                           text-zinc-400 font-mono text-xs hover:border-zinc-500 hover:text-zinc-200 transition-colors"
-              >
-                <Pencil className="w-3 h-3" /> Edit
-              </button>
-            )}
+      {/* Shared sidebar — handles active-state via usePathname() */}
+      <AppSidebar />
+
+      {/* Content column */}
+      <div className="flex-1 flex flex-col min-h-screen">
+
+        {/* Top bar */}
+        <header className="sticky top-0 z-30 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur-sm">
+          <div className="px-4 h-12 flex items-center gap-3">
+            <span className="font-mono text-xs text-zinc-400">Profile</span>
+            <div className="ml-auto flex items-center gap-2">
+              <TrustScoreBadge score={trustScore} biometricVerified={tier === 2} />
+              {!editing && (
+                <button
+                  onClick={() => setEditing(true)}
+                  className="flex items-center gap-1.5 h-7 px-3 rounded-sm border border-zinc-700
+                             text-zinc-400 font-mono text-xs hover:border-zinc-500 hover:text-zinc-200 transition-colors"
+                >
+                  <Pencil className="w-3 h-3" /> Edit
+                </button>
+              )}
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      <main className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+        <main className="max-w-2xl mx-auto w-full px-4 py-6 space-y-6 pb-24 lg:pb-6">
 
         {/* Tier 0 banner */}
         {tier === 0 && (
@@ -912,7 +910,11 @@ export default function ProfilePage() {
           </div>
         )}
 
-      </main>
+        </main>
+      </div> {/* end content column */}
+
+      {/* Mobile bottom nav */}
+      <AppMobileNav />
     </div>
   );
 }
