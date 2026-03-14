@@ -17,6 +17,10 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NEXTAUTH_SECRET=build-placeholder
 
+# Runtime secrets — placeholders for build; real values injected by Dokploy at runtime
+ARG ANTHROPIC_API_KEY=build-placeholder
+ENV ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY
+
 # Service URL build args — docker-compose passes these via build.args
 ARG IDENTITY_SERVICE_URL=http://identity-service:3001
 ARG MARKETPLACE_SERVICE_URL=http://marketplace-service:3002
