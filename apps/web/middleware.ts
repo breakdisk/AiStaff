@@ -8,21 +8,16 @@ export default auth((req) => {
   const { pathname } = req.nextUrl;
   const isAuthenticated = !!req.auth;
 
-  // Social crawlers must reach /listings/[slug] so OG metadata is served.
-  const BOT_UA =
-    /facebookexternalhit|facebot|twitterbot|linkedinbot|whatsapp|slackbot|telegrambot|discordbot|applebot|googlebot|bingbot/i;
-  const isSocialBot = BOT_UA.test(req.headers.get("user-agent") ?? "");
-
-  // Public paths — no session required
+  // Public paths — no session required.
+  // NOTE: /listings/* is excluded from the matcher entirely so it never
+  // reaches this middleware — social crawlers are guaranteed to pass through.
   const isPublic =
     pathname === "/" ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico" ||
-    pathname.startsWith("/listings/") ||   // OG share pages — public
-    /\.(?:png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|otf)$/i.test(pathname) ||
-    isSocialBot;                           // Any social crawler — pass through
+    /\.(?:png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|otf)$/i.test(pathname);
 
   if (!isAuthenticated && !isPublic) {
     // API routes must return 401 — never redirect to login.
@@ -69,5 +64,10 @@ export default auth((req) => {
 });
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|otf)$).*)"],
+  matcher: [
+    // Exclude: static assets, images, AND /listings/* (OG share pages must be
+    // reachable by social crawlers without any auth — excluding them from the
+    // matcher is the only way to guarantee NextAuth never touches these routes).
+    "/((?!_next/static|_next/image|favicon\\.ico|listings/.*|.*\\.(?:png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|otf)$).*)",
+  ],
 };
