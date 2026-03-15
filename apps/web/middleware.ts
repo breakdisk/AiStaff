@@ -15,6 +15,7 @@ export default auth((req) => {
     pathname === "/" ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/api/stripe/webhook") || // Stripe calls this — no user session
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico" ||
     /\.(?:png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|otf)$/i.test(pathname);

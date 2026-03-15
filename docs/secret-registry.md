@@ -28,6 +28,9 @@
 | `OAUTH_GITHUB_CLIENT_SECRET` | identity_service | GitHub OAuth app client secret | 90 days |
 | `OAUTH_LINKEDIN_CLIENT_ID` | identity_service | LinkedIn OAuth app client ID | On app rotation |
 | `OAUTH_LINKEDIN_CLIENT_SECRET` | identity_service | LinkedIn OAuth app client secret | 90 days |
+| `STRIPE_SECRET_KEY` | web (server-side) | Stripe API secret key — charges, payouts, refunds | On key rotation |
+| `STRIPE_WEBHOOK_SECRET` | web (server-side) | Stripe webhook signing secret for `/api/stripe/webhook` | On endpoint re-creation |
+| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | web (build-time client bundle) | Stripe publishable key — safe to expose to browser | On key rotation |
 | `TWILIO_ACCOUNT_SID` | notification_service | Twilio account SID for SMS + WhatsApp | On account change |
 | `TWILIO_AUTH_TOKEN` | notification_service | Twilio auth token | 90 days |
 | `TWILIO_FROM_NUMBER` | notification_service | Twilio SMS sender number (E.164) | On number change |

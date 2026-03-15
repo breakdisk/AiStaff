@@ -21,6 +21,11 @@ ENV NEXTAUTH_SECRET=build-placeholder
 ARG ANTHROPIC_API_KEY=build-placeholder
 ENV ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY
 
+# Stripe — NEXT_PUBLIC_* is baked into the client bundle at build time.
+# STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET are runtime-only; inject via environment.
+ARG NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_placeholder
+ENV NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=$NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+
 # Service URL build args — docker-compose passes these via build.args
 ARG IDENTITY_SERVICE_URL=http://identity-service:3001
 ARG MARKETPLACE_SERVICE_URL=http://marketplace-service:3002

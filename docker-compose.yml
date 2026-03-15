@@ -325,6 +325,9 @@ services:
         PAYOUT_SERVICE_URL:       http://payout-service:3010
         COMMUNITY_SERVICE_URL:    http://community-service:3011
         NOTIFICATION_SERVICE_URL: http://notification-service:3012
+        # Stripe publishable key is NEXT_PUBLIC_* — must be a build arg so Next.js
+        # bakes it into the client bundle at `next build` time.
+        NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY:-pk_test_placeholder}
     environment:
       NODE_ENV: production
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
@@ -342,6 +345,9 @@ services:
       LINKEDIN_CLIENT_SECRET: ${LINKEDIN_CLIENT_SECRET}
       # Anthropic — required for LangGraph routes (/api/pm-agent, /api/proposal-copilot)
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # Stripe — runtime server-side secrets (never exposed to client bundle)
+      STRIPE_SECRET_KEY:       ${STRIPE_SECRET_KEY}
+      STRIPE_WEBHOOK_SECRET:   ${STRIPE_WEBHOOK_SECRET}
       # Backend service URLs — Docker container names
       IDENTITY_SERVICE_URL:     http://identity-service:3001
       MARKETPLACE_SERVICE_URL:  http://marketplace-service:3002
