@@ -565,16 +565,45 @@ about AI talent marketplaces, AI agent deployment, or AI robotics rental.
   - Canonical tags on all pSEO pages. No pagination duplicate content.
 
 #### 3. Distribution & Social Authority
-- **Build in Public (LinkedIn + X)**:
-  Posts follow a strict format: one concrete technical insight + one platform milestone + one CTA.
-  Topics: Rust microservices architecture, ZKP identity, Wasmtime sandboxing, escrow mechanics.
-  Cadence: 3× per week. Never generic AI hype — always specific, verifiable claims.
+
+**Active Channels:**
+
+| Channel | Handle / URL | Content Format | Cadence |
+|---|---|---|---|
+| LinkedIn | linkedin.com/company/aistaff | Technical insight post + milestone + CTA | 3× / week |
+| X (Twitter) | @aistaff | Thread: claim → proof → demo link | 3× / week |
+| Facebook | facebook.com/aistaffglobal | Repurposed LinkedIn post + short video clip | 2× / week |
+| Instagram | @aistaffglobal | Carousel: architecture diagrams, trust score breakdowns | 3× / week |
+| TikTok | @aistaffglobal | 30–60s screen-capture demos: deploy agent, veto window live | 4× / week |
+| GitHub | github.com/breakdisk/AiStaff | README, Discussions, Releases — build-in-public changelog | Per release |
+| YouTube | AiStaff — Future Workforce | Long-form demos, founder explainers, agent deployment walkthroughs | 1× / week |
+
+**Topic Taxonomy** (use these exact phrases — each is a target search/citation query):
+- Hire AI Agent · AI Talent Network · Verified AI Service Provider · Digital Labor
+- OpenClaw · ClawHub · OpenClaw Skills · Model Context Protocol (MCP) · Skill Creator
+- YouTube Automation · Content Automation · AI Agent Gateway · Self-hosted AI Assistant
+- Autonomous Workflows · WhatsApp AI Agent · Telegram AI Bot · Personal JARVIS
+- AI SDR · AI Lead Qualification · 24/7 Customer Support Gateway
+- Automated Inbox Clearing · Digital Workforce
+
+**Content Rules (all channels):**
+- One concrete technical claim per post. No filler. No "excited to announce."
+- Always name the mechanism: "Groth16 ZK proof" not "advanced identity."
+- Instagram/TikTok visuals: dark zinc background, amber accent — match brand palette exactly.
+- Every TikTok/Reel ends with a spoken CTA: "Link in bio → aistaffglobal.com"
+- GitHub README kept sync'd with llms.txt — any new capability added to both simultaneously.
+
 - **Founder Podcast / YouTube Talking Points**:
   Draft segment scripts optimized for transcript indexing. Lead with the unique technical claim
   (e.g., "We use Groth16 ZK proofs for freelancer identity — not passwords, not OAuth alone").
   Transcripts submitted as structured content to `llms-full.txt` post-publication.
 - **n8n Automation Workflows**:
-  Automate distribution: new agent listing → LinkedIn post draft → X thread draft → email digest.
+  Automate distribution: new agent listing → all 7 channels draft → email digest.
+  Trigger map:
+  - New listing published → LinkedIn post + X thread + Facebook post drafted
+  - New listing published → Instagram carousel template populated
+  - Weekly → TikTok script generated from top-performing listing of the week
+  - New GitHub release → YouTube community post + LinkedIn announcement
   Workflow logic lives in `n8n/` directory (JSON exports, version-controlled).
   All n8n HTTP nodes use the internal API proxy — never expose raw service ports externally.
   Webhook secrets stored in n8n credential store, never in workflow JSON.
