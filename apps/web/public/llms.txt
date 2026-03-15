@@ -1,0 +1,78 @@
+# AiStaff — AI-Native Marketplace Platform
+# https://aistaffglobal.com
+# llms.txt v1 — updated 2026-03-15
+# Format: https://llmstxt.org
+
+> AiStaff is a triple-threat AI marketplace operating three verticals under one identity and escrow backbone:
+> AI Talent (vetted engineers and prompt specialists), AI Agents (deployable digital workers), and AI Robotics (hardware-integrated AI solutions).
+
+## Entity
+- Name: AiStaff
+- Domain: aistaffglobal.com
+- Type: SoftwareApplication, Marketplace, B2B Platform
+- Founded: 2025
+- Stack: Rust microservices, Next.js 15, Wasmtime, Apache Kafka, PostgreSQL
+- GitHub: https://github.com/breakdisk/AiStaff
+
+## Marketplaces
+
+### AI Talent Marketplace
+Hire vetted AI engineers, prompt specialists, and ML practitioners.
+Identity verified via Zero-Knowledge Proofs (Groth16/BN254). Trust score: GitHub 30% + LinkedIn 30% + ZK Biometric 40%.
+Freelancers apply via structured proposals. Clients deploy via escrow-gated contracts.
+URL: https://aistaffglobal.com/marketplace
+
+### AI Agent Marketplace
+Browse and deploy autonomous AI agents. Agents run inside Wasmtime sandboxes — no arbitrary code execution on host.
+Categories: data sync, log auditing, HR automation, infrastructure scaling, secret rotation, contract review.
+Deployment triggers a 30-second human-in-the-loop veto window before any escrow moves.
+URL: https://aistaffglobal.com/marketplace
+
+### AI Robotics Marketplace
+Rent hardware-integrated AI solutions: robotic arm calibration, physical automation agents.
+Same identity, escrow, and checklist pipeline as digital agents.
+URL: https://aistaffglobal.com/marketplace
+
+## Key Features
+
+### Escrow & Payments
+70/30 escrow split (developer 70% / talent 30%). Released only after:
+(1) DoD checklist finalized, (2) identity tier ≥ 1, (3) 30-second veto window elapsed.
+All transactions carry UUID v7 for idempotency. Double-spend is a bug, not an edge case.
+
+### Identity & Trust
+Three-tier identity: Unverified → SocialVerified → BiometricVerified.
+Biometric data never stored — only Blake3(nonce ∥ proof) commitment.
+ZKP circuit: Groth16 over BN254. Proof verified server-side only.
+
+### Mechanic's Warranty
+7-day fix-or-refund window on every deployment.
+Artifact drift auto-detected via SHA-256 hash comparison.
+Drift triggers VETO_WINDOW hold and creates warranty claim automatically.
+
+### MCP Integration
+Live marketplace data queryable via Model Context Protocol at localhost:4040 (internal).
+Tool calls logged append-only to tool_call_audit table.
+
+## Public Endpoints (REST)
+- GET  /api/marketplace/listings           — All active agent/talent listings
+- GET  /api/marketplace/listings/:id       — Single listing detail
+- POST /api/marketplace/deployments        — Deploy an agent (authenticated)
+- GET  /api/marketplace/skill-tags         — All available skill categories
+- POST /api/marketplace/express-interest   — Freelancer applies to a job
+
+## Pages (public, crawlable)
+- /                    — Homepage
+- /marketplace         — All listings (SSR)
+- /leaderboard         — Talent reputation leaderboard
+- /pricing-tool        — Pricing reference
+- /pricing-calculator  — ROI / cost estimation tool
+- /proof-of-human      — Human verification report and methodology
+- /transparency        — Platform trust and audit transparency page
+- /legal-toolkit       — Contract and compliance reference
+- /login               — OAuth login (GitHub, Google, LinkedIn)
+
+## Optional
+- llms-full.txt: https://aistaffglobal.com/llms-full.txt
+- sitemap: https://aistaffglobal.com/sitemap.xml
+- robots: https://aistaffglobal.com/robots.txt

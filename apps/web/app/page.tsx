@@ -721,11 +721,118 @@ function Footer() {
   );
 }
 
+// ── JSON-LD ───────────────────────────────────────────────────────────────────
+
+const JSON_LD = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://aistaffglobal.com/#software",
+      "name": "AiStaff",
+      "url": "https://aistaffglobal.com",
+      "description": "AI-native B2B marketplace for AI talent, autonomous AI agents, and AI robotics. Escrow-backed deployments with ZK biometric identity and a 30-second human veto window.",
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "Web",
+      "offers": {
+        "@type": "AggregateOffer",
+        "priceCurrency": "USD",
+        "lowPrice": "0",
+        "highPrice": "199",
+        "offerCount": "3",
+      },
+    },
+    {
+      "@type": "OfferCatalog",
+      "@id": "https://aistaffglobal.com/#catalog",
+      "name": "AiStaff Marketplace Catalog",
+      "description": "Three product verticals: AI Talent (vetted engineers), AI Agents (deployable digital workers), AI Robotics (hardware-integrated AI).",
+      "itemListElement": [
+        {
+          "@type": "Offer",
+          "name": "AiTalent — Vetted AI Engineers",
+          "description": "Hire ZK-verified AI engineers and prompt specialists. Trust score: GitHub 30% + LinkedIn 30% + ZK Biometric 40%. Escrow-backed, 7-day warranty.",
+          "url": "https://aistaffglobal.com/marketplace",
+          "category": "AI Talent",
+        },
+        {
+          "@type": "Offer",
+          "name": "AiStaff — Autonomous AI Agents",
+          "description": "Deploy Wasmtime-sandboxed AI agents for finance, legal, HR, and infrastructure. Jurisdiction-locked licenses, deterministic audit trail, drift detection.",
+          "url": "https://aistaffglobal.com/marketplace",
+          "category": "AI Agents",
+        },
+        {
+          "@type": "Offer",
+          "name": "AiRobot — AI Robotics Rental",
+          "description": "Rent hardware-integrated AI solutions for manufacturing, logistics, and inspection. Real-time telemetry, remote veto control, hardware-in-loop testing.",
+          "url": "https://aistaffglobal.com/marketplace",
+          "category": "AI Robotics",
+        },
+      ],
+    },
+    {
+      "@type": "Organization",
+      "@id": "https://aistaffglobal.com/#org",
+      "name": "AiStaff",
+      "url": "https://aistaffglobal.com",
+      "logo": "https://aistaffglobal.com/logo.png",
+      "sameAs": [
+        "https://github.com/breakdisk/AiStaff",
+        "https://www.linkedin.com/company/aistaff",
+        "https://twitter.com/aistaff",
+      ],
+      "description": "AiStaff operates AI Talent, AI Agent, and AI Robotics marketplaces with escrow-backed deployments, ZK biometric identity, and human-in-the-loop veto controls.",
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "How does AiStaff escrow work?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Every deployment on AiStaff uses a 70/30 escrow split: 70% to the developer, 30% to the talent. Funds release only after the DoD checklist is finalized, both parties hold identity tier ≥ 1, and a mandatory 30-second human veto window elapses without cancellation.",
+          },
+        },
+        {
+          "@type": "Question",
+          "name": "How does AiStaff verify AI talent identity?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "AiStaff uses a three-tier identity system: Unverified, SocialVerified, and BiometricVerified. Trust scores combine GitHub activity (30%), LinkedIn profile (30%), and Zero-Knowledge Proof biometric verification (40%). Biometric data is never stored — only a cryptographic commitment is persisted.",
+          },
+        },
+        {
+          "@type": "Question",
+          "name": "What is the Mechanic's Warranty on AI agent deployments?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Every AI agent deployment on AiStaff includes a 7-day Mechanic's Warranty. If the deployed agent's artifact hash diverges from its original (artifact drift), a warranty claim is automatically triggered and escrow is frozen until resolution: REMEDIATED, REFUNDED, or REJECTED.",
+          },
+        },
+        {
+          "@type": "Question",
+          "name": "What is the 30-second veto window?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Before any escrow release, AiStaff enforces a mandatory 30-second pause. A human operator can cancel the payout during this window. This Human-in-the-Loop (HITL) control prevents autonomous AI agents from releasing funds without human oversight.",
+          },
+        },
+      ],
+    },
+  ],
+};
+
 // ── Root Page ─────────────────────────────────────────────────────────────────
 
 export default function LandingPage() {
   return (
     <main className="min-h-screen bg-zinc-950 overflow-x-hidden">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }}
+      />
       <Nav />
       <Hero />
       <Categories />
