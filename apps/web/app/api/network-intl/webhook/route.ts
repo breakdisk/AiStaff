@@ -34,7 +34,7 @@ const WEBHOOK_SECRET    = process.env.NETWORK_INTL_WEBHOOK_SECRET    ?? "";
 // ── Auth ─────────────────────────────────────────────────────────────────────
 
 async function getAccessToken(): Promise<string> {
-  const encoded = Buffer.from(API_KEY).toString("base64");
+  const encoded = Buffer.from(`${API_KEY}:`).toString("base64");
   const res = await fetch(`${API_BASE}/identity/auth/access-token`, {
     method:  "POST",
     headers: {

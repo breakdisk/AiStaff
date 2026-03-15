@@ -28,7 +28,7 @@ const APP_URL         = process.env.NEXTAUTH_URL                  ?? "http://loc
 // ── Auth (same helper as checkout route) ─────────────────────────────────────
 
 async function getAccessToken(): Promise<string> {
-  const encoded = Buffer.from(API_KEY).toString("base64");
+  const encoded = Buffer.from(`${API_KEY}:`).toString("base64");
   const res = await fetch(`${API_BASE}/identity/auth/access-token`, {
     method:  "POST",
     headers: {

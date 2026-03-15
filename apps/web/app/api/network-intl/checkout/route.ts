@@ -22,16 +22,19 @@ const APP_URL    = process.env.NEXTAUTH_URL             ?? "http://localhost:300
 
 /**
  * Exchange the API key for a short-lived bearer token (TTL: 5 min).
- * N-Genius auth uses `Authorization: Basic {base64(apiKey)}`.
+ * N-Genius Basic auth format: base64("apiKey:") — key + colon, empty password.
+ * No request body — credentials are carried entirely in the Authorization header.
  */
 async function getAccessToken(): Promise<string> {
-  const encoded = Buffer.from(API_KEY).toString("base64");
+  // HTTP Basic auth: base64(username:password). N-Genius uses apiKey as username, no password.
+  const encoded = Buffer.from(`${API_KEY}:`).toString("base64");
   const res = await fetch(`${API_BASE}/identity/auth/access-token`, {
     method:  "POST",
     headers: {
       "Authorization": `Basic ${encoded}`,
       "Content-Type":  "application/vnd.ni-identity.v1+json",
     },
+    // No body — N-Genius access-token endpoint takes credentials from header only
     signal: AbortSignal.timeout(10_000),
   });
 
