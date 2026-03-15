@@ -18,6 +18,7 @@ export default auth((req) => {
     pathname.startsWith("/api/stripe/webhook")       || // Stripe server — no user session
     pathname.startsWith("/api/network-intl/webhook") || // N-Genius server — no user session
     pathname.startsWith("/api/network-intl/callback") || // browser redirect-back after N-Genius payment
+    pathname.startsWith("/api/network-intl/test")     || // diagnostic — remove after confirming auth
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico" ||
     /\.(?:png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|otf)$/i.test(pathname);
