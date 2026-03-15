@@ -1024,7 +1024,7 @@ export default function MarketplacePage() {
         )}
 
         {/* Category tabs */}
-        <div className="flex items-center gap-1">
+        <div className="flex flex-wrap items-center gap-1 w-full">
           {(["All", "AiTalent", "AiStaff", "AiRobot"] as CategoryFilter[]).map((cat) => {
             const meta = cat === "All" ? null : CATEGORY_META[cat];
             const Icon = meta?.icon;
@@ -1052,7 +1052,7 @@ export default function MarketplacePage() {
 
           {/* Seller type filter — right-aligned */}
           <div className="ml-auto flex items-center gap-1">
-            {(["All", "Agency", "Freelancer"] as (SellerFilter)[]).map((st) => {
+            {(["All", "Agency"] as (SellerFilter)[]).map((st) => {
               const meta = st !== "All" ? SELLER_META[st as SellerType] : null;
               const Icon = meta?.icon;
               const active = sellerFilter === st;
