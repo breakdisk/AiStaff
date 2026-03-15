@@ -31,6 +31,9 @@
 | `STRIPE_SECRET_KEY` | web (server-side) | Stripe API secret key — charges, payouts, refunds | On key rotation |
 | `STRIPE_WEBHOOK_SECRET` | web (server-side) | Stripe webhook signing secret for `/api/stripe/webhook` | On endpoint re-creation |
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | web (build-time client bundle) | Stripe publishable key — safe to expose to browser | On key rotation |
+| `NETWORK_INTL_API_KEY` | web (server-side) | N-Genius Service Account API key — used to obtain bearer tokens | On key rotation |
+| `NETWORK_INTL_OUTLET_REF` | web (server-side) | N-Genius outlet reference ID (from merchant portal) | On outlet change |
+| `NETWORK_INTL_API_BASE` | web (server-side) | N-Genius API base URL (sandbox vs production) | On environment change |
 | `TWILIO_ACCOUNT_SID` | notification_service | Twilio account SID for SMS + WhatsApp | On account change |
 | `TWILIO_AUTH_TOKEN` | notification_service | Twilio auth token | 90 days |
 | `TWILIO_FROM_NUMBER` | notification_service | Twilio SMS sender number (E.164) | On number change |
