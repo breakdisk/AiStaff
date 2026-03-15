@@ -354,6 +354,8 @@ services:
       # Sandbox: https://api-gateway.sandbox.ngenius-payments.com
       # Production: https://api-gateway.ngenius-payments.com
       NETWORK_INTL_API_BASE:   ${NETWORK_INTL_API_BASE:-https://api-gateway.sandbox.ngenius-payments.com}
+      # Custom webhook auth header value — must match Header Value in N-Genius portal
+      NETWORK_INTL_WEBHOOK_SECRET: ${NETWORK_INTL_WEBHOOK_SECRET:-}
       # Backend service URLs — Docker container names
       IDENTITY_SERVICE_URL:     http://identity-service:3001
       MARKETPLACE_SERVICE_URL:  http://marketplace-service:3002

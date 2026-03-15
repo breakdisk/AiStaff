@@ -22,10 +22,14 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { v7 as uuidv7 } from "uuid";
 
-const API_BASE        = process.env.NETWORK_INTL_API_BASE        ?? "https://api-gateway.sandbox.ngenius-payments.com";
-const API_KEY         = process.env.NETWORK_INTL_API_KEY         ?? "";
-const OUTLET_REF      = process.env.NETWORK_INTL_OUTLET_REF      ?? "";
-const MARKETPLACE_URL = process.env.MARKETPLACE_SERVICE_URL      ?? "http://localhost:3002";
+const API_BASE          = process.env.NETWORK_INTL_API_BASE          ?? "https://api-gateway.sandbox.ngenius-payments.com";
+const API_KEY           = process.env.NETWORK_INTL_API_KEY           ?? "";
+const OUTLET_REF        = process.env.NETWORK_INTL_OUTLET_REF        ?? "";
+const MARKETPLACE_URL   = process.env.MARKETPLACE_SERVICE_URL        ?? "http://localhost:3002";
+// Custom header configured in N-Genius portal → Settings → Integrations → Webhooks
+// Header Key:   X-Webhook-Secret
+// Header Value: <value of NETWORK_INTL_WEBHOOK_SECRET env var>
+const WEBHOOK_SECRET    = process.env.NETWORK_INTL_WEBHOOK_SECRET    ?? "";
 
 // ── Auth ─────────────────────────────────────────────────────────────────────
 
@@ -145,8 +149,22 @@ async function ensureDeploymentExists(payload: NGenius_WebhookPayload): Promise<
 // ── Handler ───────────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  // Respond immediately — N-Genius requires HTTP 200 within 15 seconds.
-  // Heavy work (deployment creation) is awaited but within that budget.
+  // ── Custom header authentication ─────────────────────────────────────────
+  // N-Genius sends the Header Key/Value you configured in the portal.
+  // Header Key:   X-Webhook-Secret
+  // Header Value: NETWORK_INTL_WEBHOOK_SECRET env var
+  if (WEBHOOK_SECRET) {
+    const incoming = req.headers.get("x-webhook-secret") ?? "";
+    if (incoming !== WEBHOOK_SECRET) {
+      console.error("[network-intl/webhook] invalid webhook secret — request rejected");
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+  } else {
+    // Secret not configured — log a warning but allow through (dev/sandbox only).
+    console.warn("[network-intl/webhook] NETWORK_INTL_WEBHOOK_SECRET not set — skipping auth (set in production)");
+  }
+
+  // Respond quickly — N-Genius requires HTTP 200 within 15 seconds.
   const body = await req.text();
 
   let payload: NGenius_WebhookPayload;
