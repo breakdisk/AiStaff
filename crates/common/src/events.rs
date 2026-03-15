@@ -94,14 +94,16 @@ pub struct ReleaseEscrow {
     pub reason: String,
 }
 
-/// Full 70/30 split release event.
+/// Full escrow split release event: 15% platform commission + 70/30 of remainder.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EscrowRelease {
-    pub deployment_id: Uuid,
-    pub developer_id: Uuid,
+    pub deployment_id:   Uuid,
+    pub developer_id:    Uuid,
     pub developer_cents: u64,
-    pub talent_id: Uuid,
-    pub talent_cents: u64,
+    pub talent_id:       Uuid,
+    pub talent_cents:    u64,
+    /// Platform's 15% commission. Recorded in `platform_fees` table.
+    pub platform_cents:  u64,
 }
 
 // ── v2 Topic constants ────────────────────────────────────────────────────────

@@ -72,28 +72,43 @@ async fn process_release_escrow(db: &PgPool, ev: &ReleaseEscrow) -> anyhow::Resu
     Ok(())
 }
 
-/// Handles the 70/30 split release from VetoFirst payout service.
+/// Handles the escrow release from VetoFirst payout service.
+/// Inserts three rows atomically in one transaction:
+///   1. Developer payout  (~59.5% of total — 70% of post-commission remainder)
+///   2. Talent payout     (~25.5% of total — 30% of post-commission remainder)
+///   3. Platform fee      (15% of total — recorded in platform_fees)
 async fn process_escrow_release(db: &PgPool, ev: &EscrowRelease) -> anyhow::Result<()> {
-    // Insert two payout rows atomically
     let mut tx = db.begin().await?;
 
-    sqlx::query!(
+    // Developer payout — non-macro: new query string not yet in .sqlx/ cache
+    sqlx::query(
         "INSERT INTO escrow_payouts (deployment_id, recipient_id, amount_cents, reason, created_at)
-         VALUES ($1, $2, $3, 'developer_70_pct', NOW())",
-        ev.deployment_id,
-        ev.developer_id,
-        ev.developer_cents as i64,
+         VALUES ($1, $2, $3, 'developer_pct', NOW())",
     )
+    .bind(ev.deployment_id)
+    .bind(ev.developer_id)
+    .bind(ev.developer_cents as i64)
     .execute(&mut *tx)
     .await?;
 
-    sqlx::query!(
+    // Talent payout — non-macro: new query string not yet in .sqlx/ cache
+    sqlx::query(
         "INSERT INTO escrow_payouts (deployment_id, recipient_id, amount_cents, reason, created_at)
-         VALUES ($1, $2, $3, 'talent_30_pct', NOW())",
-        ev.deployment_id,
-        ev.talent_id,
-        ev.talent_cents as i64,
+         VALUES ($1, $2, $3, 'talent_pct', NOW())",
     )
+    .bind(ev.deployment_id)
+    .bind(ev.talent_id)
+    .bind(ev.talent_cents as i64)
+    .execute(&mut *tx)
+    .await?;
+
+    // Platform commission (15%) — separate append-only ledger; non-macro (new table)
+    sqlx::query(
+        "INSERT INTO platform_fees (deployment_id, fee_cents, fee_pct, created_at)
+         VALUES ($1, $2, 15, NOW())",
+    )
+    .bind(ev.deployment_id)
+    .bind(ev.platform_cents as i64)
     .execute(&mut *tx)
     .await?;
 
@@ -101,9 +116,10 @@ async fn process_escrow_release(db: &PgPool, ev: &EscrowRelease) -> anyhow::Resu
 
     info!(
         deployment_id = %ev.deployment_id,
-        dev_cents = ev.developer_cents,
-        talent_cents = ev.talent_cents,
-        "70/30 escrow split recorded"
+        platform_cents = ev.platform_cents,
+        dev_cents      = ev.developer_cents,
+        talent_cents   = ev.talent_cents,
+        "Escrow split recorded: 15% platform + 70/30 of remainder"
     );
     Ok(())
 }

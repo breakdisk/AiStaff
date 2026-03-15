@@ -100,15 +100,26 @@ function PayForm({
           </span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="font-mono text-[10px] text-zinc-600">Developer (70%)</span>
-          <span className="font-mono text-[10px] text-zinc-500">
-            ${(amountCents * 0.70 / 100).toFixed(2)}
+          <span className="font-mono text-[10px] text-zinc-500">Platform commission (15%)</span>
+          <span className="font-mono text-[10px] text-amber-500">
+            ${(Math.floor(amountCents * 15 / 100) / 100).toFixed(2)}
           </span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="font-mono text-[10px] text-zinc-600">Installer (30%)</span>
+          <span className="font-mono text-[10px] text-zinc-600">Developer (70% of net)</span>
           <span className="font-mono text-[10px] text-zinc-500">
-            ${(amountCents * 0.30 / 100).toFixed(2)}
+            ${(Math.floor((amountCents - Math.floor(amountCents * 15 / 100)) * 70 / 100) / 100).toFixed(2)}
+          </span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="font-mono text-[10px] text-zinc-600">Installer (30% of net)</span>
+          <span className="font-mono text-[10px] text-zinc-500">
+            {(() => {
+              const platform = Math.floor(amountCents * 15 / 100);
+              const remaining = amountCents - platform;
+              const dev = Math.floor(remaining * 70 / 100);
+              return `$${((remaining - dev) / 100).toFixed(2)}`;
+            })()}
           </span>
         </div>
         <div className="pt-1 border-t border-zinc-800">

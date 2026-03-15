@@ -134,7 +134,8 @@ async fn handle_deployment_complete(
 
             if skip_biometric {
                 info!(%did, "Veto window elapsed — releasing escrow (biometric skipped)");
-                let (dev_cents, talent_cents) = split_70_30(event.total_cents);
+                let (platform_cents, dev_cents, talent_cents) =
+                    split_with_commission(event.total_cents);
 
                 let release = EscrowRelease {
                     deployment_id:   did,
@@ -142,6 +143,7 @@ async fn handle_deployment_complete(
                     developer_cents: dev_cents,
                     talent_id:       event.talent_id,
                     talent_cents,
+                    platform_cents,
                 };
 
                 let env = EventEnvelope::new("EscrowRelease", &release);
@@ -153,7 +155,8 @@ async fn handle_deployment_complete(
                 }
 
                 set_state(&db, did, "RELEASED").await.ok();
-                info!(%did, dev_cents, talent_cents, "Escrow RELEASED 70/30 (veto-first)");
+                info!(%did, platform_cents, dev_cents, talent_cents,
+                    "Escrow RELEASED 15/59.5/25.5 (veto-first)");
             } else {
                 // Full ZK biometric flow — requires SKIP_BIOMETRIC=false in env.
                 info!(%did, "Veto window elapsed — awaiting biometric sign-off");
@@ -168,7 +171,8 @@ async fn handle_deployment_complete(
                 match bio_result {
                     Ok(Some(bio)) => match verify_zk_proof(&bio) {
                         Ok(true) => {
-                            let (dev_cents, talent_cents) = split_70_30(event.total_cents);
+                            let (platform_cents, dev_cents, talent_cents) =
+                                split_with_commission(event.total_cents);
 
                             let release = EscrowRelease {
                                 deployment_id:   did,
@@ -176,6 +180,7 @@ async fn handle_deployment_complete(
                                 developer_cents: dev_cents,
                                 talent_id:       event.talent_id,
                                 talent_cents,
+                                platform_cents,
                             };
 
                             let env = EventEnvelope::new("EscrowRelease", &release);
@@ -187,7 +192,8 @@ async fn handle_deployment_complete(
                             }
 
                             set_state(&db, did, "RELEASED").await.ok();
-                            info!(%did, dev_cents, talent_cents, "Escrow RELEASED 70/30");
+                            info!(%did, platform_cents, dev_cents, talent_cents,
+                                "Escrow RELEASED 15/59.5/25.5 (ZK verified)");
                         }
                         Ok(false) => {
                             error!(%did, "ZK proof invalid — marking FAILED");
@@ -237,11 +243,16 @@ fn verify_zk_proof(bio: &BiometricSignoff) -> anyhow::Result<bool> {
     Ok(valid)
 }
 
-/// Pure escrow split — keeps integer arithmetic exact.
-pub fn split_70_30(total_cents: u64) -> (u64, u64) {
-    let dev_cents = total_cents * 70 / 100;
-    let talent_cents = total_cents - dev_cents; // remainder goes to talent
-    (dev_cents, talent_cents)
+/// Three-way escrow split: 15% platform commission, then 70/30 of remainder.
+/// Returns `(platform_cents, dev_cents, talent_cents)`.
+/// Uses integer truncation throughout — never rounds up (CLAUDE.md §2).
+/// Remainder (mod rounding) flows to talent, keeping the sum exact.
+pub fn split_with_commission(total_cents: u64) -> (u64, u64, u64) {
+    let platform_cents = total_cents * 15 / 100;
+    let remaining      = total_cents - platform_cents;
+    let dev_cents      = remaining * 70 / 100;
+    let talent_cents   = remaining - dev_cents; // remainder — lossless
+    (platform_cents, dev_cents, talent_cents)
 }
 
 async fn set_state(db: &PgPool, id: Uuid, state: &str) -> anyhow::Result<()> {
@@ -257,35 +268,52 @@ async fn set_state(db: &PgPool, id: Uuid, state: &str) -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod trust_engine {
-    use super::split_70_30;
+    use super::split_with_commission;
 
     #[test]
     fn standard_split() {
-        let (dev, talent) = split_70_30(10_000);
-        assert_eq!(dev, 7_000);
-        assert_eq!(talent, 3_000);
-        assert_eq!(dev + talent, 10_000);
+        // $100.00: platform=$15.00, dev=$59.50, talent=$25.50
+        let (platform, dev, talent) = split_with_commission(10_000);
+        assert_eq!(platform, 1_500);
+        assert_eq!(dev,      5_950);
+        assert_eq!(talent,   2_550);
+        assert_eq!(platform + dev + talent, 10_000);
     }
 
     #[test]
     fn no_penny_lost() {
-        // Odd amounts: remainder goes to talent, total is preserved
-        let (dev, talent) = split_70_30(101);
-        assert_eq!(dev + talent, 101);
-        assert!(dev >= 70); // approximately 70%
+        // Arbitrary amounts: sum must always equal total (lossless)
+        for total in [1u64, 7, 99, 101, 999, 10_001, 1_000_003] {
+            let (p, d, t) = split_with_commission(total);
+            assert_eq!(p + d + t, total, "lossless for {total}");
+        }
     }
 
     #[test]
     fn zero_total() {
-        let (dev, talent) = split_70_30(0);
-        assert_eq!(dev, 0);
-        assert_eq!(talent, 0);
+        let (platform, dev, talent) = split_with_commission(0);
+        assert_eq!(platform, 0);
+        assert_eq!(dev,      0);
+        assert_eq!(talent,   0);
     }
 
     #[test]
     fn large_contract() {
-        let (dev, talent) = split_70_30(1_000_000_00); // $1M in cents
-        assert_eq!(dev, 700_000_00);
-        assert_eq!(talent, 300_000_00);
+        // $1M: platform=$150k, dev=$595k, talent=$255k
+        let (platform, dev, talent) = split_with_commission(100_000_000);
+        assert_eq!(platform, 15_000_000);
+        assert_eq!(dev,      59_500_000);
+        assert_eq!(talent,   25_500_000);
+        assert_eq!(platform + dev + talent, 100_000_000);
+    }
+
+    #[test]
+    fn commission_pct_is_exactly_15() {
+        // Platform must never exceed 15% (truncation, never rounds up)
+        for total in [100u64, 333, 1_000, 9_999, 100_000] {
+            let (platform, _, _) = split_with_commission(total);
+            assert!(platform <= total * 15 / 100 + 1,
+                "platform {platform} exceeds 15% of {total}");
+        }
     }
 }
