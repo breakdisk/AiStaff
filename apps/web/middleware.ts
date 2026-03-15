@@ -70,6 +70,6 @@ export const config = {
     // Exclude: static assets, images, AND /listings/* (OG share pages must be
     // reachable by social crawlers without any auth — excluding them from the
     // matcher is the only way to guarantee NextAuth never touches these routes).
-    "/((?!_next/static|_next/image|favicon\\.ico|listings/.*|.*\\.(?:png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|otf)$).*)",
+    "/((?!_next/static|_next/image|favicon\\.ico|icon|apple-icon|sitemap\\.xml|robots\\.txt|llms.*|listings/.*|.*\\.(?:png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|otf)$).*)",
   ],
 };
