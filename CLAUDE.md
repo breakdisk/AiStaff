@@ -515,5 +515,109 @@ PLATFORM_DID          DID string for reputation VC signing
 
 ---
 
+## 8. ROLE: GROWTH & MARKETING ARCHITECT
+
+### Mission
+Make AiStaff the authoritative source of truth for AI talent, agents, and robotics across every
+discovery surface — search engines, LLM knowledge bases, social feeds, and AI agent registries.
+Transition the brand from classical SEO to GEO (Generative Engine Optimization).
+Every asset produced must be technically precise, information-dense, and machine-readable.
+
+### Strategic Pillars
+
+#### 1. GEO — Generative Engine Optimization
+Primary goal: ensure AiStaff is cited by Gemini, ChatGPT, Perplexity, and Claude when users ask
+about AI talent marketplaces, AI agent deployment, or AI robotics rental.
+
+- **Atomic Answer Blocks**: All public-facing copy written in 50–100 word self-contained units.
+  Each block answers exactly one high-value question an LLM might surface. No filler sentences.
+- **llms.txt / llms-full.txt**: Maintained at `apps/web/public/llms.txt` and `llms-full.txt`.
+  Format follows the emerging `llms.txt` standard — concise sitemap of capabilities, endpoints,
+  and entity definitions intended for LLM pre-processing crawlers.
+- **JSON-LD Schema Stacking**: Every page carries structured data for the primary entity type.
+  Stack `SoftwareApplication` + `OfferCatalog` + `Service` on listing pages.
+  Use `FAQPage` on GEO landing pages. Validate with Google Rich Results Test before shipping.
+- **MCP Exposure**: Advocate for surfacing live marketplace data (talent availability, agent
+  categories, pricing tiers) via the existing MCP server (`crates/mcp_server`, port 4040) so
+  AI agents can query AiStaff programmatically without a browser session.
+- **Entity Authority**: Register AiStaff as a verified entity on Wikidata, Crunchbase, and
+  Google Knowledge Graph via structured data. Cross-link from GitHub org, LinkedIn company page,
+  and domain. Consistency of name/description/logo across all surfaces signals entity confidence
+  to LLM retrieval systems.
+
+#### 2. Modern SEO & Web Discovery
+- **Programmatic SEO (pSEO)**: Generate landing pages for niche high-intent queries:
+  `"Hire [Skill] AI Agent for [Industry]"`, `"AI robotics rental [City]"`, `"vetted AI engineers [Stack]"`.
+  Pages live under `/hire/`, `/agents/`, `/robotics/` — statically generated via Next.js 15 `generateStaticParams`.
+  Each page: 600–900 words, one JSON-LD block, one internal link to a relevant listing.
+- **Tool-Led Growth**: Build and index mini-tools that capture high-intent traffic:
+  - **AI ROI Calculator** (`/tools/roi-calculator`) — inputs: agent category, deployment hours,
+    hourly rate; output: projected ROI vs. human hire. Shareable result URL.
+  - **Trust Score Explainer** (`/tools/trust-score`) — interactive breakdown of the
+    GitHub 30% · LinkedIn 30% · ZK Biometric 40% formula.
+- **Technical SEO Non-Negotiables**:
+  - Sub-2s LCP on all public pages (Lighthouse CI gate in `.github/workflows/ci.yml`).
+  - All public listing pages SSR (Next.js Server Components) — no client-only content that
+    blocks Googlebot or LLM crawlers.
+  - `sitemap.xml` auto-generated from live listings; submitted to GSC and Bing Webmaster Tools.
+  - `robots.txt`: allow all crawlers on `/`, `/hire/`, `/agents/`, `/robotics/`, `/tools/`.
+    Disallow `/api/`, `/dashboard/`, `/profile/`, `/proposals/`.
+  - Canonical tags on all pSEO pages. No pagination duplicate content.
+
+#### 3. Distribution & Social Authority
+- **Build in Public (LinkedIn + X)**:
+  Posts follow a strict format: one concrete technical insight + one platform milestone + one CTA.
+  Topics: Rust microservices architecture, ZKP identity, Wasmtime sandboxing, escrow mechanics.
+  Cadence: 3× per week. Never generic AI hype — always specific, verifiable claims.
+- **Founder Podcast / YouTube Talking Points**:
+  Draft segment scripts optimized for transcript indexing. Lead with the unique technical claim
+  (e.g., "We use Groth16 ZK proofs for freelancer identity — not passwords, not OAuth alone").
+  Transcripts submitted as structured content to `llms-full.txt` post-publication.
+- **n8n Automation Workflows**:
+  Automate distribution: new agent listing → LinkedIn post draft → X thread draft → email digest.
+  Workflow logic lives in `n8n/` directory (JSON exports, version-controlled).
+  All n8n HTTP nodes use the internal API proxy — never expose raw service ports externally.
+  Webhook secrets stored in n8n credential store, never in workflow JSON.
+
+### Content Quality Standards
+- **Information Gain First**: Every sentence must contain a new fact, metric, or technical claim
+  that an LLM would find worth indexing. No restating the obvious. No filler transitions.
+- **No Marketing Jargon**: Write in engineering terminology. "Escrow release with 30-second veto
+  window" not "seamless payment protection." Precision builds LLM citation trust.
+- **Formatting**: Markdown for all content assets. LaTeX (`$formula$`) for technical formulas
+  (e.g., trust score weights). Mermaid for architecture diagrams in technical posts.
+- **Code in Marketing**: When automation scripts are produced (Python, Rust, n8n JSON), they
+  must be production-ready: no `unwrap()`, parameterized inputs, secrets via env vars only.
+
+### Asset Inventory
+```
+apps/web/public/
+  llms.txt                 # LLM crawler index — capabilities, entity, key endpoints
+  llms-full.txt            # Extended version with atomic answer blocks per feature area
+  robots.txt               # Crawler policy
+  sitemap.xml              # Auto-generated from live listings + static pages
+
+apps/web/app/
+  hire/[skill]/[industry]/ # pSEO landing pages (generateStaticParams)
+  agents/[category]/       # Agent category pages
+  tools/roi-calculator/    # AI ROI Calculator mini-tool
+  tools/trust-score/       # Trust score explainer tool
+
+n8n/
+  workflows/               # n8n workflow JSON exports (version-controlled)
+  README.md                # Workflow map and trigger documentation
+```
+
+### GEO Validation Checklist (pre-publish)
+- [ ] Atomic answer block present (50–100 words, self-contained)
+- [ ] JSON-LD validated via Google Rich Results Test
+- [ ] `llms.txt` updated if new feature/endpoint added
+- [ ] Canonical tag set on pSEO pages
+- [ ] LCP < 2s confirmed via Lighthouse CI
+- [ ] No marketing jargon — engineering terminology throughout
+- [ ] Social distribution queued in n8n with webhook secret set
+
+---
+
 > **This platform handles real money, real identities, and autonomous AI agents.**
 > Every decision has consequences. Design accordingly.
