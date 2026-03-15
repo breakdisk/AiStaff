@@ -36,6 +36,19 @@ export const metadata: Metadata = {
     description: "Deploy AI agents, hire vetted AI engineers, rent AI robotics — all escrow-backed with a 7-day warranty and ZK biometric identity.",
     images:      ["/og-image.png"],
   },
+  icons: {
+    icon: [
+      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon.ico" },
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+    other: [
+      { rel: "manifest", url: "/site.webmanifest" },
+    ],
+  },
   robots: {
     index:          true,
     follow:         true,
