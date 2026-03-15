@@ -79,6 +79,11 @@ async function callIdentityOAuthCallback(
 // ── NextAuth config ───────────────────────────────────────────────────────────
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  // Trust X-Forwarded-Host / X-Forwarded-Proto from Traefik reverse proxy.
+  // Without this, NextAuth v5 rejects requests where the internal container
+  // host differs from the forwarded host — causes "Server Error / server
+  // configuration" on mobile and behind any reverse proxy.
+  trustHost: true,
   providers: [
     GitHub({
       clientId: process.env.GITHUB_CLIENT_ID!,
