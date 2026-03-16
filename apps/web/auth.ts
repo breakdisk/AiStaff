@@ -79,55 +79,6 @@ async function callIdentityOAuthCallback(
 // ── NextAuth config ───────────────────────────────────────────────────────────
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
-  // TODO: disable debug before production launch.
-  debug: true,
-
-  secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
-
-  // Trust X-Forwarded-Host / X-Forwarded-Proto from Traefik reverse proxy.
-  // Without this, NextAuth v5 rejects requests where the internal container
-  // host differs from the forwarded host — causes "Server Error / server
-  // configuration" on mobile and behind any reverse proxy.
-  trustHost: true,
-
-  // Cloudflare Flexible SSL: browser↔Cloudflare is HTTPS, Cloudflare↔origin
-  // is HTTP. Cloudflare forwards X-Forwarded-Proto: https which causes Auth.js
-  // to auto-detect useSecureCookies=true and set __Secure- cookies with
-  // secure:true. Mobile browsers silently reject these cookies when the origin
-  // connection is HTTP → PKCE verification fails on callback.
-  //
-  // Fix: explicitly set useSecureCookies AND override every cookie definition
-  // to guarantee secure:false and no __Secure- prefix. This prevents Auth.js
-  // internal auto-detection from overriding our settings.
-  useSecureCookies: false,
-
-  cookies: {
-    sessionToken: {
-      name: "authjs.session-token",
-      options: { httpOnly: true, sameSite: "lax", path: "/", secure: false },
-    },
-    callbackUrl: {
-      name: "authjs.callback-url",
-      options: { httpOnly: true, sameSite: "lax", path: "/", secure: false },
-    },
-    csrfToken: {
-      name: "authjs.csrf-token",
-      options: { httpOnly: true, sameSite: "lax", path: "/", secure: false },
-    },
-    pkceCodeVerifier: {
-      name: "authjs.pkce.code_verifier",
-      options: { httpOnly: true, sameSite: "lax", path: "/", secure: false, maxAge: 900 },
-    },
-    state: {
-      name: "authjs.state",
-      options: { httpOnly: true, sameSite: "lax", path: "/", secure: false, maxAge: 900 },
-    },
-    nonce: {
-      name: "authjs.nonce",
-      options: { httpOnly: true, sameSite: "lax", path: "/", secure: false },
-    },
-  },
-
   providers: [
     GitHub({
       clientId: process.env.GITHUB_CLIENT_ID!,
@@ -147,6 +98,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
   callbacks: {
     async jwt({ token, account, profile, trigger, session }) {
+      // ── Session update: client called update({ role, accountType }) ──────────
+      // Fired after onboarding writes a new role to the backend.
+      // We trust the client payload here because it only updates non-privileged
+      // display fields — the authoritative role lives in the DB and will be
+      // re-read from identity_service on the next full sign-in.
       if (trigger === "update" && session) {
         if (session.role        !== undefined) token.role        = session.role;
         if (session.accountType !== undefined) token.accountType = session.accountType;
@@ -155,6 +111,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       }
 
       if (account && profile) {
+        // Fetch extra GitHub data (public_repos, created_at) for trust scoring
         let githubExtra: { public_repos: number; created_at: string } | undefined;
         if (account.provider === "github" && account.access_token) {
           try {
