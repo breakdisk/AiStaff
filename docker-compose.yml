@@ -331,11 +331,13 @@ services:
     environment:
       NODE_ENV: production
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      # Auth.js v5 requires AUTH_SECRET (not NEXTAUTH_SECRET). Accept both.
+      AUTH_SECRET:     ${AUTH_SECRET:-${NEXTAUTH_SECRET}}
       NEXTAUTH_URL:    ${NEXTAUTH_URL:-http://localhost:3000}
       # Auth.js v5: AUTH_URL is the canonical base — do NOT set AUTH_TRUST_HOST
       # alongside it. AUTH_TRUST_HOST overrides AUTH_URL using the request Host
       # header, producing a different redirect_uri than what OAuth apps expect.
-      AUTH_URL:        ${NEXTAUTH_URL:-http://localhost:3000}
+      AUTH_URL:        ${AUTH_URL:-${NEXTAUTH_URL:-http://localhost:3000}}
       # OAuth providers
       GITHUB_CLIENT_ID:     ${GITHUB_CLIENT_ID}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}

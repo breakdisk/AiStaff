@@ -79,6 +79,11 @@ async function callIdentityOAuthCallback(
 // ── NextAuth config ───────────────────────────────────────────────────────────
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  // Explicit secret — Auth.js v5 uses AUTH_SECRET, but many deployments still
+  // set NEXTAUTH_SECRET (v4 name). Accept either to avoid silent MissingSecret
+  // errors that surface as "error=Configuration" with no useful diagnostics.
+  secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
+
   // Trust X-Forwarded-Host / X-Forwarded-Proto from Traefik reverse proxy.
   // Without this, NextAuth v5 rejects requests where the internal container
   // host differs from the forwarded host — causes "Server Error / server
