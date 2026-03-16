@@ -1,20 +1,26 @@
 /**
  * /api/auth/login?provider=github&callbackUrl=/dashboard
  *
- * Lightweight redirect shim. The login page navigates here instead of calling
- * next-auth/react signIn() directly, so the entire flow is full browser
- * navigations with no fetch() race conditions.
+ * Intermediate OAuth entry point. The login page navigates here (full browser
+ * navigation, not fetch()) to avoid the mobile race condition where
+ * window.location.href can start before the browser stores the Set-Cookie
+ * from a fetch() response.
  *
- * With checks:["state"] (PKCE disabled) there is no code_verifier cookie to
- * lose, so the only thing this route needs to do is validate inputs and issue
- * a 302 to the standard Auth.js signin endpoint — which sets the state cookie
- * itself as part of the same redirect chain.
+ * Auth.js v5 only supports POST to /api/auth/signin/{provider} to initiate
+ * OAuth (GET returns UnknownAction). This route:
+ *   1. Fetches a fresh CSRF token from Auth.js via the container-internal URL,
+ *      passing correct public Host headers so the token is scoped correctly.
+ *   2. Returns an HTML page with an auto-submitting POST form that includes
+ *      the CSRF token and callbackUrl.
+ *   3. Forwards the CSRF Set-Cookie header so the browser has the matching
+ *      cookie when it submits the form.
  *
- * Previous version fetched CSRF via http://127.0.0.1:3000 then forwarded the
- * Set-Cookie header. That caused a domain mismatch: the cookie was bound to
- * 127.0.0.1 but the browser page was on aistaffglobal.com, so browsers
- * silently dropped it → CSRF validation failed. This version avoids that
- * entirely by letting Auth.js manage its own CSRF cookie.
+ * Auth.js then:
+ *   - Validates the CSRF token
+ *   - Generates a state token, sets authjs.state cookie
+ *   - Redirects to the OAuth provider
+ *
+ * All steps are full browser navigations — no fetch() race condition.
  */
 
 import { type NextRequest, NextResponse } from "next/server";
@@ -28,12 +34,18 @@ function isAllowedProvider(p: string): p is Provider {
   return (ALLOWED_PROVIDERS as readonly string[]).includes(p);
 }
 
-/** Callback URL must be a relative path — block open-redirect attempts. */
+/** Block open-redirect: callbackUrl must be a relative path on this origin. */
 function sanitizeCallback(raw: string): string {
-  if (!raw) return "/dashboard";
-  if (!raw.startsWith("/")) return "/dashboard";
-  if (raw.startsWith("//")) return "/dashboard";
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/dashboard";
   return raw;
+}
+
+function escHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 export async function GET(req: NextRequest) {
@@ -46,26 +58,85 @@ export async function GET(req: NextRequest) {
 
   const safeCallback = sanitizeCallback(callbackUrl);
 
-  // Build the redirect URL using the PUBLIC origin from AUTH_URL / NEXTAUTH_URL.
-  //
-  // IMPORTANT: req.nextUrl.origin is the *container-internal* address
-  // (e.g. http://localhost:3000 or http://172.x.x.x:3000) because Traefik
-  // terminates TLS and forwards the request to the container over plain HTTP.
-  // Using req.nextUrl.origin as the base would send the browser to an
-  // internal address it cannot reach ("localhost refused to connect").
-  //
-  // AUTH_URL / NEXTAUTH_URL is always set to the public HTTPS URL in Dokploy
-  // (https://aistaffglobal.com), so we use that as the base instead.
+  // Public origin — used for the form action so the browser POSTs to the
+  // correct public URL, not the container-internal address.
   const publicOrigin = (
     process.env.AUTH_URL ??
     process.env.NEXTAUTH_URL ??
-    req.nextUrl.origin          // fallback for local dev where both match
+    req.nextUrl.origin   // fallback: local dev where these match
   ).replace(/\/$/, "");
 
-  const signinUrl = new URL(`/api/auth/signin/${provider}`, publicOrigin);
-  signinUrl.searchParams.set("callbackUrl", safeCallback);
+  const publicHost = new URL(publicOrigin).host; // e.g. "aistaffglobal.com"
 
-  // 302 — full browser navigation so Auth.js sets the state cookie
-  // synchronously within the redirect chain (no fetch() race condition).
-  return NextResponse.redirect(signinUrl, { status: 302 });
+  // ── Fetch CSRF token from Auth.js ─────────────────────────────────────────
+  // Use the loopback address so the request stays inside the container (fast,
+  // no DNS, no Traefik hop). Pass the public Host + forwarded headers so
+  // Auth.js scopes the CSRF hash to aistaffglobal.com, not 127.0.0.1.
+  let csrfToken  = "";
+  let csrfCookie = "";
+  try {
+    const csrfRes = await fetch("http://127.0.0.1:3000/api/auth/csrf", {
+      cache: "no-store",
+      headers: {
+        "host":              publicHost,
+        "x-forwarded-host":  publicHost,
+        "x-forwarded-proto": "https",
+        "x-forwarded-for":   req.headers.get("x-forwarded-for") ?? "127.0.0.1",
+      },
+    });
+    if (csrfRes.ok) {
+      const data = (await csrfRes.json()) as { csrfToken?: string };
+      csrfToken  = data.csrfToken ?? "";
+      csrfCookie = csrfRes.headers.get("set-cookie") ?? "";
+    }
+  } catch {
+    // Non-fatal: Auth.js may still accept the POST via Origin-header CSRF
+    // validation (used in newer beta builds). If not, it will redirect to
+    // the error page instead of silently losing the user.
+  }
+
+  // ── Return auto-submitting form ───────────────────────────────────────────
+  const formAction = `${escHtml(publicOrigin)}/api/auth/signin/${escHtml(provider)}`;
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Signing in…</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#09090b;color:#a1a1aa;font-family:ui-sans-serif,system-ui,sans-serif;
+       display:flex;align-items:center;justify-content:center;min-height:100dvh;
+       font-size:14px;letter-spacing:.01em}
+  p{opacity:.7}
+</style>
+</head>
+<body>
+<p>Signing in…</p>
+<form id="f" method="POST" action="${formAction}">
+  <input type="hidden" name="csrfToken"   value="${escHtml(csrfToken)}">
+  <input type="hidden" name="callbackUrl" value="${escHtml(safeCallback)}">
+</form>
+<script>
+  // Submit immediately. Using a form POST (not fetch) means the browser
+  // processes Set-Cookie from the Auth.js 302 response before following
+  // the redirect to the OAuth provider — no race condition.
+  document.getElementById("f").submit();
+</script>
+</body>
+</html>`;
+
+  const res = new NextResponse(html, {
+    status: 200,
+    headers: { "Content-Type": "text/html; charset=utf-8" },
+  });
+
+  // Forward the CSRF cookie Auth.js generated so the browser has it when
+  // it submits the form. Without this cookie the CSRF validation fails.
+  if (csrfCookie) {
+    res.headers.set("set-cookie", csrfCookie);
+  }
+
+  return res;
 }
