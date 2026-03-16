@@ -18,6 +18,24 @@ const COMM  = process.env.COMMUNITY_SERVICE_URL    ?? "http://localhost:3011";
 const NOTIF = process.env.NOTIFICATION_SERVICE_URL ?? "http://localhost:3012";
 
 const nextConfig: NextConfig = {
+  // ── Prevent Cloudflare (and any CDN) from caching auth API responses ────────
+  // Cloudflare strips Set-Cookie headers from cached responses. If /api/auth/csrf
+  // is cached, the CSRF cookie is never set → double-submit validation fails →
+  // Chrome shows error=Configuration. This header block ensures auth routes are
+  // always served fresh from the origin.
+  async headers() {
+    return [
+      {
+        source: "/api/auth/:path*",
+        headers: [
+          { key: "Cache-Control", value: "no-store, no-cache, must-revalidate, private" },
+          { key: "CDN-Cache-Control", value: "no-store" },
+          { key: "Cloudflare-CDN-Cache-Control", value: "no-store" },
+          { key: "Pragma", value: "no-cache" },
+        ],
+      },
+    ];
+  },
   async rewrites() {
     return [
       { source: "/api/identity/:path*",                 destination: `${ID}/:path*` },

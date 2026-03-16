@@ -1,3 +1,8 @@
+// Force dynamic — never let Next.js cache auth routes (SSG/ISR).
+// Combined with Cache-Control headers in next.config.ts, this ensures
+// Cloudflare and other CDNs always hit the origin for auth requests.
+export const dynamic = "force-dynamic";
+
 import { handlers } from "@/auth";
 import { NextRequest } from "next/server";
 
