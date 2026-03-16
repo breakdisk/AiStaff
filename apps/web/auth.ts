@@ -145,10 +145,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       }
     : undefined, // Dev: let Auth.js use defaults (no __Secure- prefix on HTTP)
 
-  // Debug logging active — shows cookie set/read events in Dokploy logs.
-  // Remove before final public launch.
-  debug: true,
-
   providers: [
     GitHub({
       clientId: process.env.GITHUB_CLIENT_ID!,
