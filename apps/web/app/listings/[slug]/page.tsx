@@ -58,10 +58,12 @@ export async function generateMetadata(
       style: "currency", currency: "USD", maximumFractionDigits: 0,
     }).format(cents / 100);
 
-  const title       = `${listing.name} — AiStaff`;
+  const price       = fmtUSD(listing.price_cents);
+  const title       = `${listing.name} — ${price} · AiStaff`;
+  // Facebook preview: price first so it's visible without expansion, then description.
+  // No image — text-only card as per product requirement.
   const description =
-    `${listing.description.slice(0, 150)}… · ` +
-    `${fmtUSD(listing.price_cents)} escrow · ${listing.category} · ${listing.seller_type}`;
+    `${price} escrow · ${listing.description.slice(0, 200)}`;
 
   // Canonical URL always uses the slug for clean, shareable links.
   const canonicalSlug = listing.slug || listing.id;
@@ -76,20 +78,12 @@ export async function generateMetadata(
       title,
       description,
       siteName:    "AiStaff",
-      images: [
-        {
-          url:    `https://aistaffglobal.com/og-default.png`,
-          width:  1200,
-          height: 630,
-          alt:    listing.name,
-        },
-      ],
+      // No images — text-only Facebook/LinkedIn card (product requirement)
     },
     twitter: {
-      card:        "summary_large_image",
+      card:        "summary",   // text-only card, no image
       title,
       description,
-      images:      [`https://aistaffglobal.com/og-default.png`],
       site:        "@aistaffglobal",
     },
     alternates: {
