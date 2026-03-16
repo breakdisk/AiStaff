@@ -79,6 +79,9 @@ async function callIdentityOAuthCallback(
 // ── NextAuth config ───────────────────────────────────────────────────────────
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  // Required behind any reverse proxy (Traefik, Cloudflare, etc.)
+  trustHost: true,
+
   providers: [
     GitHub({
       clientId: process.env.GITHUB_CLIENT_ID!,
