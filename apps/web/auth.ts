@@ -89,6 +89,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   // host differs from the forwarded host — causes "Server Error / server
   // configuration" on mobile and behind any reverse proxy.
   trustHost: true,
+
+  // Secure cookies require a valid HTTPS connection at the origin.
+  // When Cloudflare provides HTTPS termination but origin is HTTP,
+  // __Secure- cookies are set by Auth.js (auto-detected from AUTH_URL=https://)
+  // but the browser silently drops them → PKCE verification fails.
+  // Control via USE_SECURE_COOKIES env var. Default: false (safe for HTTP origins).
+  useSecureCookies: process.env.USE_SECURE_COOKIES === "true",
   providers: [
     GitHub({
       clientId: process.env.GITHUB_CLIENT_ID!,
