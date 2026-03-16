@@ -11,6 +11,7 @@ import {
   fetchListings, createListing, expressInterest, fetchPublicProfile,
   type AgentListing, type ListingCategory, type SellerType,
 } from "@/lib/api";
+import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
 import { VettingBadge }  from "@/components/VettingBadge";
 import { ShareButton }   from "@/components/ShareSheet";
 import type { VettingTier } from "@/components/VettingBadge";
