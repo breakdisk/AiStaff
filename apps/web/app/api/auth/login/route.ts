@@ -46,19 +46,26 @@ export async function GET(req: NextRequest) {
 
   const safeCallback = sanitizeCallback(callbackUrl);
 
-  // Redirect to the Auth.js sign-in endpoint for the chosen provider.
-  // Auth.js will:
-  //   1. Generate a state token and set the authjs.state cookie (SameSite=None;Secure).
-  //   2. Redirect the browser to the OAuth provider with ?state=...
-  //   3. On callback, read authjs.state to verify the round-trip.
-  // Because this is a GET redirect (not a fetch()), the browser stores the
-  // Set-Cookie synchronously before following the next redirect — eliminating
-  // the mobile race condition that existed with signIn() fetch() calls.
-  const signinUrl = new URL(
-    `/api/auth/signin/${provider}`,
-    req.nextUrl.origin,
-  );
+  // Build the redirect URL using the PUBLIC origin from AUTH_URL / NEXTAUTH_URL.
+  //
+  // IMPORTANT: req.nextUrl.origin is the *container-internal* address
+  // (e.g. http://localhost:3000 or http://172.x.x.x:3000) because Traefik
+  // terminates TLS and forwards the request to the container over plain HTTP.
+  // Using req.nextUrl.origin as the base would send the browser to an
+  // internal address it cannot reach ("localhost refused to connect").
+  //
+  // AUTH_URL / NEXTAUTH_URL is always set to the public HTTPS URL in Dokploy
+  // (https://aistaffglobal.com), so we use that as the base instead.
+  const publicOrigin = (
+    process.env.AUTH_URL ??
+    process.env.NEXTAUTH_URL ??
+    req.nextUrl.origin          // fallback for local dev where both match
+  ).replace(/\/$/, "");
+
+  const signinUrl = new URL(`/api/auth/signin/${provider}`, publicOrigin);
   signinUrl.searchParams.set("callbackUrl", safeCallback);
 
+  // 302 — full browser navigation so Auth.js sets the state cookie
+  // synchronously within the redirect chain (no fetch() race condition).
   return NextResponse.redirect(signinUrl, { status: 302 });
 }
