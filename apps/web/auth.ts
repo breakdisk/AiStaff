@@ -90,12 +90,44 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   // configuration" on mobile and behind any reverse proxy.
   trustHost: true,
 
-  // Secure cookies require a valid HTTPS connection at the origin.
-  // When Cloudflare provides HTTPS termination but origin is HTTP,
-  // __Secure- cookies are set by Auth.js (auto-detected from AUTH_URL=https://)
-  // but the browser silently drops them → PKCE verification fails.
-  // Control via USE_SECURE_COOKIES env var. Default: false (safe for HTTP origins).
-  useSecureCookies: process.env.USE_SECURE_COOKIES === "true",
+  // Cloudflare Flexible SSL: browser↔Cloudflare is HTTPS, Cloudflare↔origin
+  // is HTTP. Cloudflare forwards X-Forwarded-Proto: https which causes Auth.js
+  // to auto-detect useSecureCookies=true and set __Secure- cookies with
+  // secure:true. Mobile browsers silently reject these cookies when the origin
+  // connection is HTTP → PKCE verification fails on callback.
+  //
+  // Fix: explicitly set useSecureCookies AND override every cookie definition
+  // to guarantee secure:false and no __Secure- prefix. This prevents Auth.js
+  // internal auto-detection from overriding our settings.
+  useSecureCookies: false,
+
+  cookies: {
+    sessionToken: {
+      name: "authjs.session-token",
+      options: { httpOnly: true, sameSite: "lax", path: "/", secure: false },
+    },
+    callbackUrl: {
+      name: "authjs.callback-url",
+      options: { httpOnly: true, sameSite: "lax", path: "/", secure: false },
+    },
+    csrfToken: {
+      name: "authjs.csrf-token",
+      options: { httpOnly: true, sameSite: "lax", path: "/", secure: false },
+    },
+    pkceCodeVerifier: {
+      name: "authjs.pkce.code_verifier",
+      options: { httpOnly: true, sameSite: "lax", path: "/", secure: false, maxAge: 900 },
+    },
+    state: {
+      name: "authjs.state",
+      options: { httpOnly: true, sameSite: "lax", path: "/", secure: false, maxAge: 900 },
+    },
+    nonce: {
+      name: "authjs.nonce",
+      options: { httpOnly: true, sameSite: "lax", path: "/", secure: false },
+    },
+  },
+
   providers: [
     GitHub({
       clientId: process.env.GITHUB_CLIENT_ID!,
@@ -112,10 +144,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   ],
 
   session: { strategy: "jwt" },
-
-  // NO useSecureCookies — let Auth.js auto-detect from AUTH_URL protocol.
-  // NO custom cookies config — let Auth.js use its defaults.
-  // These defaults WORKED at commit 71190f6 with Chrome + Cloudflare.
 
   callbacks: {
     async jwt({ token, account, profile, trigger, session }) {
