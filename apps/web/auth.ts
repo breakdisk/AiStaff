@@ -79,14 +79,9 @@ async function callIdentityOAuthCallback(
 // ── NextAuth config ───────────────────────────────────────────────────────────
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
-  // Enable verbose logging — shows every step of the OAuth flow in container
-  // stdout. View with `docker logs <web-container>` or Dokploy log viewer.
-  // TODO: disable before production launch.
+  // TODO: disable debug before production launch.
   debug: true,
 
-  // Explicit secret — Auth.js v5 uses AUTH_SECRET, but many deployments still
-  // set NEXTAUTH_SECRET (v4 name). Accept either to avoid silent MissingSecret
-  // errors that surface as "error=Configuration" with no useful diagnostics.
   secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
 
   // Trust X-Forwarded-Host / X-Forwarded-Proto from Traefik reverse proxy.
@@ -98,43 +93,25 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     GitHub({
       clientId: process.env.GITHUB_CLIENT_ID!,
       clientSecret: process.env.GITHUB_CLIENT_SECRET!,
-      // Auth.js v5 defaults to PKCE, which stores a large JWE-encrypted
-      // code_verifier in a cookie (~470 chars). Behind Cloudflare, this
-      // cookie is lost during the signin→GitHub→callback redirect chain,
-      // causing "InvalidCheck: pkceCodeVerifier value could not be parsed".
-      // State-based verification uses a smaller cookie and works reliably.
-      // PKCE is optional for confidential (server-side) OAuth clients.
-      checks: ["state"],
     }),
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-      checks: ["state"],
     }),
     LinkedIn({
       clientId: process.env.LINKEDIN_CLIENT_ID!,
       clientSecret: process.env.LINKEDIN_CLIENT_SECRET!,
-      checks: ["state"],
     }),
   ],
 
   session: { strategy: "jwt" },
 
-  // MUST be explicitly false — Auth.js v5 auto-detects from AUTH_URL protocol.
-  // Since AUTH_URL=https://aistaffglobal.com, it defaults to true internally,
-  // which adds __Secure- prefix + secure:true to all cookies. Cloudflare
-  // Flexible SSL forwards HTTP to the origin, so Chrome rejects these cookies
-  // (Edge is lenient). Setting false disables the auto-detection.
-  // When migrating to Cloudflare Full (Strict) SSL, change this to true.
-  useSecureCookies: false,
+  // NO useSecureCookies — let Auth.js auto-detect from AUTH_URL protocol.
+  // NO custom cookies config — let Auth.js use its defaults.
+  // These defaults WORKED at commit 71190f6 with Chrome + Cloudflare.
 
   callbacks: {
     async jwt({ token, account, profile, trigger, session }) {
-      // ── Session update: client called update({ role, accountType }) ──────────
-      // Fired after onboarding writes a new role to the backend.
-      // We trust the client payload here because it only updates non-privileged
-      // display fields — the authoritative role lives in the DB and will be
-      // re-read from identity_service on the next full sign-in.
       if (trigger === "update" && session) {
         if (session.role        !== undefined) token.role        = session.role;
         if (session.accountType !== undefined) token.accountType = session.accountType;
@@ -143,7 +120,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       }
 
       if (account && profile) {
-        // Fetch extra GitHub data (public_repos, created_at) for trust scoring
         let githubExtra: { public_repos: number; created_at: string } | undefined;
         if (account.provider === "github" && account.access_token) {
           try {

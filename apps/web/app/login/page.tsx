@@ -2,9 +2,9 @@
 
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import { signIn } from "next-auth/react";
 import Link from "next/link";
 import { Github, Loader2, Linkedin } from "lucide-react";
-import { signInWithProvider } from "./actions";
 
 // ── Google icon (Lucide does not include it) ──────────────────────────────────
 
@@ -19,11 +19,7 @@ function GoogleIcon({ className }: { className?: string }) {
   );
 }
 
-// ── OAuth button (form-based — server action) ────────────────────────────────
-// Uses native HTML form submission + server-side signIn() instead of the
-// client-side signIn() from next-auth/react. The client-side version uses
-// fetch() internally, and Chrome behind Cloudflare does not reliably store
-// Set-Cookie headers from fetch() responses — the OAuth state cookie is lost.
+// ── OAuth button ──────────────────────────────────────────────────────────────
 
 function OAuthButton({
   provider,
@@ -37,19 +33,16 @@ function OAuthButton({
   callbackUrl: string;
 }) {
   return (
-    <form action={signInWithProvider}>
-      <input type="hidden" name="provider" value={provider} />
-      <input type="hidden" name="callbackUrl" value={callbackUrl} />
-      <button
-        type="submit"
-        className="w-full h-11 flex items-center gap-3 px-4 rounded-sm
-                   border border-zinc-700 bg-zinc-900 hover:bg-zinc-800 hover:border-zinc-600
-                   text-zinc-200 font-mono text-sm transition-all active:scale-[0.98]"
-      >
-        {icon}
-        <span className="flex-1 text-left">{label}</span>
-      </button>
-    </form>
+    <button
+      type="button"
+      onClick={() => signIn(provider, { callbackUrl })}
+      className="w-full h-11 flex items-center gap-3 px-4 rounded-sm
+                 border border-zinc-700 bg-zinc-900 hover:bg-zinc-800 hover:border-zinc-600
+                 text-zinc-200 font-mono text-sm transition-all active:scale-[0.98]"
+    >
+      {icon}
+      <span className="flex-1 text-left">{label}</span>
+    </button>
   );
 }
 
