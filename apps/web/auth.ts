@@ -89,18 +89,29 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   // using Cloudflare Flexible SSL (origin HTTP) — that causes SameSite=Lax which
   // some browsers drop on the cross-site OAuth callback redirect.
 
+  // Debug mode active — shows cookie read/write + PKCE events in Dokploy logs.
+  // Remove before final production launch.
+  debug: true,
+
   providers: [
     GitHub({
       clientId: process.env.GITHUB_CLIENT_ID!,
       clientSecret: process.env.GITHUB_CLIENT_SECRET!,
+      // Disable PKCE — all three providers are confidential clients (have
+      // client_secret). The state check prevents OAuth CSRF; client_secret
+      // prevents code exchange by third parties. PKCE is optional for
+      // server-side apps and its cookie is consistently lost behind Traefik.
+      checks: ["state"],
     }),
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      checks: ["state"],
     }),
     LinkedIn({
       clientId: process.env.LINKEDIN_CLIENT_ID!,
       clientSecret: process.env.LINKEDIN_CLIENT_SECRET!,
+      checks: ["state"],
     }),
   ],
 
