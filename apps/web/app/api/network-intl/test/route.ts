@@ -20,7 +20,6 @@ async function tryAuth(label: string, authHeader: string, body?: string) {
       headers: {
         "Authorization": authHeader,
         "Content-Type":  "application/vnd.ni-identity.v1+json",
-        ...(body ? {} : {}),
       },
       body: body ?? undefined,
       signal: AbortSignal.timeout(10_000),
@@ -40,26 +39,39 @@ export async function GET() {
     : "(empty — NETWORK_INTL_API_KEY not set)";
 
   const results = await Promise.all([
-    // Format A: base64(apiKey) — no colon
+    // Format A: key used AS-IS (portal already gives pre-encoded base64 credentials)
     tryAuth(
-      "A: Basic base64(apiKey)",
+      "A: Basic <key-as-is> (no re-encoding)",
+      `Basic ${API_KEY}`,
+    ),
+    // Format B: base64(apiKey) — single encode (previous attempt)
+    tryAuth(
+      "B: Basic base64(apiKey)",
       `Basic ${Buffer.from(API_KEY).toString("base64")}`,
     ),
-    // Format B: base64(apiKey:) — trailing colon (our current code)
+    // Format C: base64(apiKey:) — trailing colon
     tryAuth(
-      "B: Basic base64(apiKey:)",
+      "C: Basic base64(apiKey:)",
       `Basic ${Buffer.from(`${API_KEY}:`).toString("base64")}`,
     ),
-    // Format C: base64(apiKey) with empty JSON body
+    // Format D: key as-is + empty body
     tryAuth(
-      "C: Basic base64(apiKey) + body {}",
-      `Basic ${Buffer.from(API_KEY).toString("base64")}`,
+      "D: Basic <key-as-is> + body {}",
+      `Basic ${API_KEY}`,
       "{}",
     ),
-    // Format D: apiKey header directly (some N-Genius docs show this)
+    // Format E: try decoding the key first — if it's base64(user:pass), decode then re-use
     tryAuth(
-      "D: apiKey header directly",
-      `apiKey ${API_KEY}`,
+      "E: decoded key as plain Basic",
+      (() => {
+        try {
+          const decoded = Buffer.from(API_KEY, "base64").toString("utf8");
+          // If it decodes to user:pass format, re-encode it properly
+          return `Basic ${Buffer.from(decoded).toString("base64")}`;
+        } catch {
+          return `Basic ${API_KEY}`;
+        }
+      })(),
     ),
   ]);
 
@@ -68,8 +80,15 @@ export async function GET() {
       API_BASE,
       API_KEY: keyMasked,
       OUTLET_REF: OUTLET_REF || "(empty — NETWORK_INTL_OUTLET_REF not set)",
+      key_looks_like_base64: API_KEY.endsWith("=") || API_KEY.endsWith("=="),
+      key_decoded_preview: (() => {
+        try {
+          const d = Buffer.from(API_KEY, "base64").toString("utf8");
+          return d.length > 10 ? `${d.slice(0, 8)}… (${d.length} chars decoded)` : d;
+        } catch { return "not valid base64"; }
+      })(),
     },
     auth_attempts: results,
-    instructions: "Look for the format where status=200 and ok=true. Use that format.",
+    instructions: "Look for the format where status=200 and ok=true.",
   });
 }
