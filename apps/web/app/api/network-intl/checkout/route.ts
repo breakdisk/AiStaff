@@ -108,17 +108,21 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Payment gateway not configured (outlet ref missing)" }, { status: 503 });
   }
 
-  // ── Currency auto-detection via Cloudflare CF-IPCountry header ──────────────
-  // Cloudflare injects this on every proxied request — zero cost, no API call.
-  // In dev (no Cloudflare), header is absent → defaults to USD.
+  // ── Currency detection ───────────────────────────────────────────────────────
+  // Cloudflare injects CF-IPCountry on every proxied request (zero cost).
+  // When Cloudflare is NOT in front (direct Traefik / Let's Encrypt), the
+  // header is absent. The N-Genius outlet is configured for AED (UAE merchant),
+  // so we default to AED whenever country cannot be determined. Only switch to
+  // USD if Cloudflare explicitly identifies a non-UAE origin AND the outlet
+  // has USD enabled (add USD in the N-Genius portal if needed).
   const cfCountry = (req.headers.get("cf-ipcountry") ?? "").toUpperCase();
-  const isUAE     = cfCountry === "AE";
-  const currency  = isUAE ? "AED" : "USD";
-  // Convert: USD cents → AED fils (pegged rate, lossless integer math)
-  const orderAmount = isUAE ? USD_CENTS_TO_AED_FILS(amount_cents) : amount_cents;
+  const useAED    = !cfCountry || cfCountry === "AE"; // default AED when header absent
+  const currency  = useAED ? "AED" : "USD";
+  // Convert: USD cents → AED fils (pegged 3.6725, lossless integer math)
+  const orderAmount = useAED ? USD_CENTS_TO_AED_FILS(amount_cents) : amount_cents;
 
   console.log(
-    `[network-intl/checkout] country=${cfCountry || "unknown"} ` +
+    `[network-intl/checkout] country=${cfCountry || "absent/unknown"} ` +
     `currency=${currency} amount=${orderAmount} (from ${amount_cents} USD cents)`,
   );
 
