@@ -72,9 +72,19 @@ export default auth((req) => {
 
 export const config = {
   matcher: [
-    // Exclude: static assets, images, AND /listings/* (OG share pages must be
-    // reachable by social crawlers without any auth — excluding them from the
-    // matcher is the only way to guarantee NextAuth never touches these routes).
-    "/((?!_next/static|_next/image|favicon\\.ico|icon|apple-icon|sitemap\\.xml|robots\\.txt|llms.*|listings/.*|.*\\.(?:png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|otf)$).*)",
+    // Exclude: static assets, images, /listings/* (social crawlers), AND /api/auth/*.
+    //
+    // /api/auth/* MUST be excluded from the middleware matcher. The auth()
+    // middleware wrapper processes the request through Auth.js (reading session,
+    // setting cookies). The route handler's `handlers` also processes the same
+    // request through Auth.js (generating state/PKCE, setting cookies). When
+    // both run, they produce CONFLICTING Set-Cookie headers — the middleware's
+    // cookies overwrite the route handler's state cookie during Next.js header
+    // merging. The state cookie never reaches the browser, causing
+    // "InvalidCheck: state value could not be parsed" → error=Configuration.
+    //
+    // Auth.js route handlers are fully self-managed — they handle session,
+    // CSRF, and OAuth flow internally. No middleware wrapping needed.
+    "/((?!_next/static|_next/image|favicon\\.ico|icon|apple-icon|sitemap\\.xml|robots\\.txt|llms.*|listings/.*|api/auth/.*|.*\\.(?:png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|otf)$).*)",
   ],
 };
