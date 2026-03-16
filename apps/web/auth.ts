@@ -106,16 +106,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
   session: { strategy: "jwt" },
 
-  // Force secure cookies regardless of the protocol Next.js sees internally.
-  // With Cloudflare in Flexible SSL mode, Next.js receives HTTP from Cloudflare
-  // but the browser sees HTTPS. Without this, cookies are set without the Secure
-  // flag — Chrome rejects them; Edge is more lenient. Edge works, Chrome fails.
-  useSecureCookies: process.env.NODE_ENV === "production",
-
-  // Explicit cookie config — Chrome enforces __Host- prefix rules strictly.
-  // Setting sameSite:"lax" + secure:true explicitly prevents Cloudflare or
-  // browser policy from silently dropping the CSRF / state cookies during
-  // the OAuth redirect, which causes "server configuration" errors in Chrome.
+  // Do NOT set useSecureCookies here — Auth.js v5 performs an internal protocol
+  // check that fails when the origin server receives HTTP (Cloudflare Flexible
+  // SSL terminates TLS at the edge, forwarding plain HTTP to the container).
+  // Instead, set secure:true explicitly on each cookie below. This achieves the
+  // same browser behavior (Chrome requires Secure flag on __Secure- cookies)
+  // without triggering the server-side protocol assertion.
+  //
+  // Manual cookie config — every cookie uses __Secure- prefix + secure:true.
+  // Chrome enforces prefix rules strictly; Edge is lenient. Both need this.
   cookies: {
     sessionToken: {
       name:    `__Secure-authjs.session-token`,
