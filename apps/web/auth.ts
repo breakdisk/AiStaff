@@ -98,14 +98,23 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     GitHub({
       clientId: process.env.GITHUB_CLIENT_ID!,
       clientSecret: process.env.GITHUB_CLIENT_SECRET!,
+      // Auth.js v5 defaults to PKCE, which stores a large JWE-encrypted
+      // code_verifier in a cookie (~470 chars). Behind Cloudflare, this
+      // cookie is lost during the signin→GitHub→callback redirect chain,
+      // causing "InvalidCheck: pkceCodeVerifier value could not be parsed".
+      // State-based verification uses a smaller cookie and works reliably.
+      // PKCE is optional for confidential (server-side) OAuth clients.
+      checks: ["state"],
     }),
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      checks: ["state"],
     }),
     LinkedIn({
       clientId: process.env.LINKEDIN_CLIENT_ID!,
       clientSecret: process.env.LINKEDIN_CLIENT_SECRET!,
+      checks: ["state"],
     }),
   ],
 
