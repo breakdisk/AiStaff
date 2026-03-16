@@ -1,8 +1,8 @@
 // Temporary diagnostic endpoint — DELETE before production launch
-// Shows which auth-related env vars are present (values redacted)
 import { NextResponse } from "next/server";
+import { headers } from "next/headers";
 
-export async function GET() {
+export async function GET(req: Request) {
   const check = (name: string) => {
     const val = process.env[name];
     if (!val) return "❌ MISSING";
@@ -10,8 +10,22 @@ export async function GET() {
     return `✅ SET (${val.length} chars, starts: ${val.substring(0, 4)}…)`;
   };
 
+  // Capture what the origin server actually sees from Cloudflare
+  const hdrs = await headers();
+  const requestUrl = req.url;
+
   return NextResponse.json({
     node_env: process.env.NODE_ENV ?? "undefined",
+    request: {
+      url: requestUrl,
+      protocol_from_url: new URL(requestUrl).protocol,
+      x_forwarded_proto: hdrs.get("x-forwarded-proto") ?? "NOT SET",
+      x_forwarded_host: hdrs.get("x-forwarded-host") ?? "NOT SET",
+      host: hdrs.get("host") ?? "NOT SET",
+      cf_visitor: hdrs.get("cf-visitor") ?? "NOT SET",
+      cf_connecting_ip: hdrs.get("cf-connecting-ip") ? "present" : "NOT SET",
+      cf_ray: hdrs.get("cf-ray") ?? "NOT SET",
+    },
     auth: {
       AUTH_SECRET: check("AUTH_SECRET"),
       NEXTAUTH_SECRET: check("NEXTAUTH_SECRET"),
