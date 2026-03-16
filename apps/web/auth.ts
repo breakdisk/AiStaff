@@ -106,41 +106,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
   session: { strategy: "jwt" },
 
-  // Do NOT set useSecureCookies here — Auth.js v5 performs an internal protocol
-  // check that fails when the origin server receives HTTP (Cloudflare Flexible
-  // SSL terminates TLS at the edge, forwarding plain HTTP to the container).
-  // Instead, set secure:true explicitly on each cookie below. This achieves the
-  // same browser behavior (Chrome requires Secure flag on __Secure- cookies)
-  // without triggering the server-side protocol assertion.
+  // Cloudflare Flexible SSL: browser↔Cloudflare is HTTPS, Cloudflare↔origin is
+  // HTTP. Chrome rejects __Secure-/__Host- prefixed cookies AND secure:true when
+  // the Set-Cookie response arrives over HTTP — even though the browser itself
+  // connected via HTTPS. Edge is lenient and accepts them anyway.
   //
-  // Manual cookie config — every cookie uses __Secure- prefix + secure:true.
-  // Chrome enforces prefix rules strictly; Edge is lenient. Both need this.
-  cookies: {
-    sessionToken: {
-      name:    `__Secure-authjs.session-token`,
-      options: { httpOnly: true, sameSite: "lax" as const, path: "/", secure: true },
-    },
-    callbackUrl: {
-      name:    `__Secure-authjs.callback-url`,
-      options: { httpOnly: true, sameSite: "lax" as const, path: "/", secure: true },
-    },
-    csrfToken: {
-      // __Secure- prefix (not __Host-): Cloudflare Flexible SSL means the origin
-      // server receives HTTP internally — Chrome rejects __Host- cookies set over
-      // HTTP even when the browser connection is HTTPS. __Secure- only requires
-      // the Secure flag + HTTPS delivery to the browser, which Cloudflare provides.
-      name:    `__Secure-authjs.csrf-token`,
-      options: { httpOnly: true, sameSite: "lax" as const, path: "/", secure: true },
-    },
-    pkceCodeVerifier: {
-      name:    `__Secure-authjs.pkce.code_verifier`,
-      options: { httpOnly: true, sameSite: "lax" as const, path: "/", secure: true, maxAge: 60 * 15 },
-    },
-    state: {
-      name:    `__Secure-authjs.state`,
-      options: { httpOnly: true, sameSite: "lax" as const, path: "/", secure: true, maxAge: 60 * 15 },
-    },
-  },
+  // Solution: use Auth.js defaults (no prefix, no secure flag). Cloudflare
+  // enforces HTTPS at the edge, so cookies are never exposed over plain HTTP
+  // in transit. When migrating to Cloudflare Full (Strict) SSL, re-enable
+  // useSecureCookies:true for defense-in-depth.
 
   callbacks: {
     async jwt({ token, account, profile, trigger, session }) {
