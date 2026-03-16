@@ -5,14 +5,12 @@ import { useSession, signIn } from "next-auth/react";
 import {
   Package, Cpu, Hash, ChevronRight, CheckCircle,
   Users, Bot, Zap, Building2, User, Plus, X,
-  AlertTriangle, Github, Linkedin, Handshake,
+  AlertTriangle, Github, Linkedin, Handshake, Loader2,
 } from "lucide-react";
 import {
   fetchListings, createListing, expressInterest, fetchPublicProfile,
   type AgentListing, type ListingCategory, type SellerType,
 } from "@/lib/api";
-import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
-import { PaymentModal }  from "@/components/PaymentModal";
 import { VettingBadge }  from "@/components/VettingBadge";
 import { ShareButton }   from "@/components/ShareSheet";
 import type { VettingTier } from "@/components/VettingBadge";
@@ -247,7 +245,6 @@ function ActionButton({ listing, userTier, profileId, marketView, compact }: Act
   const [done,        setDone]        = useState<string | null>(null); // deployment_id | "applied"
   const [busy,        setBusy]        = useState(false);
   const [showGate,    setShowGate]    = useState(false);
-  const [showPayment, setShowPayment] = useState(false);
   const [offlineNote, setOfflineNote] = useState(false);
 
   async function handleFreelancer() {
@@ -260,6 +257,38 @@ function ActionButton({ listing, userTier, profileId, marketView, compact }: Act
       setDone("applied");
       setOfflineNote(true);
     } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDeploy() {
+    if (userTier === "UNVERIFIED") { setShowGate(true); return; }
+    setBusy(true);
+    try {
+      // Call N-Genius checkout — returns a hosted payment page URL
+      const res = await fetch("/api/network-intl/checkout", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount_cents: listing.price_cents,
+          listing_id:   listing.id,
+          agent_name:   listing.name,
+          client_id:    profileId,
+          currency:     "USD",
+        }),
+      });
+      const data = await res.json() as { payment_url?: string; error?: string };
+      if (!res.ok || !data.payment_url) {
+        console.error("[deploy] checkout failed:", data.error);
+        setBusy(false);
+        return;
+      }
+      // Redirect to N-Genius hosted payment page
+      // On completion, N-Genius redirects back to /api/network-intl/callback
+      // which creates the deployment and sends user to /dashboard
+      window.location.href = data.payment_url;
+    } catch (err) {
+      console.error("[deploy] unexpected error:", err);
       setBusy(false);
     }
   }
@@ -297,32 +326,20 @@ function ActionButton({ listing, userTier, profileId, marketView, compact }: Act
         </button>
       ) : (
         <button
-          onClick={() => {
-            if (userTier === "UNVERIFIED") { setShowGate(true); return; }
-            setShowPayment(true);
-          }}
+          onClick={handleDeploy}
+          disabled={busy}
           className={`flex items-center gap-1 ${px} ${h} rounded-sm border border-amber-900
                      bg-amber-950 text-amber-400 font-mono text-xs uppercase tracking-widest
-                     hover:border-amber-700 active:scale-[0.97] transition-all`}
+                     hover:border-amber-700 active:scale-[0.97] transition-all disabled:opacity-40`}
         >
-          Deploy <ChevronRight className="w-3 h-3" />
+          {busy
+            ? <><Loader2 className="w-3 h-3 animate-spin" /> Preparing…</>
+            : <>Deploy <ChevronRight className="w-3 h-3" /></>
+          }
         </button>
       )}
 
       {showGate && <TierGateSheet onClose={() => setShowGate(false)} />}
-
-      {/* Payment modal — bottom sheet with Stripe Elements */}
-      {showPayment && (
-        <PaymentModal
-          listing={listing}
-          clientId={profileId}
-          onSuccess={(deploymentId) => {
-            setDone(deploymentId);
-            setShowPayment(false);
-          }}
-          onClose={() => setShowPayment(false)}
-        />
-      )}
     </>
   );
 }

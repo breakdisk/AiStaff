@@ -28,11 +28,11 @@ const APP_URL         = process.env.NEXTAUTH_URL                  ?? "http://loc
 // ── Auth (same helper as checkout route) ─────────────────────────────────────
 
 async function getAccessToken(): Promise<string> {
-  const encoded = Buffer.from(`${API_KEY}:`).toString("base64");
+  // API_KEY from portal is already base64(credentials) — use directly
   const res = await fetch(`${API_BASE}/identity/auth/access-token`, {
     method:  "POST",
     headers: {
-      "Authorization": `Basic ${encoded}`,
+      "Authorization": `Basic ${API_KEY}`,
       "Content-Type":  "application/vnd.ni-identity.v1+json",
     },
     signal: AbortSignal.timeout(10_000),
