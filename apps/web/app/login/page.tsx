@@ -2,7 +2,6 @@
 
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { signIn } from "next-auth/react";
 import Link from "next/link";
 import { Github, Loader2, Linkedin } from "lucide-react";
 
@@ -32,10 +31,19 @@ function OAuthButton({
   icon:        React.ReactNode;
   callbackUrl: string;
 }) {
+  function handleClick() {
+    // Use a full browser navigation to /api/auth/login instead of fetch()-based
+    // signIn(). This eliminates the mobile race condition where window.location.href
+    // can start before the browser stores the Set-Cookie from the fetch response,
+    // causing the PKCE cookie to be missing on the OAuth callback → InvalidCheck.
+    const url = `/api/auth/login?provider=${provider}&callbackUrl=${encodeURIComponent(callbackUrl)}`;
+    window.location.href = url;
+  }
+
   return (
     <button
       type="button"
-      onClick={() => signIn(provider, { callbackUrl })}
+      onClick={handleClick}
       className="w-full h-11 flex items-center gap-3 px-4 rounded-sm
                  border border-zinc-700 bg-zinc-900 hover:bg-zinc-800 hover:border-zinc-600
                  text-zinc-200 font-mono text-sm transition-all active:scale-[0.98]"
