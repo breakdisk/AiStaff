@@ -82,6 +82,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   // Required behind any reverse proxy (Traefik, Cloudflare, etc.)
   trustHost: true,
 
+  // AUTH_URL=https:// causes Auth.js to auto-set useSecureCookies=true.
+  // With Cloudflare Flexible SSL the origin is HTTP — Secure cookies are
+  // silently dropped by mobile browsers on the OAuth callback.
+  // Explicitly false so cookie names stay plain authjs.* without __Secure- prefix.
+  useSecureCookies: false,
+
   providers: [
     GitHub({
       clientId: process.env.GITHUB_CLIENT_ID!,
