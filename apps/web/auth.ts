@@ -78,29 +78,86 @@ async function callIdentityOAuthCallback(
 
 // ── NextAuth config ───────────────────────────────────────────────────────────
 
+// Detect production: AUTH_URL is set to https:// in production (Dokploy env).
+// In development AUTH_URL / NEXTAUTH_URL points to http://localhost:3000.
+const isProduction = (process.env.AUTH_URL ?? process.env.NEXTAUTH_URL ?? "")
+  .startsWith("https://");
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
-  // Required behind any reverse proxy (Traefik, Cloudflare, etc.)
+  // Required behind any reverse proxy (Traefik, Cloudflare, etc.).
+  // Instructs Auth.js to trust X-Forwarded-Host / X-Forwarded-Proto headers
+  // so AUTH_URL inference and redirect_uri generation use the public hostname.
   trustHost: true,
 
-  // useSecureCookies defaults to true when AUTH_URL=https://, which is correct
-  // for Let's Encrypt / full-TLS deployments (Traefik terminates SSL).
-  // Secure;SameSite=None cookies are specifically designed for cross-site OAuth
-  // flows (GitHub → aistaffglobal.com callback). Do NOT set false here unless
-  // using Cloudflare Flexible SSL (origin HTTP) — that causes SameSite=Lax which
-  // some browsers drop on the cross-site OAuth callback redirect.
+  // Explicit cookie configuration.
+  //
+  // Root cause of the persistent InvalidCheck errors:
+  // Traefik terminates TLS — the Next.js container sees plain HTTP internally.
+  // Auth.js infers useSecureCookies=true from AUTH_URL=https://, so it names
+  // cookies with the __Secure- prefix and sets the Secure flag.  On the OAuth
+  // callback the container-side request is HTTP, so some Auth.js code paths
+  // treat it as insecure and refuse to read __Secure- prefixed cookies, causing
+  // "pkceCodeVerifier value could not be parsed" even when the cookie was set.
+  //
+  // Fix: lock cookie names to explicit, non-prefixed strings in production and
+  // set Secure + SameSite=None explicitly so browsers accept them on the
+  // cross-origin OAuth callback (provider domain → our domain).
+  // In development (HTTP localhost) use plain names with no Secure flag.
+  cookies: isProduction
+    ? {
+        sessionToken: {
+          name: "authjs.session-token",
+          options: { httpOnly: true, sameSite: "lax", path: "/", secure: true },
+        },
+        callbackUrl: {
+          name: "authjs.callback-url",
+          options: { httpOnly: true, sameSite: "lax", path: "/", secure: true },
+        },
+        csrfToken: {
+          name: "authjs.csrf-token",
+          options: { httpOnly: true, sameSite: "lax", path: "/", secure: true },
+        },
+        // state cookie: used by checks:["state"] to validate the OAuth round-trip.
+        // SameSite=None + Secure so it survives the provider→app redirect.
+        state: {
+          name: "authjs.state",
+          options: {
+            httpOnly: true,
+            sameSite: "none",
+            path: "/",
+            secure: true,
+            maxAge: 60 * 15, // 15 minutes — enough for any OAuth flow
+          },
+        },
+        // nonce is not used (PKCE disabled), but define it to prevent Auth.js
+        // from auto-generating a __Secure- prefixed name and then failing to
+        // read it on the callback.
+        nonce: {
+          name: "authjs.nonce",
+          options: {
+            httpOnly: true,
+            sameSite: "none",
+            path: "/",
+            secure: true,
+            maxAge: 60 * 15,
+          },
+        },
+      }
+    : undefined, // Dev: let Auth.js use defaults (no __Secure- prefix on HTTP)
 
-  // Debug mode active — shows cookie read/write + PKCE events in Dokploy logs.
-  // Remove before final production launch.
+  // Debug logging active — shows cookie set/read events in Dokploy logs.
+  // Remove before final public launch.
   debug: true,
 
   providers: [
     GitHub({
       clientId: process.env.GITHUB_CLIENT_ID!,
       clientSecret: process.env.GITHUB_CLIENT_SECRET!,
-      // Disable PKCE — all three providers are confidential clients (have
-      // client_secret). The state check prevents OAuth CSRF; client_secret
-      // prevents code exchange by third parties. PKCE is optional for
-      // server-side apps and its cookie is consistently lost behind Traefik.
+      // PKCE disabled: GitHub is a confidential client (has client_secret).
+      // The state cookie prevents CSRF. PKCE is only needed for public clients
+      // (SPAs with no server-side secret). Keeping PKCE on a server-side app
+      // behind Traefik adds a cookie that is unreliable across SSL-terminating
+      // proxies — see full diagnosis in docs/adr/ (auth cookie fix).
       checks: ["state"],
     }),
     Google({

@@ -70,9 +70,23 @@ export default auth((req) => {
 
 export const config = {
   matcher: [
-    // Exclude: static assets, images, AND /listings/* (OG share pages must be
-    // reachable by social crawlers without any auth — excluding them from the
-    // matcher is the only way to guarantee NextAuth never touches these routes).
-    "/((?!_next/static|_next/image|favicon\\.ico|icon|apple-icon|sitemap\\.xml|robots\\.txt|llms.*|listings/.*|.*\\.(?:png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|otf)$).*)",
+    // Exclude from the matcher:
+    //   - _next/static, _next/image  — Next.js build assets
+    //   - /api/auth/*                — Auth.js callback + signin routes must
+    //                                  NEVER pass through the auth() middleware
+    //                                  wrapper.  The middleware calls auth() to
+    //                                  read the session, but auth() also attempts
+    //                                  to decrypt OAuth state cookies.  On the
+    //                                  callback URL this happens BEFORE the route
+    //                                  handler, so if cookie decryption fails
+    //                                  (Traefik HTTP-internal vs HTTPS-external
+    //                                  mismatch) Auth.js logs InvalidCheck and
+    //                                  aborts — the route handler never runs.
+    //                                  Excluding /api/auth/* from the matcher
+    //                                  lets the route handler process the OAuth
+    //                                  callback with no middleware interference.
+    //   - /listings/*               — OG share pages for social crawlers
+    //   - Static file extensions    — images, fonts, favicons
+    "/((?!_next/static|_next/image|api/auth|favicon\\.ico|icon|apple-icon|sitemap\\.xml|robots\\.txt|llms.*|listings/.*|.*\\.(?:png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|otf)$).*)",
   ],
 };

@@ -1,17 +1,20 @@
 /**
  * /api/auth/login?provider=github&callbackUrl=/dashboard
  *
- * Intermediate OAuth entry point that eliminates the fetch() race condition
- * on mobile. next-auth/react's signIn() uses fetch() to POST to
- * /api/auth/signin/{provider}. On mobile, window.location.href sometimes
- * starts before the browser stores the Set-Cookie from the fetch() response,
- * so the PKCE cookie is missing on the callback → InvalidCheck error.
+ * Lightweight redirect shim. The login page navigates here instead of calling
+ * next-auth/react signIn() directly, so the entire flow is full browser
+ * navigations with no fetch() race conditions.
  *
- * This route uses only full browser navigations:
- *   GET /api/auth/login → HTML page with auto-submitting form
- *   Browser submits form → POST /api/auth/signin/{provider}
- *   Auth.js sets PKCE cookie → 302 to OAuth provider
- *   Browser stores cookie synchronously in the redirect chain → callback works.
+ * With checks:["state"] (PKCE disabled) there is no code_verifier cookie to
+ * lose, so the only thing this route needs to do is validate inputs and issue
+ * a 302 to the standard Auth.js signin endpoint — which sets the state cookie
+ * itself as part of the same redirect chain.
+ *
+ * Previous version fetched CSRF via http://127.0.0.1:3000 then forwarded the
+ * Set-Cookie header. That caused a domain mismatch: the cookie was bound to
+ * 127.0.0.1 but the browser page was on aistaffglobal.com, so browsers
+ * silently dropped it → CSRF validation failed. This version avoids that
+ * entirely by letting Auth.js manage its own CSRF cookie.
  */
 
 import { type NextRequest, NextResponse } from "next/server";
@@ -33,15 +36,6 @@ function sanitizeCallback(raw: string): string {
   return raw;
 }
 
-/** Minimal HTML attribute escaping. */
-function esc(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/"/g, "&quot;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-}
-
 export async function GET(req: NextRequest) {
   const provider    = req.nextUrl.searchParams.get("provider")    ?? "";
   const callbackUrl = req.nextUrl.searchParams.get("callbackUrl") ?? "/dashboard";
@@ -52,72 +46,19 @@ export async function GET(req: NextRequest) {
 
   const safeCallback = sanitizeCallback(callbackUrl);
 
-  // Fetch the CSRF token from Auth.js via the internal container address.
-  // Using 127.0.0.1:3000 avoids Cloudflare and Traefik entirely.
-  //
-  // We forward X-Forwarded-Host and X-Forwarded-Proto so Auth.js generates
-  // the CSRF cookie with the correct host context (aistaffglobal.com, https).
-  // This ensures the __Secure- cookie prefix and Secure flag are applied
-  // consistently between the CSRF fetch and the subsequent form POST.
-  let csrfToken = "";
-  let csrfSetCookie: string | null = null;
+  // Redirect to the Auth.js sign-in endpoint for the chosen provider.
+  // Auth.js will:
+  //   1. Generate a state token and set the authjs.state cookie (SameSite=None;Secure).
+  //   2. Redirect the browser to the OAuth provider with ?state=...
+  //   3. On callback, read authjs.state to verify the round-trip.
+  // Because this is a GET redirect (not a fetch()), the browser stores the
+  // Set-Cookie synchronously before following the next redirect — eliminating
+  // the mobile race condition that existed with signIn() fetch() calls.
+  const signinUrl = new URL(
+    `/api/auth/signin/${provider}`,
+    req.nextUrl.origin,
+  );
+  signinUrl.searchParams.set("callbackUrl", safeCallback);
 
-  try {
-    const host  = req.headers.get("x-forwarded-host") ?? req.nextUrl.host;
-    const proto = req.headers.get("x-forwarded-proto") ?? req.nextUrl.protocol.replace(":", "");
-
-    const csrfRes = await fetch("http://127.0.0.1:3000/api/auth/csrf", {
-      cache: "no-store",
-      headers: {
-        "x-forwarded-host":  host,
-        "x-forwarded-proto": proto,
-        "x-forwarded-for":   req.headers.get("x-forwarded-for") ?? "",
-      },
-    });
-    if (csrfRes.ok) {
-      const data = await csrfRes.json() as { csrfToken?: string };
-      csrfToken     = data.csrfToken ?? "";
-      csrfSetCookie = csrfRes.headers.get("set-cookie");
-    }
-  } catch {
-    // Non-fatal — proceed without CSRF token; Auth.js will reject and the
-    // user will be redirected back to /login, which is a safe fallback.
-  }
-
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="robots" content="noindex">
-  <title>Signing in…</title>
-  <style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{background:#09090b;display:flex;align-items:center;justify-content:center;
-         min-height:100vh;font-family:ui-monospace,monospace;color:#a1a1aa;font-size:14px}
-    p{letter-spacing:.05em}
-  </style>
-</head>
-<body>
-  <p>Signing in…</p>
-  <form id="f" method="POST" action="/api/auth/signin/${esc(provider)}">
-    <input type="hidden" name="csrfToken"   value="${esc(csrfToken)}">
-    <input type="hidden" name="callbackUrl" value="${esc(safeCallback)}">
-  </form>
-  <script>document.getElementById("f").submit();</script>
-</body>
-</html>`;
-
-  const res = new NextResponse(html, {
-    status: 200,
-    headers: { "Content-Type": "text/html; charset=utf-8" },
-  });
-
-  // Forward the CSRF Set-Cookie from Auth.js so the browser has the matching
-  // cookie when the auto-submitted form POST arrives at /api/auth/signin.
-  if (csrfSetCookie) {
-    res.headers.set("set-cookie", csrfSetCookie);
-  }
-
-  return res;
+  return NextResponse.redirect(signinUrl, { status: 302 });
 }
