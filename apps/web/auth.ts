@@ -121,8 +121,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       options: { httpOnly: true, sameSite: "lax" as const, path: "/", secure: true },
     },
     csrfToken: {
-      // __Host- prefix: no Domain attr, Path=/, Secure required — Chrome enforces this
-      name:    `__Host-authjs.csrf-token`,
+      // __Secure- prefix (not __Host-): Cloudflare Flexible SSL means the origin
+      // server receives HTTP internally — Chrome rejects __Host- cookies set over
+      // HTTP even when the browser connection is HTTPS. __Secure- only requires
+      // the Secure flag + HTTPS delivery to the browser, which Cloudflare provides.
+      name:    `__Secure-authjs.csrf-token`,
       options: { httpOnly: true, sameSite: "lax" as const, path: "/", secure: true },
     },
     pkceCodeVerifier: {
