@@ -3,35 +3,40 @@ import { NextRequest } from "next/server";
 
 const { GET: authGET, POST: authPOST } = handlers;
 
-// Wrap handlers to log the actual Auth.js error — the default
-// "error=Configuration" redirect hides the real cause.
-// TODO: remove debug logging before production launch.
+// Intercept Auth.js responses — it doesn't throw exceptions,
+// it silently redirects to /api/auth/error. We catch that redirect
+// and return the details as JSON for debugging.
+// TODO: revert to simple `export const { GET, POST } = handlers` before launch.
+
 export async function GET(req: NextRequest) {
-  try {
-    return await authGET(req);
-  } catch (e: unknown) {
-    console.error("[auth] GET error:", e);
-    const msg = e instanceof Error ? e.message : String(e);
-    const stack = e instanceof Error ? e.stack : undefined;
-    const name = e instanceof Error ? e.name : "UnknownError";
-    return Response.json(
-      { error: name, message: msg, stack: stack?.split("\n").slice(0, 5) },
-      { status: 500 }
-    );
+  const res = await authGET(req);
+  // Check if Auth.js is redirecting to the error page
+  const location = res.headers.get("location") ?? "";
+  if (location.includes("/api/auth/error")) {
+    return Response.json({
+      debug: "Auth.js redirected to error page",
+      location,
+      status: res.status,
+      request_url: req.url,
+      cookies_set: res.headers.getSetCookie(),
+      all_response_headers: Object.fromEntries(res.headers.entries()),
+    }, { status: 500 });
   }
+  return res;
 }
 
 export async function POST(req: NextRequest) {
-  try {
-    return await authPOST(req);
-  } catch (e: unknown) {
-    console.error("[auth] POST error:", e);
-    const msg = e instanceof Error ? e.message : String(e);
-    const stack = e instanceof Error ? e.stack : undefined;
-    const name = e instanceof Error ? e.name : "UnknownError";
-    return Response.json(
-      { error: name, message: msg, stack: stack?.split("\n").slice(0, 5) },
-      { status: 500 }
-    );
+  const res = await authPOST(req);
+  const location = res.headers.get("location") ?? "";
+  if (location.includes("/api/auth/error")) {
+    return Response.json({
+      debug: "Auth.js redirected to error page",
+      location,
+      status: res.status,
+      request_url: req.url,
+      cookies_set: res.headers.getSetCookie(),
+      all_response_headers: Object.fromEntries(res.headers.entries()),
+    }, { status: 500 });
   }
+  return res;
 }
