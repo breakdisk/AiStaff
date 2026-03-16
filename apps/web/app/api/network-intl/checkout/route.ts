@@ -88,6 +88,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
+  // Guard: payment gateway must be configured
+  if (!API_KEY) {
+    console.error("[network-intl/checkout] NETWORK_INTL_API_KEY not set");
+    return NextResponse.json({ error: "Payment gateway not configured (API key missing)" }, { status: 503 });
+  }
+  if (!OUTLET_REF) {
+    console.error("[network-intl/checkout] NETWORK_INTL_OUTLET_REF not set");
+    return NextResponse.json({ error: "Payment gateway not configured (outlet ref missing)" }, { status: 503 });
+  }
+
   // Deterministic order reference per payment attempt for idempotency audit trail
   const merchantOrderRef = uuidv7();
 

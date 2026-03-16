@@ -247,6 +247,7 @@ function ActionButton({ listing, userTier, profileId, marketView, compact }: Act
   const [busy,        setBusy]        = useState(false);
   const [showGate,    setShowGate]    = useState(false);
   const [offlineNote, setOfflineNote] = useState(false);
+  const [deployError, setDeployError] = useState<string | null>(null);
 
   async function handleFreelancer() {
     if (userTier === "UNVERIFIED") { setShowGate(true); return; }
@@ -264,14 +265,29 @@ function ActionButton({ listing, userTier, profileId, marketView, compact }: Act
 
   async function handleDeploy() {
     if (userTier === "UNVERIFIED") { setShowGate(true); return; }
+    setDeployError(null);
     setBusy(true);
     try {
+      // Guard: price must be set
+      const amountCents = listing.price_cents ?? 0;
+      if (amountCents < 100) {
+        setDeployError("Listing has no price set. Contact support.");
+        setBusy(false);
+        return;
+      }
+      // Guard: client_id must be a real profile (not fallback zero UUID)
+      if (!profileId || profileId === "00000000-0000-0000-0000-000000000000") {
+        setDeployError("Profile not loaded — please refresh and try again.");
+        setBusy(false);
+        return;
+      }
+
       // Call N-Genius checkout — returns a hosted payment page URL
       const res = await fetch("/api/network-intl/checkout", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          amount_cents: listing.price_cents,
+          amount_cents: amountCents,
           listing_id:   listing.id,
           agent_name:   listing.name,
           client_id:    profileId,
@@ -280,7 +296,9 @@ function ActionButton({ listing, userTier, profileId, marketView, compact }: Act
       });
       const data = await res.json() as { payment_url?: string; error?: string };
       if (!res.ok || !data.payment_url) {
-        console.error("[deploy] checkout failed:", data.error);
+        const msg = data.error ?? `Server error ${res.status}`;
+        console.error("[deploy] checkout failed:", msg);
+        setDeployError(msg);
         setBusy(false);
         return;
       }
@@ -289,7 +307,9 @@ function ActionButton({ listing, userTier, profileId, marketView, compact }: Act
       // which creates the deployment and sends user to /dashboard
       window.location.href = data.payment_url;
     } catch (err) {
+      const msg = err instanceof Error ? err.message : "Network error — try again.";
       console.error("[deploy] unexpected error:", err);
+      setDeployError(msg);
       setBusy(false);
     }
   }
@@ -326,18 +346,26 @@ function ActionButton({ listing, userTier, profileId, marketView, compact }: Act
           {busy ? "…" : <><Handshake className="w-3 h-3" /> Apply</>}
         </button>
       ) : (
-        <button
-          onClick={handleDeploy}
-          disabled={busy}
-          className={`flex items-center gap-1 ${px} ${h} rounded-sm border border-amber-900
-                     bg-amber-950 text-amber-400 font-mono text-xs uppercase tracking-widest
-                     hover:border-amber-700 active:scale-[0.97] transition-all disabled:opacity-40`}
-        >
-          {busy
-            ? <><Loader2 className="w-3 h-3 animate-spin" /> Preparing…</>
-            : <>Deploy <ChevronRight className="w-3 h-3" /></>
-          }
-        </button>
+        <div className="flex flex-col items-start gap-0.5">
+          <button
+            onClick={handleDeploy}
+            disabled={busy}
+            className={`flex items-center gap-1 ${px} ${h} rounded-sm border border-amber-900
+                       bg-amber-950 text-amber-400 font-mono text-xs uppercase tracking-widest
+                       hover:border-amber-700 active:scale-[0.97] transition-all disabled:opacity-40`}
+          >
+            {busy
+              ? <><Loader2 className="w-3 h-3 animate-spin" /> Preparing…</>
+              : <>Deploy <ChevronRight className="w-3 h-3" /></>
+            }
+          </button>
+          {deployError && (
+            <span className="flex items-start gap-1 text-[10px] font-mono text-red-400 max-w-[200px] leading-tight">
+              <AlertTriangle className="w-3 h-3 mt-px flex-shrink-0" />
+              {deployError}
+            </span>
+          )}
+        </div>
       )}
 
       {showGate && <TierGateSheet onClose={() => setShowGate(false)} />}
