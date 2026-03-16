@@ -101,6 +101,34 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
   session: { strategy: "jwt" },
 
+  // Explicit cookie config — Chrome enforces __Host- prefix rules strictly.
+  // Setting sameSite:"lax" + secure:true explicitly prevents Cloudflare or
+  // browser policy from silently dropping the CSRF / state cookies during
+  // the OAuth redirect, which causes "server configuration" errors in Chrome.
+  cookies: {
+    sessionToken: {
+      name:    `__Secure-authjs.session-token`,
+      options: { httpOnly: true, sameSite: "lax" as const, path: "/", secure: true },
+    },
+    callbackUrl: {
+      name:    `__Secure-authjs.callback-url`,
+      options: { httpOnly: true, sameSite: "lax" as const, path: "/", secure: true },
+    },
+    csrfToken: {
+      // __Host- prefix: no Domain attr, Path=/, Secure required — Chrome enforces this
+      name:    `__Host-authjs.csrf-token`,
+      options: { httpOnly: true, sameSite: "lax" as const, path: "/", secure: true },
+    },
+    pkceCodeVerifier: {
+      name:    `__Secure-authjs.pkce.code_verifier`,
+      options: { httpOnly: true, sameSite: "lax" as const, path: "/", secure: true, maxAge: 60 * 15 },
+    },
+    state: {
+      name:    `__Secure-authjs.state`,
+      options: { httpOnly: true, sameSite: "lax" as const, path: "/", secure: true, maxAge: 60 * 15 },
+    },
+  },
+
   callbacks: {
     async jwt({ token, account, profile, trigger, session }) {
       // ── Session update: client called update({ role, accountType }) ──────────
