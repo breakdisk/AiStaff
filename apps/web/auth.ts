@@ -79,6 +79,11 @@ async function callIdentityOAuthCallback(
 // ── NextAuth config ───────────────────────────────────────────────────────────
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  // Enable verbose logging — shows every step of the OAuth flow in container
+  // stdout. View with `docker logs <web-container>` or Dokploy log viewer.
+  // TODO: disable before production launch.
+  debug: true,
+
   // Explicit secret — Auth.js v5 uses AUTH_SECRET, but many deployments still
   // set NEXTAUTH_SECRET (v4 name). Accept either to avoid silent MissingSecret
   // errors that surface as "error=Configuration" with no useful diagnostics.
