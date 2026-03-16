@@ -106,15 +106,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
   session: { strategy: "jwt" },
 
-  // Cloudflare Flexible SSL: browser↔Cloudflare is HTTPS, Cloudflare↔origin is
-  // HTTP. Chrome rejects __Secure-/__Host- prefixed cookies AND secure:true when
-  // the Set-Cookie response arrives over HTTP — even though the browser itself
-  // connected via HTTPS. Edge is lenient and accepts them anyway.
-  //
-  // Solution: use Auth.js defaults (no prefix, no secure flag). Cloudflare
-  // enforces HTTPS at the edge, so cookies are never exposed over plain HTTP
-  // in transit. When migrating to Cloudflare Full (Strict) SSL, re-enable
-  // useSecureCookies:true for defense-in-depth.
+  // MUST be explicitly false — Auth.js v5 auto-detects from AUTH_URL protocol.
+  // Since AUTH_URL=https://aistaffglobal.com, it defaults to true internally,
+  // which adds __Secure- prefix + secure:true to all cookies. Cloudflare
+  // Flexible SSL forwards HTTP to the origin, so Chrome rejects these cookies
+  // (Edge is lenient). Setting false disables the auto-detection.
+  // When migrating to Cloudflare Full (Strict) SSL, change this to true.
+  useSecureCookies: false,
 
   callbacks: {
     async jwt({ token, account, profile, trigger, session }) {
