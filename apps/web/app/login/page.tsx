@@ -1,10 +1,7 @@
-"use client";
-
 import { Suspense } from "react";
-import { useSearchParams } from "next/navigation";
-import { signIn } from "next-auth/react";
 import Link from "next/link";
 import { Github, Loader2, Linkedin } from "lucide-react";
+import { loginWithProvider } from "./actions";
 
 // ── Google icon (Lucide does not include it) ──────────────────────────────────
 
@@ -19,7 +16,7 @@ function GoogleIcon({ className }: { className?: string }) {
   );
 }
 
-// ── OAuth button ──────────────────────────────────────────────────────────────
+// ── OAuth button (form-based — no fetch(), works on all mobile browsers) ──────
 
 function OAuthButton({
   provider,
@@ -33,25 +30,25 @@ function OAuthButton({
   callbackUrl: string;
 }) {
   return (
-    <button
-      type="button"
-      onClick={() => signIn(provider, { callbackUrl })}
-      className="w-full h-11 flex items-center gap-3 px-4 rounded-sm
-                 border border-zinc-700 bg-zinc-900 hover:bg-zinc-800 hover:border-zinc-600
-                 text-zinc-200 font-mono text-sm transition-all active:scale-[0.98]"
-    >
-      {icon}
-      <span className="flex-1 text-left">{label}</span>
-    </button>
+    <form action={loginWithProvider}>
+      <input type="hidden" name="provider" value={provider} />
+      <input type="hidden" name="callbackUrl" value={callbackUrl} />
+      <button
+        type="submit"
+        className="w-full h-11 flex items-center gap-3 px-4 rounded-sm
+                   border border-zinc-700 bg-zinc-900 hover:bg-zinc-800 hover:border-zinc-600
+                   text-zinc-200 font-mono text-sm transition-all active:scale-[0.98]"
+      >
+        {icon}
+        <span className="flex-1 text-left">{label}</span>
+      </button>
+    </form>
   );
 }
 
-// ── Inner form (useSearchParams requires Suspense boundary) ───────────────────
+// ── Inner form (reads callbackUrl from search params) ─────────────────────────
 
-function LoginForm() {
-  const searchParams = useSearchParams();
-  const callbackUrl  = searchParams.get("next") ?? "/dashboard";
-
+function LoginForm({ callbackUrl }: { callbackUrl: string }) {
   return (
     <div className="rounded-sm border border-zinc-800 bg-zinc-900/60 backdrop-blur-sm p-6 space-y-4">
       <div>
@@ -111,9 +108,16 @@ function LoginForm() {
   );
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────────
+// ── Page (Server Component — no "use client") ────────────────────────────────
 
-export default function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>;
+}) {
+  const params = await searchParams;
+  const callbackUrl = params.next ?? "/dashboard";
+
   return (
     <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center px-4">
 
@@ -140,7 +144,7 @@ export default function LoginPage() {
             <Loader2 className="w-5 h-5 text-zinc-600 animate-spin" />
           </div>
         }>
-          <LoginForm />
+          <LoginForm callbackUrl={callbackUrl} />
         </Suspense>
 
         <p className="text-center font-mono text-xs text-zinc-600">
