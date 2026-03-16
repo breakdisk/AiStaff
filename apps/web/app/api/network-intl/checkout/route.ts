@@ -7,6 +7,11 @@ export const runtime = "nodejs";
  * page URL. The browser redirects the user to that URL; on completion
  * N-Genius redirects back to /api/network-intl/callback.
  *
+ * Currency auto-detection:
+ *   Cloudflare injects CF-IPCountry on every request (zero cost, no API).
+ *   UAE (AE) → AED (fils, pegged 3.6725 AED/USD — stable, no live FX needed)
+ *   All others → USD (cents)
+ *
  * Docs: https://docs.ngenius-payments.com/reference/creating-orders
  */
 
@@ -17,6 +22,12 @@ const API_BASE   = process.env.NETWORK_INTL_API_BASE   ?? "https://api-gateway.s
 const API_KEY    = process.env.NETWORK_INTL_API_KEY    ?? "";
 const OUTLET_REF = process.env.NETWORK_INTL_OUTLET_REF ?? "";
 const APP_URL    = process.env.NEXTAUTH_URL             ?? "http://localhost:3000";
+
+// AED is pegged to USD at 3.6725 (Central Bank of UAE fixed rate).
+// N-Genius amount.value = smallest currency unit: fils for AED (100 fils = 1 AED).
+// Formula: USD_cents → AED_fils = floor(cents × 36725 / 10000)
+const USD_CENTS_TO_AED_FILS = (cents: number): number =>
+  Math.floor(cents * 36725 / 10000);
 
 // ── Auth ─────────────────────────────────────────────────────────────────────
 
@@ -48,11 +59,10 @@ async function getAccessToken(): Promise<string> {
 // ── Request / Response types ──────────────────────────────────────────────────
 
 export interface NetworkIntlCheckoutRequest {
-  amount_cents:  number;   // USD cents
+  amount_cents:  number;   // USD cents — server converts to local currency
   listing_id:    string;
   agent_name:    string;
   client_id:     string;
-  currency?:     string;   // ISO 4217 — defaults to USD
 }
 
 interface NGenius_OrderResponse {
@@ -72,7 +82,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { amount_cents, listing_id, agent_name, client_id, currency = "USD" } = body;
+  const { amount_cents, listing_id, agent_name, client_id } = body;
 
   if (!amount_cents || amount_cents < 100) {
     return NextResponse.json(
@@ -97,6 +107,20 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     console.error("[network-intl/checkout] NETWORK_INTL_OUTLET_REF not set");
     return NextResponse.json({ error: "Payment gateway not configured (outlet ref missing)" }, { status: 503 });
   }
+
+  // ── Currency auto-detection via Cloudflare CF-IPCountry header ──────────────
+  // Cloudflare injects this on every proxied request — zero cost, no API call.
+  // In dev (no Cloudflare), header is absent → defaults to USD.
+  const cfCountry = (req.headers.get("cf-ipcountry") ?? "").toUpperCase();
+  const isUAE     = cfCountry === "AE";
+  const currency  = isUAE ? "AED" : "USD";
+  // Convert: USD cents → AED fils (pegged rate, lossless integer math)
+  const orderAmount = isUAE ? USD_CENTS_TO_AED_FILS(amount_cents) : amount_cents;
+
+  console.log(
+    `[network-intl/checkout] country=${cfCountry || "unknown"} ` +
+    `currency=${currency} amount=${orderAmount} (from ${amount_cents} USD cents)`,
+  );
 
   // Deterministic order reference per payment attempt for idempotency audit trail
   const merchantOrderRef = uuidv7();
@@ -126,7 +150,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           action: "SALE", // immediate authorise + capture
           amount: {
             currencyCode: currency,
-            value:        amount_cents,
+            value:        orderAmount,
           },
           merchantAttributes: {
             redirectUrl,
@@ -156,8 +180,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({
       payment_url:  order._links.payment.href,
       order_ref:    order.reference,
-      amount_cents,
-      currency,
+      amount_cents,   // original USD cents (for audit / display)
+      currency,       // resolved currency (AED or USD)
+      order_amount:  orderAmount,  // amount sent to N-Genius (fils or cents)
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

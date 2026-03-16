@@ -282,7 +282,8 @@ function ActionButton({ listing, userTier, profileId, marketView, compact }: Act
         return;
       }
 
-      // Call N-Genius checkout — returns a hosted payment page URL
+      // Call N-Genius checkout — server auto-detects currency from CF-IPCountry:
+      // UAE (AE) → AED, all others → USD
       const res = await fetch("/api/network-intl/checkout", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
@@ -291,10 +292,9 @@ function ActionButton({ listing, userTier, profileId, marketView, compact }: Act
           listing_id:   listing.id,
           agent_name:   listing.name,
           client_id:    profileId,
-          currency:     "USD",
         }),
       });
-      const data = await res.json() as { payment_url?: string; error?: string };
+      const data = await res.json() as { payment_url?: string; error?: string; currency?: string };
       if (!res.ok || !data.payment_url) {
         const msg = data.error ?? `Server error ${res.status}`;
         console.error("[deploy] checkout failed:", msg);
