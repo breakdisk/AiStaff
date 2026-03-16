@@ -54,11 +54,26 @@ export async function GET(req: NextRequest) {
 
   // Fetch the CSRF token from Auth.js via the internal container address.
   // Using 127.0.0.1:3000 avoids Cloudflare and Traefik entirely.
+  //
+  // We forward X-Forwarded-Host and X-Forwarded-Proto so Auth.js generates
+  // the CSRF cookie with the correct host context (aistaffglobal.com, https).
+  // This ensures the __Secure- cookie prefix and Secure flag are applied
+  // consistently between the CSRF fetch and the subsequent form POST.
   let csrfToken = "";
   let csrfSetCookie: string | null = null;
 
   try {
-    const csrfRes = await fetch("http://127.0.0.1:3000/api/auth/csrf");
+    const host  = req.headers.get("x-forwarded-host") ?? req.nextUrl.host;
+    const proto = req.headers.get("x-forwarded-proto") ?? req.nextUrl.protocol.replace(":", "");
+
+    const csrfRes = await fetch("http://127.0.0.1:3000/api/auth/csrf", {
+      cache: "no-store",
+      headers: {
+        "x-forwarded-host":  host,
+        "x-forwarded-proto": proto,
+        "x-forwarded-for":   req.headers.get("x-forwarded-for") ?? "",
+      },
+    });
     if (csrfRes.ok) {
       const data = await csrfRes.json() as { csrfToken?: string };
       csrfToken     = data.csrfToken ?? "";

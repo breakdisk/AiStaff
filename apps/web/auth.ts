@@ -82,11 +82,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   // Required behind any reverse proxy (Traefik, Cloudflare, etc.)
   trustHost: true,
 
-  // AUTH_URL=https:// causes Auth.js to auto-set useSecureCookies=true.
-  // With Cloudflare Flexible SSL the origin is HTTP — Secure cookies are
-  // silently dropped by mobile browsers on the OAuth callback.
-  // Explicitly false so cookie names stay plain authjs.* without __Secure- prefix.
-  useSecureCookies: false,
+  // useSecureCookies defaults to true when AUTH_URL=https://, which is correct
+  // for Let's Encrypt / full-TLS deployments (Traefik terminates SSL).
+  // Secure;SameSite=None cookies are specifically designed for cross-site OAuth
+  // flows (GitHub → aistaffglobal.com callback). Do NOT set false here unless
+  // using Cloudflare Flexible SSL (origin HTTP) — that causes SameSite=Lax which
+  // some browsers drop on the cross-site OAuth callback redirect.
 
   providers: [
     GitHub({
