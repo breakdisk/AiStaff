@@ -21,7 +21,10 @@ function listingUrl(listing: AgentListing) {
 }
 
 function twitterIntent(listing: AgentListing) {
-  const text = `Check out "${listing.name}" on AiStaff — ${fmtPrice(listing.price_cents)} escrow deployment`;
+  const shortDesc = listing.description.slice(0, 100);
+  const text =
+    `${listing.name} — ${fmtPrice(listing.price_cents)} escrow\n` +
+    `${shortDesc}`;
   return `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(listingUrl(listing))}`;
 }
 
@@ -30,7 +33,14 @@ function linkedinShare(listing: AgentListing) {
 }
 
 function whatsappShare(listing: AgentListing) {
-  const text = `"${listing.name}" — ${fmtPrice(listing.price_cents)} · Deploy with AiStaff escrow: ${listingUrl(listing)}`;
+  // WhatsApp supports *bold* markdown. Include price and description so
+  // recipients see the full context; they can attach their own photo.
+  const shortDesc = listing.description.slice(0, 150);
+  const text =
+    `*${listing.name}*\n` +
+    `${fmtPrice(listing.price_cents)} escrow\n\n` +
+    `${shortDesc}\n\n` +
+    `Deploy on AiStaff: ${listingUrl(listing)}`;
   return `https://wa.me/?text=${encodeURIComponent(text)}`;
 }
 
