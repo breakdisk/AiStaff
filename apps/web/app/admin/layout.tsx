@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Users, Package, Zap, DollarSign, LayoutDashboard } from "lucide-react";
+import { Users, Package, Zap, DollarSign, LayoutDashboard, Building2 } from "lucide-react";
 
 const NAV = [
   { href: "/admin",             label: "Overview",    icon: LayoutDashboard },
@@ -9,6 +9,7 @@ const NAV = [
   { href: "/admin/listings",    label: "Listings",    icon: Package         },
   { href: "/admin/deployments", label: "Deployments", icon: Zap             },
   { href: "/admin/revenue",     label: "Revenue",     icon: DollarSign      },
+  { href: "/admin/enterprise",  label: "Enterprise",  icon: Building2       },
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
