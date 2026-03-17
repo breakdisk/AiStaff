@@ -33,6 +33,7 @@ impl FromRef<AppState> for sqlx::PgPool {
 }
 
 mod admin_handlers;
+mod enterprise_handlers;
 mod handlers;
 mod oauth_handler;
 mod openid4vp;
@@ -102,6 +103,20 @@ async fn main() -> anyhow::Result<()> {
         .route("/admin/users/{id}/suspend", post(admin_handlers::suspend_user))
         .route("/admin/users/{id}/unsuspend", post(admin_handlers::unsuspend_user))
         .route("/admin/users/{id}/set-tier", post(admin_handlers::set_user_tier))
+        // Enterprise org routes
+        .route("/enterprise/orgs-create",                         post(enterprise_handlers::create_org_full))
+        .route("/enterprise/orgs/my",                             get(enterprise_handlers::get_my_org))
+        .route("/enterprise/orgs/{id}",                           get(enterprise_handlers::get_org)
+                                                                 .patch(enterprise_handlers::update_org))
+        .route("/enterprise/orgs/{id}/invite",                    post(enterprise_handlers::invite_member))
+        .route("/enterprise/orgs/{id}/members",                   get(enterprise_handlers::list_members))
+        .route("/enterprise/orgs/{id}/members/{profile_id}",      delete(enterprise_handlers::remove_member))
+        .route("/enterprise/orgs/{id}/api-keys",                  get(enterprise_handlers::list_api_keys)
+                                                                 .post(enterprise_handlers::create_api_key))
+        .route("/enterprise/orgs/{id}/api-keys/{kid}",            delete(enterprise_handlers::revoke_api_key))
+        .route("/enterprise/invites/{token}/accept",              post(enterprise_handlers::accept_invite))
+        // Admin enterprise route
+        .route("/admin/enterprises",                              get(enterprise_handlers::admin_list_orgs))
         .with_state(state);
 
     let addr = "0.0.0.0:3001";
