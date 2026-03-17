@@ -110,4 +110,7 @@ pub struct OAuthCallbackResponse {
     pub account_type: String,
     /// "talent" | "client" | "agent-owner" | null (null = new user, not yet through onboarding)
     pub role: Option<String>,
+    /// Platform-owner admin flag — true only for designated admins
+    #[serde(default)]
+    pub is_admin: bool,
 }
