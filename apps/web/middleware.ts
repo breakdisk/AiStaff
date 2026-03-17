@@ -15,6 +15,7 @@ export default auth((req) => {
     pathname === "/" ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/api/og") ||          // OG image — must be public for social crawlers
     pathname.startsWith("/api/stripe/webhook") ||
     pathname.startsWith("/api/network-intl/webhook") ||
     pathname.startsWith("/api/network-intl/callback") ||
@@ -87,6 +88,6 @@ export const config = {
     //                                  callback with no middleware interference.
     //   - /listings/*               — OG share pages for social crawlers
     //   - Static file extensions    — images, fonts, favicons
-    "/((?!_next/static|_next/image|api/auth|favicon\\.ico|icon|apple-icon|sitemap\\.xml|robots\\.txt|llms.*|listings/.*|.*\\.(?:png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|otf)$).*)",
+    "/((?!_next/static|_next/image|api/auth|api/og|favicon\\.ico|icon|apple-icon|sitemap\\.xml|robots\\.txt|llms.*|listings/.*|.*\\.(?:png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|otf)$).*)",
   ],
 };
