@@ -38,6 +38,20 @@ export default auth((req) => {
     return NextResponse.redirect(url);
   }
 
+  // Admin gate — /admin/* requires isAdmin: true in session
+  if (isAuthenticated && pathname.startsWith("/admin")) {
+    const user = req.auth?.user as { isAdmin?: boolean } | undefined;
+    if (!user?.isAdmin) {
+      // API admin routes return 403; page routes redirect to dashboard
+      if (pathname.startsWith("/api/admin")) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+      const url = req.nextUrl.clone();
+      url.pathname = "/dashboard";
+      return NextResponse.redirect(url);
+    }
+  }
+
   if (isAuthenticated && AUTH_ONLY.some((p) => pathname.startsWith(p))) {
     const url   = req.nextUrl.clone();
     const token = req.auth?.user as {
