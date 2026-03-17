@@ -59,21 +59,13 @@ export async function generateMetadata(
     }).format(cents / 100);
 
   const price       = fmtUSD(listing.price_cents);
-  const title       = `${listing.name} — ${price} · AiStaff`;
-  // Price leads the description so it's visible in all preview formats.
+  const title       = `${listing.name} — ${price}`;
+  // Price leads the description so it's always the first thing Facebook shows.
   const description = `${price} escrow · ${listing.description.slice(0, 200)}`;
 
   // Canonical URL always uses the slug for clean, shareable links.
   const canonicalSlug = listing.slug || listing.id;
   const canonicalUrl  = `https://aistaffglobal.com/listings/${canonicalSlug}`;
-
-  // Dynamic text-based OG image — no product photo, just styled name/price/description.
-  // Generated server-side at /api/og so Facebook / LinkedIn / Twitter show a rich card.
-  const ogImageUrl =
-    `https://aistaffglobal.com/api/og` +
-    `?name=${encodeURIComponent(listing.name)}` +
-    `&price=${encodeURIComponent(price)}` +
-    `&desc=${encodeURIComponent(listing.description.slice(0, 130))}`;
 
   return {
     title,
@@ -84,13 +76,12 @@ export async function generateMetadata(
       title,
       description,
       siteName:    "AiStaff",
-      images: [{ url: ogImageUrl, width: 1200, height: 630, alt: listing.name }],
+      // No images — Facebook shows text-only link preview (url + title + description)
     },
     twitter: {
-      card:        "summary_large_image",
+      card:        "summary",   // text-only; no image
       title,
       description,
-      images:      [ogImageUrl],
       site:        "@aistaffglobal",
     },
     alternates: {
