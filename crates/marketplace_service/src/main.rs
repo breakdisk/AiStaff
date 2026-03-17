@@ -1,6 +1,7 @@
 //! marketplace_service — deployment creation + escrow command consumer.
 //! HTTP on :3002 | Kafka consumer on escrow.commands
 
+mod admin_handlers;
 mod escrow_consumer;
 mod handlers;
 
@@ -60,6 +61,12 @@ async fn main() -> Result<()> {
         )
         .route("/express-interest", post(handlers::express_interest))
         .route("/talent-skills/{id}/attest", post(handlers::attest_skills))
+        // Admin listing/deployment/revenue (internal only)
+        .route("/admin/listings", get(admin_handlers::list_listings))
+        .route("/admin/listings/{id}/approve", post(admin_handlers::approve_listing))
+        .route("/admin/listings/{id}/reject", post(admin_handlers::reject_listing))
+        .route("/admin/deployments", get(admin_handlers::list_deployments))
+        .route("/admin/revenue", get(admin_handlers::revenue_summary))
         .with_state(state)
         .layer(TraceLayer::new_for_http());
 
