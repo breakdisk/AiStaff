@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -106,6 +106,14 @@ const FILE_COLOR: Record<SharedFile["type"], string> = {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function CollabPage() {
+  return (
+    <Suspense>
+      <CollabInner />
+    </Suspense>
+  );
+}
+
+function CollabInner() {
   const { data: session } = useSession();
   const searchParams = useSearchParams();
   const deploymentId = searchParams.get("deployment_id");
