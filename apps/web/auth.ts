@@ -217,6 +217,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.role         = result.role ?? null;
         token.roles        = result.role ? [result.role] : [];
         token.isAdmin      = result.is_admin ?? false;
+
+        // Store GitHub access token for server-side webhook registration.
+        // Stored encrypted in the httpOnly session cookie — never exposed to the browser.
+        if (account.provider === "github" && account.access_token) {
+          token.githubAccessToken = account.access_token;
+        }
       }
       return token;
     },
@@ -229,7 +235,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       session.user.accountType  = (token.accountType as string) ?? "individual";
       session.user.role         = (token.role        as string | null) ?? null;
       session.user.roles        = (token.roles       as string[]) ?? [];
-      session.user.isAdmin      = (token.isAdmin     as boolean) ?? false;
+      session.user.isAdmin           = (token.isAdmin          as boolean) ?? false;
+      session.user.githubAccessToken = (token.githubAccessToken as string | undefined) ?? undefined;
       return session;
     },
   },

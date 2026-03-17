@@ -6,6 +6,7 @@ mod collab_handlers;
 mod enterprise_handlers;
 mod escrow_consumer;
 mod handlers;
+mod integration_handlers;
 mod proposal_handlers;
 
 use anyhow::Result;
@@ -84,6 +85,16 @@ async fn main() -> Result<()> {
         .route(
             "/collab/messages",
             get(collab_handlers::list_messages).post(collab_handlers::post_message),
+        )
+        .route(
+            "/integrations",
+            get(integration_handlers::list_integrations)
+                .post(integration_handlers::create_integration),
+        )
+        .route("/integrations/events", post(integration_handlers::create_event))
+        .route(
+            "/integrations/by-external-id",
+            get(integration_handlers::get_by_external_id),
         )
         .with_state(state)
         .layer(TraceLayer::new_for_http());

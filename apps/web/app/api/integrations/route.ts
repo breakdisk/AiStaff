@@ -7,15 +7,10 @@ export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const profileId = (session.user as { profileId?: string }).profileId;
-  if (!profileId) return NextResponse.json({ error: "No profile" }, { status: 401 });
-
   const deploymentId = req.nextUrl.searchParams.get("deployment_id");
   if (!deploymentId) return NextResponse.json({ error: "deployment_id required" }, { status: 400 });
 
-  const r = await fetch(`${MARKETPLACE}/collab/messages?deployment_id=${deploymentId}`, {
-    headers: { "X-Profile-Id": profileId },
-  });
+  const r = await fetch(`${MARKETPLACE}/integrations?deployment_id=${deploymentId}`);
   return NextResponse.json(await r.json().catch(() => []), { status: r.status });
 }
 
@@ -23,16 +18,10 @@ export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const profileId = (session.user as { profileId?: string }).profileId;
-  if (!profileId) return NextResponse.json({ error: "No profile" }, { status: 401 });
-
   const body = await req.json();
-  const r = await fetch(`${MARKETPLACE}/collab/messages`, {
+  const r = await fetch(`${MARKETPLACE}/integrations`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Profile-Id": profileId,
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
   return NextResponse.json(await r.json().catch(() => ({})), { status: r.status });

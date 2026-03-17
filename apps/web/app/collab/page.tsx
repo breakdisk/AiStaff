@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { MessageSquare, Paperclip, GitBranch, Figma, Send, File, Image, Archive, ExternalLink, Clock, X } from "lucide-react";
+import { MessageSquare, Paperclip, GitBranch, Send, File, Image, Archive, ExternalLink, Clock, X, Plus, Loader } from "lucide-react";
 
 // ── Types & demo data ─────────────────────────────────────────────────────────
 
@@ -31,14 +31,23 @@ interface SharedFile {
   version:  number;
 }
 
+interface IntegrationEvent {
+  id:          string;
+  event_type:  string;
+  title:       string;
+  occurred_at: string;
+}
+
 interface Integration {
-  id:       string;
-  provider: "github" | "figma";
-  name:     string;
-  url:      string;
-  last_event: string;
-  last_event_at: string;
-  status:   "connected" | "disconnected";
+  id:            string;
+  deployment_id: string;
+  provider:      string;
+  name:          string;
+  external_url:  string;
+  external_id:   string;
+  status:        string;
+  connected_at:  string;
+  events:        IntegrationEvent[];
 }
 
 const DEMO_MESSAGES: ChatMessage[] = [
@@ -60,20 +69,6 @@ const DEMO_FILES: SharedFile[] = [
   { id: "f6", name: "env_config.toml",        type: "code",    size: "3 KB",   uploaded: "Feb 20", uploader: "Marcus T.", version: 4 },
 ];
 
-const DEMO_INTEGRATIONS: Integration[] = [
-  {
-    id: "int-1", provider: "github", name: "aistaff/datasync-agent",
-    url: "https://github.com/aistaff/datasync-agent",
-    last_event: "Push: feat/jwt-refresh — 4 commits", last_event_at: "2026-03-08 09:10",
-    status: "connected",
-  },
-  {
-    id: "int-2", provider: "figma", name: "DataSync — UI Specs",
-    url: "https://figma.com/file/xK9p...",
-    last_event: "Frame updated: Auth Flow v3", last_event_at: "2026-03-07 16:44",
-    status: "connected",
-  },
-];
 
 // ── Sidebar nav ───────────────────────────────────────────────────────────────
 
@@ -121,12 +116,16 @@ function CollabInner() {
   const profileId   = (session?.user as { profileId?: string })?.profileId ?? "";
   const displayName = session?.user?.name ?? "You";
 
-  const [tab,      setTab]      = useState<"chat" | "files" | "integrations">("chat");
-  const [input,    setInput]    = useState("");
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [attached, setAttached] = useState<string | null>(null);
-  const [files,    setFiles]    = useState<SharedFile[]>(DEMO_FILES);
-  const [sending,  setSending]  = useState(false);
+  const [tab,           setTab]          = useState<"chat" | "files" | "integrations">("chat");
+  const [input,         setInput]        = useState("");
+  const [messages,      setMessages]     = useState<ChatMessage[]>([]);
+  const [attached,      setAttached]     = useState<string | null>(null);
+  const [files,         setFiles]        = useState<SharedFile[]>(DEMO_FILES);
+  const [sending,       setSending]      = useState(false);
+  const [integrations,  setIntegrations] = useState<Integration[]>([]);
+  const [repoInput,     setRepoInput]    = useState("");
+  const [connecting,    setConnecting]   = useState(false);
+  const [connectError,  setConnectError] = useState<string | null>(null);
 
   const chatFileRef   = useRef<HTMLInputElement>(null);
   const uploadFileRef = useRef<HTMLInputElement>(null);
@@ -164,6 +163,45 @@ function CollabInner() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Fetch integrations when tab is active and deployment is known
+  const fetchIntegrations = useCallback(async () => {
+    if (!deploymentId) return;
+    try {
+      const r = await fetch(`/api/integrations?deployment_id=${deploymentId}`);
+      if (r.ok) setIntegrations(await r.json());
+    } catch { /* keep last state */ }
+  }, [deploymentId]);
+
+  useEffect(() => {
+    if (tab !== "integrations") return;
+    fetchIntegrations();
+    const id = setInterval(fetchIntegrations, 10_000);
+    return () => clearInterval(id);
+  }, [tab, fetchIntegrations]);
+
+  async function connectGitHub() {
+    if (!repoInput.trim() || !deploymentId || connecting) return;
+    setConnecting(true);
+    setConnectError(null);
+    try {
+      const r = await fetch("/api/integrations/github", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deployment_id: deploymentId, repo_url: repoInput.trim() }),
+      });
+      if (r.ok) {
+        setRepoInput("");
+        await fetchIntegrations();
+      } else {
+        const data = await r.json().catch(() => ({})) as { error?: string };
+        setConnectError(data.error ?? "Failed to connect repository");
+      }
+    } catch {
+      setConnectError("Network error — please try again");
+    }
+    setConnecting(false);
+  }
 
   function handleChatFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
@@ -414,48 +452,88 @@ function CollabInner() {
         {/* Integrations tab */}
         {tab === "integrations" && (
           <div className="p-4 space-y-3">
-            {DEMO_INTEGRATIONS.map(int => (
-              <div key={int.id} className="border border-zinc-700 rounded-sm p-3 bg-zinc-900/50">
+            {/* Connect GitHub form */}
+            {deploymentId ? (
+              <div className="border border-zinc-800 rounded-sm p-3 space-y-2">
+                <p className="font-mono text-[10px] text-zinc-400 uppercase tracking-widest">Connect GitHub Repo</p>
+                <div className="flex gap-2">
+                  <input
+                    value={repoInput}
+                    onChange={e => { setRepoInput(e.target.value); setConnectError(null); }}
+                    onKeyDown={e => e.key === "Enter" && connectGitHub()}
+                    placeholder="https://github.com/owner/repo"
+                    className="flex-1 h-8 px-2.5 bg-zinc-900 border border-zinc-800 rounded-sm font-mono text-xs text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-600"
+                  />
+                  <button
+                    onClick={connectGitHub}
+                    disabled={!repoInput.trim() || connecting}
+                    className="h-8 px-3 rounded-sm border border-zinc-700 text-zinc-400 font-mono text-[9px] uppercase tracking-widest hover:border-zinc-500 disabled:opacity-30 transition-colors flex items-center gap-1.5"
+                  >
+                    {connecting
+                      ? <Loader className="w-3 h-3 animate-spin" />
+                      : <Plus className="w-3 h-3" />}
+                    Connect
+                  </button>
+                </div>
+                {connectError && (
+                  <p className="font-mono text-[9px] text-red-400">{connectError}</p>
+                )}
+                <p className="font-mono text-[9px] text-zinc-600">
+                  Requires sign-in with GitHub · Registers a webhook for push + PR events
+                </p>
+              </div>
+            ) : (
+              <div className="border border-dashed border-zinc-800 rounded-sm p-3 text-center">
+                <p className="font-mono text-[10px] text-zinc-600">Open from an engagement to connect integrations</p>
+              </div>
+            )}
+
+            {/* Integration list */}
+            {integrations.length === 0 && deploymentId && (
+              <p className="font-mono text-[10px] text-zinc-600 text-center py-4">No integrations connected yet</p>
+            )}
+
+            {integrations.map(int => (
+              <div key={int.id} className="border border-zinc-700 rounded-sm p-3 bg-zinc-900/50 space-y-2">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-sm border border-zinc-700 bg-zinc-800 flex items-center justify-center flex-shrink-0">
-                      {int.provider === "github"
-                        ? <GitBranch className="w-4 h-4 text-zinc-300" />
-                        : <Figma     className="w-4 h-4 text-zinc-300" />}
+                      <GitBranch className="w-4 h-4 text-zinc-300" />
                     </div>
                     <div>
                       <p className="font-mono text-xs font-medium text-zinc-100">{int.name}</p>
-                      <p className="font-mono text-[9px] text-zinc-600 capitalize">{int.provider}</p>
+                      <p className="font-mono text-[9px] text-zinc-600 capitalize">{int.provider} · connected {int.connected_at}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="flex items-center gap-1 font-mono text-[9px] text-green-400">
                       <span className="w-1.5 h-1.5 rounded-full bg-green-400" /> Connected
                     </span>
-                    <a href={int.url} target="_blank" rel="noreferrer"
+                    <a href={int.external_url} target="_blank" rel="noreferrer"
                       className="flex items-center gap-1 font-mono text-[9px] text-zinc-600 hover:text-zinc-400 transition-colors">
                       <ExternalLink className="w-2.5 h-2.5" /> Open
                     </a>
                   </div>
                 </div>
 
-                <div className="mt-2.5 flex items-start gap-2 border border-zinc-800 rounded-sm px-2.5 py-2 bg-zinc-950/40">
-                  <Clock className="w-3 h-3 text-zinc-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-mono text-[10px] text-zinc-300">{int.last_event}</p>
-                    <p className="font-mono text-[9px] text-zinc-600">{int.last_event_at}</p>
+                {/* Recent events */}
+                {int.events.length > 0 ? (
+                  <div className="space-y-1">
+                    {int.events.map(ev => (
+                      <div key={ev.id} className="flex items-start gap-2 border border-zinc-800 rounded-sm px-2.5 py-1.5 bg-zinc-950/40">
+                        <Clock className="w-2.5 h-2.5 text-zinc-600 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-mono text-[10px] text-zinc-300">{ev.title}</p>
+                          <p className="font-mono text-[9px] text-zinc-600">{ev.occurred_at}</p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                </div>
+                ) : (
+                  <p className="font-mono text-[9px] text-zinc-600 pl-1">No events yet — push to the repo to see activity</p>
+                )}
               </div>
             ))}
-
-            {/* Connect more */}
-            <div className="border border-dashed border-zinc-800 rounded-sm p-3 text-center">
-              <p className="font-mono text-[10px] text-zinc-600">Connect more: Linear · Notion · GitLab · Jira</p>
-              <button className="mt-2 h-8 px-3 rounded-sm border border-zinc-700 text-zinc-400 font-mono text-[9px] uppercase tracking-widest hover:border-zinc-500 transition-colors">
-                Browse Integrations
-              </button>
-            </div>
           </div>
         )}
       </main>
