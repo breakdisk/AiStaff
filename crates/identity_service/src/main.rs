@@ -32,6 +32,7 @@ impl FromRef<AppState> for sqlx::PgPool {
     }
 }
 
+mod admin_handlers;
 mod handlers;
 mod oauth_handler;
 mod openid4vp;
@@ -96,6 +97,11 @@ async fn main() -> anyhow::Result<()> {
         .route("/identity/public-profile/{id}", get(public_profile))
         // Agency registration
         .route("/agencies", post(create_agency))
+        // Admin user management (internal only — not exposed via Traefik)
+        .route("/admin/users", get(admin_handlers::list_users))
+        .route("/admin/users/{id}/suspend", post(admin_handlers::suspend_user))
+        .route("/admin/users/{id}/unsuspend", post(admin_handlers::unsuspend_user))
+        .route("/admin/users/{id}/set-tier", post(admin_handlers::set_user_tier))
         .with_state(state);
 
     let addr = "0.0.0.0:3001";
