@@ -452,41 +452,45 @@ function CollabInner() {
         {/* Integrations tab */}
         {tab === "integrations" && (
           <div className="p-4 space-y-3">
-            {/* Connect GitHub form */}
-            {deploymentId ? (
-              <div className="border border-zinc-800 rounded-sm p-3 space-y-2">
+            {/* Connect GitHub form — always visible, disabled when no engagement context */}
+            <div className="border border-zinc-800 rounded-sm p-3 space-y-2">
+              <div className="flex items-center justify-between">
                 <p className="font-mono text-[10px] text-zinc-400 uppercase tracking-widest">Connect GitHub Repo</p>
-                <div className="flex gap-2">
-                  <input
-                    value={repoInput}
-                    onChange={e => { setRepoInput(e.target.value); setConnectError(null); }}
-                    onKeyDown={e => e.key === "Enter" && connectGitHub()}
-                    placeholder="https://github.com/owner/repo"
-                    className="flex-1 h-8 px-2.5 bg-zinc-900 border border-zinc-800 rounded-sm font-mono text-xs text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-600"
-                  />
-                  <button
-                    onClick={connectGitHub}
-                    disabled={!repoInput.trim() || connecting}
-                    className="h-8 px-3 rounded-sm border border-zinc-700 text-zinc-400 font-mono text-[9px] uppercase tracking-widest hover:border-zinc-500 disabled:opacity-30 transition-colors flex items-center gap-1.5"
-                  >
-                    {connecting
-                      ? <Loader className="w-3 h-3 animate-spin" />
-                      : <Plus className="w-3 h-3" />}
-                    Connect
-                  </button>
-                </div>
-                {connectError && (
-                  <p className="font-mono text-[9px] text-red-400">{connectError}</p>
+                {!deploymentId && (
+                  <span className="font-mono text-[9px] text-amber-400 border border-amber-400/30 px-1.5 py-0.5 rounded-sm">
+                    No engagement selected
+                  </span>
                 )}
-                <p className="font-mono text-[9px] text-zinc-600">
-                  Requires sign-in with GitHub · Registers a webhook for push + PR events
-                </p>
               </div>
-            ) : (
-              <div className="border border-dashed border-zinc-800 rounded-sm p-3 text-center">
-                <p className="font-mono text-[10px] text-zinc-600">Open from an engagement to connect integrations</p>
+              <div className="flex gap-2">
+                <input
+                  value={repoInput}
+                  onChange={e => { setRepoInput(e.target.value); setConnectError(null); }}
+                  onKeyDown={e => e.key === "Enter" && connectGitHub()}
+                  disabled={!deploymentId}
+                  placeholder={deploymentId ? "https://github.com/owner/repo" : "Open from an engagement to connect"}
+                  className="flex-1 h-8 px-2.5 bg-zinc-900 border border-zinc-800 rounded-sm font-mono text-xs text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed"
+                />
+                <button
+                  onClick={connectGitHub}
+                  disabled={!repoInput.trim() || connecting || !deploymentId}
+                  className="h-8 px-3 rounded-sm border border-zinc-700 text-zinc-400 font-mono text-[9px] uppercase tracking-widest hover:border-zinc-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
+                >
+                  {connecting
+                    ? <Loader className="w-3 h-3 animate-spin" />
+                    : <Plus className="w-3 h-3" />}
+                  Connect
+                </button>
               </div>
-            )}
+              {connectError && (
+                <p className="font-mono text-[9px] text-red-400">{connectError}</p>
+              )}
+              <p className="font-mono text-[9px] text-zinc-600">
+                {deploymentId
+                  ? "Requires sign-in with GitHub · Registers a webhook for push + PR events"
+                  : "Navigate here via Marketplace → Engagement → Collaborate to link a repo"}
+              </p>
+            </div>
 
             {/* Integration list */}
             {integrations.length === 0 && deploymentId && (

@@ -1,6 +1,6 @@
 use axum::{
     extract::{Query, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     Json,
 };
 use serde::{Deserialize, Serialize};
@@ -63,12 +63,52 @@ pub struct CreateEventBody {
 
 // ── Handlers ──────────────────────────────────────────────────────────────────
 
+/// Extract the authenticated profile ID from the `X-Profile-Id` header.
+fn extract_profile_id(headers: &HeaderMap) -> Result<Uuid, (StatusCode, String)> {
+    let val = headers
+        .get("x-profile-id")
+        .and_then(|v| v.to_str().ok())
+        .ok_or_else(|| (StatusCode::UNAUTHORIZED, "Missing X-Profile-Id header".to_string()))?;
+    Uuid::parse_str(val)
+        .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid X-Profile-Id".to_string()))
+}
+
+/// Verify the profile is a participant of the deployment.
+async fn check_deployment_access(
+    db: &sqlx::PgPool,
+    deployment_id: Uuid,
+    profile_id: Uuid,
+) -> Result<(), (StatusCode, String)> {
+    let row = sqlx::query(
+        "SELECT EXISTS(
+            SELECT 1 FROM deployments
+            WHERE id = $1
+              AND (client_id = $2 OR freelancer_id = $2 OR developer_id = $2)
+         ) AS ok",
+    )
+    .bind(deployment_id)
+    .bind(profile_id)
+    .fetch_one(db)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let ok: bool = row.try_get("ok").unwrap_or(false);
+    if !ok {
+        return Err((StatusCode::FORBIDDEN, "Not a participant of this deployment".to_string()));
+    }
+    Ok(())
+}
+
 /// GET /integrations?deployment_id=<uuid>
 /// Returns all integrations for a deployment with their last 3 events each.
+/// Caller must be a participant of the deployment (enforced via X-Profile-Id header).
 pub async fn list_integrations(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Query(params): Query<ListIntegrationsQuery>,
 ) -> Result<Json<Vec<IntegrationRow>>, (StatusCode, String)> {
+    let profile_id = extract_profile_id(&headers)?;
+    check_deployment_access(&state.db, params.deployment_id, profile_id).await?;
     let rows = sqlx::query(
         "SELECT id, deployment_id, provider, name, external_url, external_id, status,
                 to_char(connected_at, 'Mon DD HH24:MI') AS connected_at_fmt
