@@ -28,6 +28,7 @@ interface OAuthCallbackResponse {
   trust_score:   number;
   account_type:  string;         // "individual" | "agency"
   role:          string | null;  // "talent" | "client" | "agent-owner" | null
+  is_admin:      boolean;
 }
 
 async function callIdentityOAuthCallback(
@@ -73,6 +74,7 @@ async function callIdentityOAuthCallback(
     trust_score:  0,
     account_type: "individual",
     role:         null,
+    is_admin:     false,
   };
 }
 
@@ -214,6 +216,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.accountType  = result.account_type;
         token.role         = result.role ?? null;
         token.roles        = result.role ? [result.role] : [];
+        token.isAdmin      = result.is_admin ?? false;
       }
       return token;
     },
@@ -226,6 +229,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       session.user.accountType  = (token.accountType as string) ?? "individual";
       session.user.role         = (token.role        as string | null) ?? null;
       session.user.roles        = (token.roles       as string[]) ?? [];
+      session.user.isAdmin      = (token.isAdmin     as boolean) ?? false;
       return session;
     },
   },
