@@ -51,6 +51,7 @@ async fn main() -> Result<()> {
         .route("/health", get(handlers::health))
         .route("/deployments", post(handlers::create_deployment))
         .route("/deployments/{id}", get(handlers::get_deployment))
+        .route("/deployments/mine", get(handlers::list_my_deployments))
         .route("/deployments/{id}/complete", post(handlers::complete_deployment))
         .route(
             "/listings",

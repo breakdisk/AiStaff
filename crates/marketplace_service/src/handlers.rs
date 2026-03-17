@@ -308,6 +308,57 @@ pub async fn get_deployment(
     }
 }
 
+// ── GET /deployments/mine?profile_id=<uuid> ───────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct MyDeploymentsQuery {
+    pub profile_id: Uuid,
+}
+
+pub async fn list_my_deployments(
+    State(state): State<SharedState>,
+    axum::extract::Query(q): axum::extract::Query<MyDeploymentsQuery>,
+) -> impl IntoResponse {
+    use sqlx::Row;
+
+    let rows = sqlx::query(
+        "SELECT d.id,
+                COALESCE(l.name, 'Unknown Agent') AS agent_name,
+                d.state::TEXT AS state,
+                d.escrow_amount_cents,
+                to_char(d.created_at, 'Mon DD, YYYY') AS created_fmt
+         FROM deployments d
+         LEFT JOIN agent_listings l ON l.id = d.agent_id
+         WHERE d.client_id = $1 OR d.freelancer_id = $1 OR d.developer_id = $1
+         ORDER BY d.created_at DESC
+         LIMIT 20",
+    )
+    .bind(q.profile_id)
+    .fetch_all(&state.db)
+    .await;
+
+    match rows {
+        Ok(rs) => {
+            let items: Vec<_> = rs.iter().map(|r| {
+                let id: Uuid         = r.get("id");
+                let name: &str       = r.get("agent_name");
+                let state_s: &str    = r.get("state");
+                let cents: i64       = r.get("escrow_amount_cents");
+                let created: &str    = r.get("created_fmt");
+                serde_json::json!({
+                    "id":                  id,
+                    "agent_name":          name,
+                    "state":               state_s,
+                    "escrow_amount_cents": cents,
+                    "created_at":          created,
+                })
+            }).collect();
+            (StatusCode::OK, Json(serde_json::json!(items))).into_response()
+        }
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
 // ── POST /listings ────────────────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
