@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { Inbox, Briefcase } from "lucide-react";
 
 // ── Nav definitions ─────────────────────────────────────────────────────────
 
@@ -99,6 +100,7 @@ export function AppSidebar({ status }: AppSidebarProps) {
   const role        = (session?.user as { role?: string | null })?.role ?? null;
   const accountType = (session?.user as { accountType?: string })?.accountType ?? "";
   const showEnterprise = role === "agent-owner" || role === "client" || accountType === "agency";
+  const showInbox = role !== "talent";
 
   return (
     <aside className="hidden lg:flex lg:flex-col w-56 border-r border-zinc-800 bg-zinc-950 p-4 gap-6 lg:h-screen lg:sticky lg:top-0 overflow-y-auto">
@@ -137,6 +139,35 @@ export function AppSidebar({ status }: AppSidebarProps) {
           );
         })}
       </nav>
+
+      {/* Engagement nav */}
+      <div className="space-y-1">
+        <p className="font-mono text-[10px] text-zinc-300 uppercase tracking-widest px-3">Engagements</p>
+        {showInbox && (
+          <a
+            href="/proposals/inbox"
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-sm font-mono text-xs transition-colors ${
+              pathname === "/proposals/inbox"
+                ? "text-zinc-100 bg-zinc-800"
+                : "text-zinc-600 hover:text-zinc-300 hover:bg-zinc-900"
+            }`}
+          >
+            <Inbox size={12} />
+            Proposals Inbox
+          </a>
+        )}
+        <a
+          href="/engagements"
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-sm font-mono text-xs transition-colors ${
+            pathname === "/engagements" || pathname.startsWith("/engagements/")
+              ? "text-zinc-100 bg-zinc-800"
+              : "text-zinc-600 hover:text-zinc-300 hover:bg-zinc-900"
+          }`}
+        >
+          <Briefcase size={12} />
+          Engagements
+        </a>
+      </div>
 
       {/* Section groups */}
       {SECTION_NAV.map(({ heading, items }) => {
