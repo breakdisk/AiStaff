@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import Link from "next/link";
-import { MessageSquare, Paperclip, GitBranch, Figma, Send, File, Image, Archive, ExternalLink, Clock } from "lucide-react";
+import { MessageSquare, Paperclip, GitBranch, Figma, Send, File, Image, Archive, ExternalLink, Clock, X } from "lucide-react";
 
 // ── Types & demo data ─────────────────────────────────────────────────────────
 
@@ -100,20 +100,56 @@ const FILE_COLOR: Record<SharedFile["type"], string> = {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function CollabPage() {
-  const [tab,   setTab]   = useState<"chat" | "files" | "integrations">("chat");
-  const [input, setInput] = useState("");
+  const [tab,      setTab]      = useState<"chat" | "files" | "integrations">("chat");
+  const [input,    setInput]    = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>(DEMO_MESSAGES);
+  const [attached, setAttached] = useState<string | null>(null);
+  const [files,    setFiles]    = useState<SharedFile[]>(DEMO_FILES);
+
+  const chatFileRef   = useRef<HTMLInputElement>(null);
+  const uploadFileRef = useRef<HTMLInputElement>(null);
+
+  function handleChatFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    if (f) setAttached(f.name);
+    e.target.value = "";
+  }
+
+  function handleUploadFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    const ext = f.name.split(".").pop()?.toLowerCase() ?? "";
+    const type: SharedFile["type"] =
+      ["png","jpg","jpeg","gif","webp","svg"].includes(ext) ? "image" :
+      ["zip","tar","gz","wasm","dmg"].includes(ext)         ? "archive" :
+      ["ts","js","rs","toml","json","py","sh","md"].includes(ext) ? "code" : "doc";
+    const size = f.size > 1_048_576
+      ? `${(f.size / 1_048_576).toFixed(1)} MB`
+      : `${Math.round(f.size / 1024)} KB`;
+    setFiles(prev => [...prev, {
+      id:       `f${Date.now()}`,
+      name:     f.name,
+      type,
+      size,
+      uploaded: "Just now",
+      uploader: "You",
+      version:  1,
+    }]);
+    e.target.value = "";
+  }
 
   function sendMessage() {
-    if (!input.trim()) return;
+    if (!input.trim() && !attached) return;
     setMessages(prev => [...prev, {
       id:     `m${Date.now()}`,
       author: "You",
       role:   "talent",
-      body:   input.trim(),
+      body:   input.trim() || "(file attached)",
       ts:     "Just now",
+      file:   attached ?? undefined,
     }]);
     setInput("");
+    setAttached(null);
   }
 
   return (
@@ -155,7 +191,7 @@ export default function CollabPage() {
         <div className="flex gap-1 border-b border-zinc-800 px-4">
           {[
             { key: "chat"         as const, label: "Chat"               },
-            { key: "files"        as const, label: `Files (${DEMO_FILES.length})` },
+            { key: "files"        as const, label: `Files (${files.length})` },
             { key: "integrations" as const, label: "Integrations"       },
           ].map(({ key, label }) => (
             <button key={key} onClick={() => setTab(key)}
@@ -214,24 +250,39 @@ export default function CollabPage() {
             </div>
 
             {/* Input */}
-            <div className="border-t border-zinc-800 p-3 flex gap-2">
-              <button className="h-9 w-9 flex-shrink-0 flex items-center justify-center rounded-sm border border-zinc-700 text-zinc-500 hover:text-zinc-300 transition-colors">
-                <Paperclip className="w-3.5 h-3.5" />
-              </button>
-              <input
-                value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && !e.shiftKey && sendMessage()}
-                placeholder="Message…"
-                className="flex-1 h-9 px-2.5 bg-zinc-900 border border-zinc-800 rounded-sm font-mono text-xs text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-600"
-              />
-              <button
-                onClick={sendMessage}
-                disabled={!input.trim()}
-                className="h-9 w-9 flex-shrink-0 flex items-center justify-center rounded-sm border border-amber-900 bg-amber-950/30 text-amber-400 hover:border-amber-700 transition-colors disabled:opacity-30"
-              >
-                <Send className="w-3.5 h-3.5" />
-              </button>
+            <div className="border-t border-zinc-800 p-3 space-y-2">
+              {attached && (
+                <div className="flex items-center gap-2 px-2 py-1 bg-zinc-900 border border-zinc-700 rounded-sm w-fit">
+                  <Paperclip className="w-2.5 h-2.5 text-amber-400 flex-shrink-0" />
+                  <span className="font-mono text-[10px] text-zinc-300 max-w-[200px] truncate">{attached}</span>
+                  <button onClick={() => setAttached(null)} className="text-zinc-600 hover:text-zinc-300">
+                    <X className="w-2.5 h-2.5" />
+                  </button>
+                </div>
+              )}
+              <div className="flex gap-2">
+                <input type="file" ref={chatFileRef} onChange={handleChatFile} className="hidden" />
+                <button
+                  onClick={() => chatFileRef.current?.click()}
+                  className="h-9 w-9 flex-shrink-0 flex items-center justify-center rounded-sm border border-zinc-700 text-zinc-500 hover:text-zinc-300 transition-colors"
+                >
+                  <Paperclip className="w-3.5 h-3.5" />
+                </button>
+                <input
+                  value={input}
+                  onChange={e => setInput(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && !e.shiftKey && sendMessage()}
+                  placeholder="Message…"
+                  className="flex-1 h-9 px-2.5 bg-zinc-900 border border-zinc-800 rounded-sm font-mono text-xs text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-600"
+                />
+                <button
+                  onClick={sendMessage}
+                  disabled={!input.trim() && !attached}
+                  className="h-9 w-9 flex-shrink-0 flex items-center justify-center rounded-sm border border-amber-900 bg-amber-950/30 text-amber-400 hover:border-amber-700 transition-colors disabled:opacity-30"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -246,7 +297,7 @@ export default function CollabPage() {
                 ))}
               </div>
               <div className="divide-y divide-zinc-800/60">
-                {DEMO_FILES.map(f => {
+                {files.map(f => {
                   const Icon = FILE_ICON[f.type];
                   return (
                     <div key={f.id} className="grid grid-cols-2 sm:grid-cols-5 gap-2 px-3 py-2.5 items-center hover:bg-zinc-900/30 transition-colors">
@@ -264,9 +315,13 @@ export default function CollabPage() {
               </div>
             </div>
 
-            <button className="w-full h-9 rounded-sm border border-dashed border-zinc-700 text-zinc-500
-                               font-mono text-[10px] uppercase tracking-widest hover:border-zinc-500 hover:text-zinc-300 transition-colors
-                               flex items-center justify-center gap-2">
+            <input type="file" ref={uploadFileRef} onChange={handleUploadFile} className="hidden" />
+            <button
+              onClick={() => uploadFileRef.current?.click()}
+              className="w-full h-9 rounded-sm border border-dashed border-zinc-700 text-zinc-500
+                         font-mono text-[10px] uppercase tracking-widest hover:border-zinc-500 hover:text-zinc-300 transition-colors
+                         flex items-center justify-center gap-2"
+            >
               <Paperclip className="w-3.5 h-3.5" /> Upload File
             </button>
           </div>
