@@ -60,6 +60,47 @@ pub async fn create_deployment(
     let transaction_id = req.transaction_id.unwrap_or_else(Uuid::now_v7);
     let developer_id   = req.developer_id.unwrap_or(req.freelancer_id);
 
+    // 0. Identity tier gate — client must be at least SOCIAL_VERIFIED (tier 1).
+    //    This enforces the server-side check that the UI also performs.
+    {
+        use sqlx::Row as _;
+        let tier_row = sqlx::query(
+            "SELECT identity_tier::TEXT AS identity_tier FROM unified_profiles WHERE id = $1",
+        )
+        .bind(req.client_id)
+        .fetch_optional(&state.db)
+        .await;
+
+        match tier_row {
+            Ok(Some(row)) => {
+                let tier: &str = row.get("identity_tier");
+                if tier == "UNVERIFIED" {
+                    return (
+                        StatusCode::FORBIDDEN,
+                        Json(serde_json::json!({
+                            "error": "identity_tier_insufficient",
+                            "detail": "Identity must be SOCIAL_VERIFIED or higher to deploy an agent"
+                        })),
+                    )
+                    .into_response();
+                }
+            }
+            Ok(None) => {
+                return (
+                    StatusCode::FORBIDDEN,
+                    Json(serde_json::json!({
+                        "error": "profile_not_found",
+                        "detail": "Client profile not found"
+                    })),
+                )
+                .into_response();
+            }
+            Err(e) => {
+                return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
+            }
+        }
+    }
+
     // 1. Idempotency: if this transaction_id was already used, return the
     //    existing deployment so the client can safely retry.
     let existing = sqlx::query(
@@ -437,8 +478,6 @@ pub async fn get_listing(
     State(state): State<SharedState>,
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
-    use sqlx::Row;
-
     let row = sqlx::query(
         "SELECT id, developer_id, name, description, wasm_hash,
                 price_cents, active, category, seller_type, slug, created_at, updated_at
@@ -463,8 +502,6 @@ pub async fn get_listing_by_slug(
     State(state): State<SharedState>,
     Path(slug): Path<String>,
 ) -> impl IntoResponse {
-    use sqlx::Row;
-
     let row = sqlx::query(
         "SELECT id, developer_id, name, description, wasm_hash,
                 price_cents, active, category, seller_type, slug, created_at, updated_at

@@ -103,13 +103,15 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     const order = await orderRes.json() as NGenius_OrderDetail;
 
-    // N-Genius SALE = AUTHORISED + CAPTURED in quick succession.
-    // Accept either state as a successful payment.
+    // Only accept fully-settled payment states before creating a deployment.
+    // PURCHASED  = SALE transaction (one-step authorise + capture) ✅
+    // CAPTURED   = two-step flow, capture confirmed ✅
+    // AUTHORISED = pre-authorised but NOT yet captured — funds not secured ❌
     const paymentState = order._embedded?.payment?.[0]?.state ?? "";
-    const isSuccess = ["CAPTURED", "AUTHORISED", "PURCHASED"].includes(paymentState);
+    const isCaptured = ["CAPTURED", "PURCHASED"].includes(paymentState);
 
-    if (!isSuccess) {
-      console.warn(`[network-intl/callback] payment not successful — state: ${paymentState}`);
+    if (!isCaptured) {
+      console.warn(`[network-intl/callback] payment not captured — state: ${paymentState}`);
       return redirect(`/marketplace?payment=failed&reason=${encodeURIComponent(paymentState)}`);
     }
 
