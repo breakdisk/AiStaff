@@ -5,7 +5,7 @@ import { useSession, signIn } from "next-auth/react";
 import {
   Package, Cpu, Hash, ChevronRight, CheckCircle,
   Users, Bot, Zap, Building2, User, Plus, X,
-  AlertTriangle, Github, Linkedin, Handshake, Loader2,
+  AlertTriangle, Github, Linkedin, Handshake, Loader2, MessageSquare,
 } from "lucide-react";
 import {
   fetchListings, createListing, expressInterest, fetchPublicProfile,
@@ -326,10 +326,19 @@ function ActionButton({ listing, userTier, profileId, marketView, compact }: Act
         </span>
       );
     }
+    // done = deployment_id — show confirmation + Collaborate link
     return (
-      <span className="flex items-center gap-1 font-mono text-xs text-emerald-400">
-        <CheckCircle className="w-3 h-3" /> {done.slice(0, 8)}…
-      </span>
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="flex items-center gap-1 font-mono text-xs text-emerald-400">
+          <CheckCircle className="w-3 h-3" /> Deployed
+        </span>
+        <a
+          href={`/collab?deployment_id=${done}`}
+          className="flex items-center gap-1 font-mono text-[10px] text-amber-400 border border-amber-900 bg-amber-950/40 px-2 h-6 rounded-sm hover:border-amber-700 transition-colors"
+        >
+          <MessageSquare className="w-2.5 h-2.5" /> Collaborate
+        </a>
+      </div>
     );
   }
 

@@ -111,10 +111,14 @@ export default function CollabPage() {
 function CollabInner() {
   const { data: session } = useSession();
   const searchParams = useSearchParams();
-  const deploymentId = searchParams.get("deployment_id");
+  const deploymentIdFromUrl = searchParams.get("deployment_id");
 
   const profileId   = (session?.user as { profileId?: string })?.profileId ?? "";
   const displayName = session?.user?.name ?? "You";
+
+  // Allow manually entering a deployment_id when none is in the URL
+  const [manualDeploymentId, setManualDeploymentId] = useState("");
+  const deploymentId = deploymentIdFromUrl ?? (manualDeploymentId.trim() || null);
 
   const [tab,           setTab]          = useState<"chat" | "files" | "integrations">("chat");
   const [input,         setInput]        = useState("");
@@ -452,6 +456,22 @@ function CollabInner() {
         {/* Integrations tab */}
         {tab === "integrations" && (
           <div className="p-4 space-y-3">
+            {/* Manual deployment_id entry when not opened from an engagement */}
+            {!deploymentIdFromUrl && (
+              <div className="border border-amber-900/50 bg-amber-950/20 rounded-sm p-3 space-y-2">
+                <p className="font-mono text-[10px] text-amber-400 uppercase tracking-widest">Enter Engagement ID</p>
+                <p className="font-mono text-[9px] text-zinc-500">
+                  Or open this page via Marketplace → Deploy → Collaborate for automatic context.
+                </p>
+                <input
+                  value={manualDeploymentId}
+                  onChange={e => setManualDeploymentId(e.target.value)}
+                  placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                  className="w-full h-8 px-2.5 bg-zinc-900 border border-zinc-700 rounded-sm font-mono text-xs text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-amber-700"
+                />
+              </div>
+            )}
+
             {/* Connect GitHub form — always visible, disabled when no engagement context */}
             <div className="border border-zinc-800 rounded-sm p-3 space-y-2">
               <div className="flex items-center justify-between">
