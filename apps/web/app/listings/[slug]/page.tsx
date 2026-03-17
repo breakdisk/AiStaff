@@ -76,13 +76,17 @@ export async function generateMetadata(
       title,
       description,
       siteName:    "AiStaff",
-      // No images — Facebook shows text-only link preview (url + title + description)
+      // Explicitly empty — overrides the root layout's /og-image.png inheritance.
+      // Next.js deeply merges parent metadata; omitting images inherits the parent's.
+      images:      [],
     },
     twitter: {
       card:        "summary",   // text-only; no image
       title,
       description,
       site:        "@aistaffglobal",
+      // Explicitly empty — overrides root layout's twitter:image inheritance.
+      images:      [],
     },
     alternates: {
       canonical: canonicalUrl,
