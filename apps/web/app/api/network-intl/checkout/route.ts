@@ -43,6 +43,8 @@ async function getAccessToken(): Promise<string> {
       // API_KEY from portal is already base64(credentials) — use directly
       "Authorization": `Basic ${API_KEY}`,
       "Content-Type":  "application/vnd.ni-identity.v1+json",
+      "Accept":        "application/vnd.ni-identity.v1+json",
+      "User-Agent":    "AiStaffApp/1.0",
     },
     signal: AbortSignal.timeout(10_000),
   });
