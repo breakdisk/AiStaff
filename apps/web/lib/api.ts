@@ -787,3 +787,105 @@ export async function checkServiceHealth(): Promise<Record<string, boolean>> {
     ]),
   );
 }
+
+// ── AiTalent Proposal & Engagement ──────────────────────────────────────────
+
+export interface Proposal {
+  id: string
+  job_listing_id: string | null
+  freelancer_id: string | null
+  freelancer_email: string
+  job_title: string
+  cover_letter: string
+  proposed_budget: string
+  proposed_timeline: string
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED'
+  submitted_at: string
+}
+
+export interface AcceptProposalRequest {
+  transaction_id: string
+  escrow_amount_cents: number
+  milestones: string[]
+}
+
+export interface AcceptProposalResponse {
+  deployment_id: string
+  milestone_count: number
+}
+
+export interface MilestoneStatus {
+  step_id: string
+  step_label: string
+  passed: boolean
+  submitted_at: string | null
+  approved_at: string | null
+  notes: string | null
+}
+
+export async function fetchProposalsForJob(listingId: string): Promise<Proposal[]> {
+  const res = await fetch(`/api/marketplace/listings/${listingId}/proposals`)
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function acceptProposal(
+  proposalId: string,
+  req: AcceptProposalRequest,
+): Promise<AcceptProposalResponse> {
+  const res = await fetch(`/api/marketplace/proposals/${proposalId}/accept`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function rejectProposal(proposalId: string, reason?: string): Promise<void> {
+  const res = await fetch(`/api/marketplace/proposals/${proposalId}/reject`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reason }),
+  })
+  if (!res.ok) throw new Error(await res.text())
+}
+
+export async function fetchDeploymentMilestones(deploymentId: string): Promise<MilestoneStatus[]> {
+  const res = await fetch(`/api/checklist/checklist/${deploymentId}/milestones`)
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function submitMilestone(
+  deploymentId: string,
+  stepId: string,
+  freelancerId: string,
+  notes?: string,
+): Promise<void> {
+  const res = await fetch(
+    `/api/checklist/checklist/${deploymentId}/step/${stepId}/submit`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ freelancer_id: freelancerId, notes }),
+    },
+  )
+  if (!res.ok) throw new Error(await res.text())
+}
+
+export async function approveMilestone(
+  deploymentId: string,
+  stepId: string,
+  clientId: string,
+): Promise<void> {
+  const res = await fetch(
+    `/api/checklist/checklist/${deploymentId}/step/${stepId}/approve`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ client_id: clientId }),
+    },
+  )
+  if (!res.ok) throw new Error(await res.text())
+}
