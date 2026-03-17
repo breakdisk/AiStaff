@@ -1,5 +1,6 @@
 mod checklist;
 mod handlers;
+mod milestone_handlers;
 
 use anyhow::Result;
 use axum::{routing::get, routing::post, Router};
@@ -36,6 +37,18 @@ async fn main() -> Result<()> {
         .route(
             "/checklist/{deployment_id}/summary",
             get(handlers::get_summary),
+        )
+        .route(
+            "/checklist/{deployment_id}/milestones",
+            get(milestone_handlers::list_milestones),
+        )
+        .route(
+            "/checklist/{deployment_id}/step/{step_id}/submit",
+            post(milestone_handlers::submit_milestone),
+        )
+        .route(
+            "/checklist/{deployment_id}/step/{step_id}/approve",
+            post(milestone_handlers::approve_milestone),
         )
         .with_state(svc)
         .layer(TraceLayer::new_for_http());
