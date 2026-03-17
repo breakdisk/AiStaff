@@ -4,6 +4,7 @@
 mod admin_handlers;
 mod escrow_consumer;
 mod handlers;
+mod proposal_handlers;
 
 use anyhow::Result;
 use axum::{
@@ -61,6 +62,9 @@ async fn main() -> Result<()> {
         )
         .route("/express-interest", post(handlers::express_interest))
         .route("/talent-skills/{id}/attest", post(handlers::attest_skills))
+        .route("/listings/{listing_id}/proposals", get(proposal_handlers::list_proposals_for_job))
+        .route("/proposals/{proposal_id}/accept", post(proposal_handlers::accept_proposal))
+        .route("/proposals/{proposal_id}/reject", post(proposal_handlers::reject_proposal))
         // Admin listing/deployment/revenue (internal only)
         .route("/admin/listings", get(admin_handlers::list_listings))
         .route("/admin/listings/{id}/approve", post(admin_handlers::approve_listing))
