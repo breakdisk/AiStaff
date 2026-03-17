@@ -2,6 +2,7 @@
 //! HTTP on :3002 | Kafka consumer on escrow.commands
 
 mod admin_handlers;
+mod enterprise_handlers;
 mod escrow_consumer;
 mod handlers;
 mod proposal_handlers;
@@ -71,6 +72,14 @@ async fn main() -> Result<()> {
         .route("/admin/listings/{id}/reject", post(admin_handlers::reject_listing))
         .route("/admin/deployments", get(admin_handlers::list_deployments))
         .route("/admin/revenue", get(admin_handlers::revenue_summary))
+        .route(
+            "/enterprise/orgs/{id}/deployments",
+            get(enterprise_handlers::list_org_deployments),
+        )
+        .route(
+            "/enterprise/orgs/{id}/analytics",
+            get(enterprise_handlers::org_analytics),
+        )
         .with_state(state)
         .layer(TraceLayer::new_for_http());
 
