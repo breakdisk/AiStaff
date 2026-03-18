@@ -46,8 +46,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "text is required" }, { status: 400 });
   }
 
-  const logoPath = path.join(process.cwd(), "public", "logo.png");
-  const logoData = fs.existsSync(logoPath) ? fs.readFileSync(logoPath) : null;
+  // Prefer the branded logo (dark background version); fall back to transparent
+  const logoCandidates = ["logo-brand.png.jpg", "logo.png"];
+  let logoData: Buffer | null = null;
+  for (const name of logoCandidates) {
+    const p = path.join(process.cwd(), "public", name);
+    if (fs.existsSync(p)) { logoData = fs.readFileSync(p); break; }
+  }
 
   const contractTitle = body.contract_type.replace(/_/g, " ");
   const shortId       = body.contract_id.slice(0, 8).toUpperCase();
@@ -73,35 +78,42 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const W       = doc.page.width;           // 595.28 pt  (A4)
     const CONTENT = W - ML - MR;             // usable width between margins
 
+    // Dark slate background colour that matches the brand logo's background
+    const HEADER_BG = "#3d5060";
+
     // ── Header — drawn at absolute coords so it never moves the text cursor ──
     function drawHeader() {
-      // White background (A4 default) — draw green bottom rule only
       doc.save();
 
-      // Logo — 64 pt tall, positioned at left margin
+      // Dark background band
+      doc.rect(0, 0, W, HEADER).fill(HEADER_BG);
+
+      // Logo image — fitted by height, anchored to left margin
       if (logoData) {
-        doc.image(logoData, ML, 10, { height: 64 });
+        // Aspect ratio 2528:1696 ≈ 1.491 — derive width from height
+        const logoH = HEADER - 8;
+        const logoW = logoH * (2528 / 1696);
+        doc.image(logoData, ML, 4, { width: logoW, height: logoH });
+      } else {
+        // Fallback text if no logo file found
+        doc.font("Helvetica-Bold").fontSize(20).fillColor("#ffffff")
+           .text("AiStaff", ML, 22, { lineBreak: false });
+        doc.font("Helvetica").fontSize(8).fillColor(GREEN)
+           .text("FUTURE WORKFORCE", ML, 46, { lineBreak: false });
       }
 
-      // "AiStaff" wordmark — to the right of the logo
-      const tx = ML + (logoData ? 72 : 0);
-      doc.font("Helvetica-Bold").fontSize(20).fillColor(DARK)
-         .text("AiStaff", tx, 20, { lineBreak: false });
-      doc.font("Helvetica").fontSize(8).fillColor(GREEN)
-         .text("FUTURE WORKFORCE", tx, 44, { lineBreak: false });
-
-      // Date + document ID — right-aligned, pinned to right margin
-      doc.font("Helvetica").fontSize(7.5).fillColor(GREY)
-         .text(`Date: ${dateStr}`, ML, 20, {
+      // Date + document ID — right-aligned in white against dark header
+      doc.font("Helvetica").fontSize(7.5).fillColor("#ffffff")
+         .text(`Date: ${dateStr}`, ML, 22, {
            width: CONTENT, align: "right", lineBreak: false,
          });
-      doc.font("Helvetica").fontSize(7.5).fillColor(GREY)
-         .text(`Document ID: ${shortId}`, ML, 34, {
+      doc.font("Helvetica").fontSize(7.5).fillColor("#d1fae5")
+         .text(`Document ID: ${shortId}`, ML, 36, {
            width: CONTENT, align: "right", lineBreak: false,
          });
 
       // Green separator rule at base of header
-      doc.rect(ML, HEADER - 2, CONTENT, 1.5).fill(GREEN);
+      doc.rect(0, HEADER, W, 2).fill(GREEN);
 
       doc.restore();
 
