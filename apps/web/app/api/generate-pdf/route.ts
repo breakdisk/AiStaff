@@ -1,5 +1,4 @@
-// Server-side PDF generation — pdfkit with built-in fonts (no embedding) + zlib
-// compression. Typical output: 10–30 KB for a full legal document.
+// Server-side PDF generation — pdfkit with built-in fonts + zlib compression.
 export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
@@ -16,13 +15,16 @@ interface GenerateBody {
   contract_id:   string;
 }
 
-// 1.5 cm = 1.5 × (72 / 2.54) ≈ 42.5 pt
-const MARGIN_H = 42.5;
-// Accent green matching the AiStaff logo
-const GREEN = "#16a34a";
-const GREY  = "#6b7280";
-const DARK  = "#111827";
-const RULE  = "#e5e7eb";
+// 1.5 cm = 1.5 × (72 / 2.54) = 42.52 pt
+const ML     = 42.52;   // left margin
+const MR     = 42.52;   // right margin
+const HEADER = 88;      // header band height (pt)
+const TOP    = HEADER + 16; // content starts just below header
+
+const GREEN  = "#16a34a";
+const GREY   = "#6b7280";
+const DARK   = "#111827";
+const RULE   = "#d1d5db";
 
 function isHeading(line: string): boolean {
   const t = line.trim();
@@ -44,7 +46,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "text is required" }, { status: 400 });
   }
 
-  // Load logo from public/ — process.cwd() is apps/web/ at runtime
   const logoPath = path.join(process.cwd(), "public", "logo.png");
   const logoData = fs.existsSync(logoPath) ? fs.readFileSync(logoPath) : null;
 
@@ -58,7 +59,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const doc = new PDFDocument({
       compress:    true,
       size:        "A4",
-      margins:     { top: 110, bottom: 60, left: MARGIN_H, right: MARGIN_H },
+      // Top margin = HEADER height so content never overlaps the header band
+      margins:     { top: TOP, bottom: 64, left: ML, right: MR },
       bufferPages: true,
       info: {
         Title:   contractTitle.toUpperCase(),
@@ -68,150 +70,121 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       },
     });
 
-    const W = doc.page.width; // 595.28 pt
+    const W       = doc.page.width;           // 595.28 pt  (A4)
+    const CONTENT = W - ML - MR;             // usable width between margins
 
-    // ── Header (drawn on every page) ──────────────────────────────────────────
+    // ── Header — drawn at absolute coords so it never moves the text cursor ──
     function drawHeader() {
-      const H = 90; // header height
+      // White background (A4 default) — draw green bottom rule only
+      doc.save();
 
-      // White background (default) — just draw the logo + text
-
-      // Logo — 64×64 pt, left-aligned at MARGIN_H
+      // Logo — 64 pt tall, positioned at left margin
       if (logoData) {
-        doc.image(logoData, MARGIN_H, 10, { height: 70 });
+        doc.image(logoData, ML, 10, { height: 64 });
       }
 
-      // Company name to the right of the logo (or fallback if no logo)
-      const textX = logoData ? MARGIN_H + 80 : MARGIN_H;
+      // "AiStaff" wordmark — to the right of the logo
+      const tx = ML + (logoData ? 72 : 0);
+      doc.font("Helvetica-Bold").fontSize(20).fillColor(DARK)
+         .text("AiStaff", tx, 20, { lineBreak: false });
+      doc.font("Helvetica").fontSize(8).fillColor(GREEN)
+         .text("FUTURE WORKFORCE", tx, 44, { lineBreak: false });
 
-      doc.font("Helvetica-Bold")
-         .fontSize(20)
-         .fillColor(DARK)
-         .text("AiStaff", textX, 22, { lineBreak: false });
-
-      doc.font("Helvetica")
-         .fontSize(8)
-         .fillColor(GREEN)
-         .text("FUTURE WORKFORCE", textX, 47, { lineBreak: false });
-
-      // Right-aligned meta block
-      doc.font("Helvetica")
-         .fontSize(7.5)
-         .fillColor(GREY)
-         .text(`Date: ${dateStr}`, 0, 22, {
-           width:     W - MARGIN_H,
-           align:     "right",
-           lineBreak: false,
+      // Date + document ID — right-aligned, pinned to right margin
+      doc.font("Helvetica").fontSize(7.5).fillColor(GREY)
+         .text(`Date: ${dateStr}`, ML, 20, {
+           width: CONTENT, align: "right", lineBreak: false,
+         });
+      doc.font("Helvetica").fontSize(7.5).fillColor(GREY)
+         .text(`Document ID: ${shortId}`, ML, 34, {
+           width: CONTENT, align: "right", lineBreak: false,
          });
 
-      doc.font("Helvetica")
-         .fontSize(7.5)
-         .fillColor(GREY)
-         .text(`Document ID: ${shortId}`, 0, 35, {
-           width:     W - MARGIN_H,
-           align:     "right",
-           lineBreak: false,
-         });
+      // Green separator rule at base of header
+      doc.rect(ML, HEADER - 2, CONTENT, 1.5).fill(GREEN);
 
-      // Bottom rule — green, full width between margins
-      doc.rect(MARGIN_H, H - 4, W - MARGIN_H * 2, 1.5).fill(GREEN);
+      doc.restore();
+
+      // ── CRITICAL: reset text cursor to content start after header drawing ──
+      doc.x = ML;
+      doc.y = TOP;
     }
 
     drawHeader();
     doc.on("pageAdded", drawHeader);
 
-    // ── Subject block (formal letter style) ───────────────────────────────────
-    doc.moveDown(0.8);
+    // ── Contract title — centered ────────────────────────────────────────────
+    doc.font("Helvetica").fontSize(8).fillColor(GREY)
+       .text("SUBJECT", ML, doc.y, {
+         width: CONTENT, align: "center", characterSpacing: 2, lineBreak: false,
+       });
 
-    doc.font("Helvetica")
-       .fontSize(8)
-       .fillColor(GREY)
-       .text("SUBJECT", { characterSpacing: 1.5 });
+    doc.y += 14;
 
-    doc.moveDown(0.2);
+    doc.font("Helvetica-Bold").fontSize(15).fillColor(DARK)
+       .text(contractTitle.toUpperCase(), ML, doc.y, {
+         width: CONTENT, align: "center",
+       });
 
-    doc.font("Helvetica-Bold")
-       .fontSize(13)
-       .fillColor(DARK)
-       .text(contractTitle.toUpperCase());
+    // Green underline — centered
+    const uW  = 56;
+    const uX  = ML + (CONTENT - uW) / 2;
+    doc.rect(uX, doc.y + 2, uW, 2).fill(GREEN);
 
-    doc.moveDown(0.5);
+    doc.y += 18;   // space after title block
 
-    // Thin green underline under subject
-    doc.rect(MARGIN_H, doc.y, 48, 2).fill(GREEN);
-    doc.moveDown(1.0);
-
-    // ── Body — section-aware rendering ────────────────────────────────────────
-    const lines = body.text.split("\n");
-
-    for (const rawLine of lines) {
+    // ── Body — section-aware ────────────────────────────────────────────────
+    for (const rawLine of body.text.split("\n")) {
       const line = rawLine.trimEnd();
 
       if (!line.trim()) {
-        doc.moveDown(0.35);
+        doc.y += 5;
         continue;
       }
 
       if (isHeading(line)) {
-        doc.moveDown(0.7);
-
-        // Grey rule before each section heading
-        doc.rect(MARGIN_H, doc.y, W - MARGIN_H * 2, 0.5).fill(RULE);
-        doc.moveDown(0.3);
-
-        doc.font("Helvetica-Bold")
-           .fontSize(9.5)
-           .fillColor(DARK)
-           .text(line.trim(), { lineGap: 1.5 });
-
-        doc.moveDown(0.2);
+        doc.y += 10;
+        doc.rect(ML, doc.y, CONTENT, 0.5).fill(RULE);
+        doc.y += 5;
+        doc.font("Helvetica-Bold").fontSize(9.5).fillColor(DARK)
+           .text(line.trim(), ML, doc.y, { width: CONTENT, lineGap: 1.5 });
+        doc.y += 4;
       } else {
-        doc.font("Helvetica")
-           .fontSize(9)
-           .fillColor("#374151")
-           .text(line.trim(), {
-             lineGap:   2.2,
-             align:     "justify",
-             continued: false,
+        doc.font("Helvetica").fontSize(9).fillColor("#374151")
+           .text(line.trim(), ML, doc.y, {
+             width:  CONTENT,
+             align:  "justify",
+             lineGap: 2,
            });
       }
     }
 
-    // ── Footer on every page ──────────────────────────────────────────────────
+    // ── Footer on every page ─────────────────────────────────────────────────
     const range = doc.bufferedPageRange();
     const total = range.count;
 
     for (let i = 0; i < total; i++) {
-      doc.switchToPage(i);
-      const pageH = doc.page.height;
-      const fy    = pageH - 42;
+      doc.switchToPage(range.start + i);
+      const pH = doc.page.height;
+      const fy = pH - 46;
 
-      // Separator rule
-      doc.rect(MARGIN_H, fy, W - MARGIN_H * 2, 0.5).fill(RULE);
+      doc.rect(ML, fy, CONTENT, 0.5).fill(RULE);
 
-      // Hash
-      const hashShort = `SHA-256: ${body.hash.slice(0, 36)}…`;
-      doc.font("Helvetica")
-         .fontSize(6)
-         .fillColor(GREY)
-         .text(hashShort, MARGIN_H, fy + 6, { lineBreak: false });
+      const hashShort = `SHA-256: ${body.hash.slice(0, 40)}…`;
+      doc.font("Helvetica").fontSize(6).fillColor(GREY)
+         .text(hashShort, ML, fy + 6, { lineBreak: false });
 
-      // Page N / M
-      doc.font("Helvetica")
-         .fontSize(7)
-         .fillColor(GREY)
-         .text(`Page ${i + 1} of ${total}`, 0, fy + 6, {
-           width:     W - MARGIN_H,
-           align:     "right",
-           lineBreak: false,
+      doc.font("Helvetica").fontSize(7).fillColor(GREY)
+         .text(`Page ${i + 1} of ${total}`, ML, fy + 6, {
+           width: CONTENT, align: "right", lineBreak: false,
          });
 
-      // Branding
-      doc.font("Helvetica")
-         .fontSize(6)
-         .fillColor(GREEN)
-         .text("aistaff.app · Legal Toolkit", MARGIN_H, fy + 18, { lineBreak: false });
+      doc.font("Helvetica").fontSize(6).fillColor(GREEN)
+         .text("aistaff.app · Legal Toolkit", ML, fy + 18, { lineBreak: false });
     }
+
+    // Return cursor to last content page so doc.end() doesn't add a blank page
+    doc.switchToPage(range.start + total - 1);
 
     // ── Stream → buffer → response ────────────────────────────────────────────
     const chunks: Buffer[] = [];
