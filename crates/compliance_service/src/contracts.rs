@@ -1,7 +1,7 @@
 use anyhow::{bail, Result};
 use chrono::Utc;
 use sha2::{Digest, Sha256};
-use sqlx::PgPool;
+use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
 pub struct ContractService {
@@ -89,19 +89,21 @@ impl ContractService {
         contract_id: Uuid,
         party_b_email: &str,
     ) -> Result<String> {
-        let row = sqlx::query!(
+        let row = sqlx::query(
             "SELECT status::TEXT AS status FROM contracts WHERE id = $1",
-            contract_id
         )
+        .bind(contract_id)
         .fetch_optional(&self.db)
         .await?;
 
         match row {
             None => bail!("contract {contract_id} not found"),
-            Some(r) if r.status.as_deref() == Some("SIGNED") => {
-                bail!("contract already signed")
+            Some(r) => {
+                let status: Option<String> = r.try_get("status").ok();
+                if status.as_deref() == Some("SIGNED") {
+                    bail!("contract already signed")
+                }
             }
-            _ => {}
         }
 
         let token = Uuid::new_v4().to_string();
