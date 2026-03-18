@@ -78,31 +78,31 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const W       = doc.page.width;           // 595.28 pt  (A4)
     const CONTENT = W - ML - MR;             // usable width between margins
 
-    // Dark slate background colour that matches the brand logo's background
-    const HEADER_BG = "#3d5060";
-
     // ── Header — drawn at absolute coords so it never moves the text cursor ──
     function drawHeader() {
       doc.save();
 
-      // Dark background band
-      doc.rect(0, 0, W, HEADER).fill(HEADER_BG);
-
-      // Logo image — fitted by height, anchored to left margin
+      // Logo image — fitted by height, placed at x=0 so its own dark
+      // background fills the left portion of the header seamlessly
       if (logoData) {
-        // Aspect ratio 2528:1696 ≈ 1.491 — derive width from height
-        const logoH = HEADER - 8;
+        // Aspect ratio 2528:1696 ≈ 1.491
+        const logoH = HEADER;
         const logoW = logoH * (2528 / 1696);
-        doc.image(logoData, ML, 4, { width: logoW, height: logoH });
+        doc.image(logoData, 0, 0, { width: logoW, height: logoH });
+
+        // Fill the rest of the header band with the logo's background colour
+        // sampled visually: #3c4f5f (dark blue-grey from the brand image)
+        doc.rect(logoW, 0, W - logoW, HEADER).fill("#3c4f5f");
       } else {
-        // Fallback text if no logo file found
+        // Fallback: full dark band with text
+        doc.rect(0, 0, W, HEADER).fill("#3c4f5f");
         doc.font("Helvetica-Bold").fontSize(20).fillColor("#ffffff")
            .text("AiStaff", ML, 22, { lineBreak: false });
         doc.font("Helvetica").fontSize(8).fillColor(GREEN)
            .text("FUTURE WORKFORCE", ML, 46, { lineBreak: false });
       }
 
-      // Date + document ID — right-aligned in white against dark header
+      // Date + document ID — right-aligned in white against the dark header
       doc.font("Helvetica").fontSize(7.5).fillColor("#ffffff")
          .text(`Date: ${dateStr}`, ML, 22, {
            width: CONTENT, align: "right", lineBreak: false,
