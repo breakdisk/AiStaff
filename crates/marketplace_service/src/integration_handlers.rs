@@ -252,7 +252,7 @@ pub async fn get_by_external_id(
     Query(params): Query<ByExternalIdQuery>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let row = sqlx::query(
-        "SELECT id FROM workspace_integrations WHERE external_id = $1 LIMIT 1",
+        "SELECT id, connected_by, owner_profile_id FROM workspace_integrations WHERE external_id = $1 LIMIT 1",
     )
     .bind(&params.external_id)
     .fetch_optional(&state.db)
@@ -261,10 +261,14 @@ pub async fn get_by_external_id(
 
     match row {
         Some(r) => {
-            let id: Uuid = r
-                .try_get("id")
-                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-            Ok(Json(serde_json::json!({ "id": id.to_string() })))
+            let id: Uuid = r.try_get("id").map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+            let connected_by: Uuid = r.try_get("connected_by").map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+            let owner_profile_id: Option<Uuid> = r.try_get("owner_profile_id").ok();
+            Ok(Json(serde_json::json!({
+                "id": id.to_string(),
+                "connected_by": connected_by.to_string(),
+                "owner_profile_id": owner_profile_id.map(|u| u.to_string()),
+            })))
         }
         None => Err((StatusCode::NOT_FOUND, "Integration not found".to_string())),
     }
