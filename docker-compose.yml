@@ -406,6 +406,9 @@ services:
       NETWORK_INTL_API_BASE:   ${NETWORK_INTL_API_BASE:-https://api-gateway.sandbox.ngenius-payments.com}
       # Custom webhook auth header value — must match Header Value in N-Genius portal
       NETWORK_INTL_WEBHOOK_SECRET: ${NETWORK_INTL_WEBHOOK_SECRET:-}
+      # Direct DB access — used by Next.js API routes that query postgres via pg Pool
+      # (e.g. /api/reputation/*/export, /api/transparency/missed-jobs, /api/proposals/submit)
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
       # Backend service URLs — Docker container names
       IDENTITY_SERVICE_URL:     http://identity-service:3001
       MARKETPLACE_SERVICE_URL:  http://marketplace-service:3002
@@ -424,10 +427,11 @@ services:
     expose:
       - "3000"
     depends_on:
-      - identity-service
-      - marketplace-service
-      - checklist-service
-      - payout-service
+      postgres: { condition: service_healthy }
+      identity-service:   { condition: service_started }
+      marketplace-service: { condition: service_started }
+      checklist-service:  { condition: service_started }
+      payout-service:     { condition: service_started }
 
 volumes:
   pg_data:
