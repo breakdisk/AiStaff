@@ -22,6 +22,7 @@ import {
   type Contract,
   type WarrantyClaim,
 } from "@/lib/api";
+import { downloadContractPdf } from "@/lib/download-pdf";
 
 // ── Nav ───────────────────────────────────────────────────────────────────────
 const MAIN_NAV = [
@@ -263,35 +264,8 @@ function GenerateModal({ tpl, profileId, name, email, onClose, onCreated }: Gene
         document_b64:   b64,
       });
 
-      // Generate and download PDF
-      const { default: jsPDF } = await import("jspdf");
-      const doc    = new jsPDF({ unit: "mm", format: "a4" });
-      const pageW  = doc.internal.pageSize.getWidth();
-      const margin = 20;
-      let   y      = 20;
-      doc.setFillColor(9, 9, 11);
-      doc.rect(0, 0, pageW, 14, "F");
-      doc.setTextColor(251, 191, 36);
-      doc.setFontSize(9);
-      doc.text("AiStaff Legal Toolkit", margin, 9);
-      y = 22;
-      doc.setTextColor(30, 30, 30);
-      doc.setFontSize(10);
-      const lines = doc.splitTextToSize(text, pageW - margin * 2) as string[];
-      lines.forEach((line: string) => {
-        if (y > 275) { doc.addPage(); y = 20; }
-        doc.text(line, margin, y);
-        y += 5.5;
-      });
-      const pages = doc.getNumberOfPages();
-      for (let i = 1; i <= pages; i++) {
-        doc.setPage(i);
-        doc.setFontSize(7);
-        doc.setTextColor(130, 130, 130);
-        doc.text(`SHA-256: ${result.document_hash}`, margin, 290);
-        doc.text(`Page ${i} / ${pages}`, pageW - margin - 12, 290);
-      }
-      doc.save(`${tpl.kind}-${result.contract_id.slice(0, 8)}.pdf`);
+      // Generate and download PDF (server-side pdfkit — 5–20 KB output)
+      await downloadContractPdf(text, result.document_hash, tpl.kind, result.contract_id);
 
       // Request counterparty signature if email provided
       if (partyBEmail.trim()) {

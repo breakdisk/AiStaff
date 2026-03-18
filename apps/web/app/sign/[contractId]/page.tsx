@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { Scale, Check, AlertCircle, Loader2, Download, FileText } from "lucide-react";
+import { downloadContractPdf } from "@/lib/download-pdf";
 
 interface ContractPreview {
   id:            string;
@@ -12,47 +13,6 @@ interface ContractPreview {
   document_text: string | null;
   party_b_email: string | null;
   created_at:    string;
-}
-
-function downloadPdf(text: string, contractId: string, contractType: string) {
-  // Dynamic import to keep bundle lean
-  import("jspdf").then(({ default: jsPDF }) => {
-    const doc      = new jsPDF({ unit: "mm", format: "a4" });
-    const pageW    = doc.internal.pageSize.getWidth();
-    const margin   = 20;
-    const maxW     = pageW - margin * 2;
-    let   y        = 20;
-
-    // Header bar
-    doc.setFillColor(9, 9, 11);
-    doc.rect(0, 0, pageW, 14, "F");
-    doc.setTextColor(251, 191, 36);
-    doc.setFontSize(9);
-    doc.text("AiStaff Legal Toolkit", margin, 9);
-
-    y = 22;
-    doc.setTextColor(30, 30, 30);
-    doc.setFontSize(10);
-
-    const lines = doc.splitTextToSize(text, maxW) as string[];
-    lines.forEach((line: string) => {
-      if (y > 275) { doc.addPage(); y = 20; }
-      doc.text(line, margin, y);
-      y += 5.5;
-    });
-
-    // Footer with hash
-    const pages = doc.getNumberOfPages();
-    for (let i = 1; i <= pages; i++) {
-      doc.setPage(i);
-      doc.setFontSize(7);
-      doc.setTextColor(130, 130, 130);
-      doc.text(`SHA-256: ${contractId}`, margin, 290);
-      doc.text(`Page ${i} / ${pages}`, pageW - margin - 12, 290);
-    }
-
-    doc.save(`${contractType}-${contractId.slice(0, 8)}.pdf`);
-  });
 }
 
 export default function SignPage() {
@@ -154,7 +114,7 @@ export default function SignPage() {
         )}
         {contract?.document_text && (
           <button
-            onClick={() => downloadPdf(contract.document_text!, contract.id, contract.contract_type)}
+            onClick={() => downloadContractPdf(contract.document_text!, contract.document_hash, contract.contract_type, contract.id)}
             className="h-8 px-3 border border-zinc-700 rounded-sm font-mono text-xs text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors flex items-center gap-1.5 mx-auto"
           >
             <Download className="w-3 h-3" /> Download PDF
@@ -176,7 +136,7 @@ export default function SignPage() {
         </div>
         {contract?.document_text && (
           <button
-            onClick={() => downloadPdf(contract.document_text!, contract!.id, contract!.contract_type)}
+            onClick={() => downloadContractPdf(contract.document_text!, contract!.document_hash, contract!.contract_type, contract!.id)}
             className="h-7 px-2.5 border border-zinc-700 rounded-sm font-mono text-xs text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors flex items-center gap-1.5"
           >
             <Download className="w-3 h-3" /> PDF
