@@ -19,6 +19,7 @@ export default auth((req) => {
     pathname.startsWith("/api/stripe/webhook") ||
     pathname.startsWith("/api/network-intl/webhook") ||
     pathname.startsWith("/api/network-intl/callback") ||
+    pathname.startsWith("/api/network-intl/diag") ||   // Temporary diagnostic — remove after IP confirmed
     pathname.startsWith("/sign/") ||           // Public e-signature page (token-gated, no auth)
     pathname.startsWith("/api/sign/") ||       // Public e-signature API proxy
     pathname.startsWith("/api/generate-pdf") || // PDF generation — called from public sign page
