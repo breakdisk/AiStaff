@@ -3,6 +3,8 @@
 export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
+import path from "path";
+import fs   from "fs";
 // pdfkit ships as CJS; dynamic require avoids Next.js ESM conflict
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const PDFDocument = require("pdfkit") as new (opts: Record<string, unknown>) => PDFKit.PDFDocument;
@@ -14,29 +16,19 @@ interface GenerateBody {
   contract_id:   string;
 }
 
-// ── Colour palette (matches brand) ────────────────────────────────────────────
-const C = {
-  bg:       "#09090b",   // zinc-950
-  surface:  "#18181b",   // zinc-900
-  border:   "#27272a",   // zinc-800
-  amber:    "#fbbf24",   // amber-400
-  amberDim: "#92400e",   // amber-800
-  white:    "#fafafa",   // zinc-50
-  muted:    "#a1a1aa",   // zinc-400
-  body:     "#1c1c1e",   // near-black body text
-  heading:  "#09090b",   // section headings
-  rule:     "#e4e4e7",   // zinc-200 horizontal rules
-};
+// 1.5 cm = 1.5 × (72 / 2.54) ≈ 42.5 pt
+const MARGIN_H = 42.5;
+// Accent green matching the AiStaff logo
+const GREEN = "#16a34a";
+const GREY  = "#6b7280";
+const DARK  = "#111827";
+const RULE  = "#e5e7eb";
 
-// Detect whether a line should be rendered as a section heading
 function isHeading(line: string): boolean {
   const t = line.trim();
-  if (!t) return false;
-  // Fully uppercase line (e.g. "TERMS AND CONDITIONS")
-  if (t === t.toUpperCase() && t.length > 3 && /[A-Z]/.test(t)) return true;
-  // Numbered section (e.g. "1. PARTIES" or "1.1 Definitions")
+  if (!t || t.length < 3) return false;
+  if (t === t.toUpperCase() && /[A-Z]/.test(t) && t.length > 3) return true;
   if (/^\d+(\.\d+)?\s+[A-Z]/.test(t)) return true;
-  // ARTICLE / SECTION keyword
   if (/^(ARTICLE|SECTION|CLAUSE|SCHEDULE|EXHIBIT)\s+/i.test(t)) return true;
   return false;
 }
@@ -48,12 +40,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   } catch {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
-
   if (!body.text) {
     return NextResponse.json({ error: "text is required" }, { status: 400 });
   }
 
-  const contractTitle = body.contract_type.replace(/_/g, " ").toUpperCase();
+  // Load logo from public/ — process.cwd() is apps/web/ at runtime
+  const logoPath = path.join(process.cwd(), "public", "logo.png");
+  const logoData = fs.existsSync(logoPath) ? fs.readFileSync(logoPath) : null;
+
+  const contractTitle = body.contract_type.replace(/_/g, " ");
   const shortId       = body.contract_id.slice(0, 8).toUpperCase();
   const dateStr       = new Date().toLocaleDateString("en-GB", {
     day: "2-digit", month: "long", year: "numeric",
@@ -63,106 +58,88 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const doc = new PDFDocument({
       compress:    true,
       size:        "A4",
-      margins:     { top: 100, bottom: 60, left: 60, right: 60 },
+      margins:     { top: 110, bottom: 60, left: MARGIN_H, right: MARGIN_H },
       bufferPages: true,
       info: {
-        Title:   contractTitle,
+        Title:   contractTitle.toUpperCase(),
         Author:  "AiStaff Legal Toolkit",
         Creator: "AiStaff",
         Subject: `Contract ${body.contract_id}`,
       },
     });
 
-    const W = doc.page.width;   // 595.28
+    const W = doc.page.width; // 595.28 pt
 
-    // ────────────────────────────────────────────────────────────────────────────
-    // HEADER  (drawn on every page via a helper we'll call at page-add events)
-    // ────────────────────────────────────────────────────────────────────────────
+    // ── Header (drawn on every page) ──────────────────────────────────────────
     function drawHeader() {
-      const H = 72;
+      const H = 90; // header height
 
-      // Dark background band
-      doc.rect(0, 0, W, H).fill(C.bg);
+      // White background (default) — just draw the logo + text
 
-      // Amber accent bar on the left edge
-      doc.rect(0, 0, 4, H).fill(C.amber);
+      // Logo — 64×64 pt, left-aligned at MARGIN_H
+      if (logoData) {
+        doc.image(logoData, MARGIN_H, 10, { height: 70 });
+      }
 
-      // ── Logo mark — stylised "A" in an amber rounded square ─────────────────
-      const lx = 20;
-      const ly = 14;
-      const lw = 44;
-      const lh = 44;
+      // Company name to the right of the logo (or fallback if no logo)
+      const textX = logoData ? MARGIN_H + 80 : MARGIN_H;
 
-      // Outer amber square
-      doc.roundedRect(lx, ly, lw, lh, 4).fill(C.amber);
-
-      // Inner dark "AS" monogram
       doc.font("Helvetica-Bold")
-         .fontSize(18)
-         .fillColor(C.bg)
-         .text("AS", lx, ly + 12, {
-           width:  lw,
-           align:  "center",
-           lineBreak: false,
-         });
-
-      // ── Brand name ────────────────────────────────────────────────────────────
-      const tx = lx + lw + 12;
-      doc.font("Helvetica-Bold")
-         .fontSize(18)
-         .fillColor(C.white)
-         .text("AiStaff", tx, ly + 4, { lineBreak: false });
+         .fontSize(20)
+         .fillColor(DARK)
+         .text("AiStaff", textX, 22, { lineBreak: false });
 
       doc.font("Helvetica")
-         .fontSize(8.5)
-         .fillColor(C.amber)
-         .text("Legal Toolkit", tx, ly + 27, { lineBreak: false });
+         .fontSize(8)
+         .fillColor(GREEN)
+         .text("FUTURE WORKFORCE", textX, 47, { lineBreak: false });
 
-      // ── Right-side contract meta ───────────────────────────────────────────
+      // Right-aligned meta block
       doc.font("Helvetica")
          .fontSize(7.5)
-         .fillColor(C.muted)
-         .text(`ID: ${shortId}`, 0, ly + 4, {
-           width:     W - 20,
+         .fillColor(GREY)
+         .text(`Date: ${dateStr}`, 0, 22, {
+           width:     W - MARGIN_H,
            align:     "right",
            lineBreak: false,
          });
 
       doc.font("Helvetica")
          .fontSize(7.5)
-         .fillColor(C.muted)
-         .text(dateStr, 0, ly + 17, {
-           width:     W - 20,
+         .fillColor(GREY)
+         .text(`Document ID: ${shortId}`, 0, 35, {
+           width:     W - MARGIN_H,
            align:     "right",
            lineBreak: false,
          });
 
-      // Amber bottom rule of header
-      doc.rect(0, H, W, 1.5).fill(C.amber);
+      // Bottom rule — green, full width between margins
+      doc.rect(MARGIN_H, H - 4, W - MARGIN_H * 2, 1.5).fill(GREEN);
     }
 
-    // Draw header on first page
     drawHeader();
-
-    // Re-draw header on every subsequent page
     doc.on("pageAdded", drawHeader);
 
-    // ── Contract title block ──────────────────────────────────────────────────
-    doc.moveDown(1.2);
+    // ── Subject block (formal letter style) ───────────────────────────────────
+    doc.moveDown(0.8);
+
+    doc.font("Helvetica")
+       .fontSize(8)
+       .fillColor(GREY)
+       .text("SUBJECT", { characterSpacing: 1.5 });
+
+    doc.moveDown(0.2);
 
     doc.font("Helvetica-Bold")
-       .fontSize(15)
-       .fillColor(C.heading)
-       .text(contractTitle, { align: "center" });
+       .fontSize(13)
+       .fillColor(DARK)
+       .text(contractTitle.toUpperCase());
 
-    doc.moveDown(0.4);
+    doc.moveDown(0.5);
 
-    // Thin amber underline under title
-    const titleY = doc.y;
-    const lineW  = 60;
-    doc.rect((W - lineW) / 2, titleY, lineW, 2).fill(C.amber);
-
-    doc.moveDown(1.2);
+    // Thin green underline under subject
+    doc.rect(MARGIN_H, doc.y, 48, 2).fill(GREEN);
+    doc.moveDown(1.0);
 
     // ── Body — section-aware rendering ────────────────────────────────────────
     const lines = body.text.split("\n");
@@ -171,32 +148,30 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       const line = rawLine.trimEnd();
 
       if (!line.trim()) {
-        // Blank line → small vertical gap
-        doc.moveDown(0.4);
+        doc.moveDown(0.35);
         continue;
       }
 
       if (isHeading(line)) {
-        // Extra space before a new section
-        doc.moveDown(0.6);
+        doc.moveDown(0.7);
 
-        // Light grey rule above each heading
-        doc.rect(60, doc.y, W - 120, 0.5).fill(C.rule);
-        doc.moveDown(0.35);
+        // Grey rule before each section heading
+        doc.rect(MARGIN_H, doc.y, W - MARGIN_H * 2, 0.5).fill(RULE);
+        doc.moveDown(0.3);
 
         doc.font("Helvetica-Bold")
            .fontSize(9.5)
-           .fillColor(C.heading)
+           .fillColor(DARK)
            .text(line.trim(), { lineGap: 1.5 });
 
-        doc.moveDown(0.25);
+        doc.moveDown(0.2);
       } else {
         doc.font("Helvetica")
            .fontSize(9)
-           .fillColor(C.body)
+           .fillColor("#374151")
            .text(line.trim(), {
-             lineGap:   2,
-             align:     "left",
+             lineGap:   2.2,
+             align:     "justify",
              continued: false,
            });
       }
@@ -209,34 +184,33 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     for (let i = 0; i < total; i++) {
       doc.switchToPage(i);
       const pageH = doc.page.height;
+      const fy    = pageH - 42;
 
       // Separator rule
-      doc.rect(60, pageH - 46, W - 120, 0.5).fill(C.rule);
+      doc.rect(MARGIN_H, fy, W - MARGIN_H * 2, 0.5).fill(RULE);
 
-      // Hash (truncated to fit)
-      const hashDisplay = `SHA-256: ${body.hash.slice(0, 40)}…`;
+      // Hash
+      const hashShort = `SHA-256: ${body.hash.slice(0, 36)}…`;
       doc.font("Helvetica")
          .fontSize(6)
-         .fillColor(C.muted)
-         .text(hashDisplay, 60, pageH - 38, { lineBreak: false });
+         .fillColor(GREY)
+         .text(hashShort, MARGIN_H, fy + 6, { lineBreak: false });
 
-      // Page number (right-aligned)
+      // Page N / M
       doc.font("Helvetica")
          .fontSize(7)
-         .fillColor(C.muted)
-         .text(`${i + 1} / ${total}`, 0, pageH - 38, {
-           width:     W - 20,
+         .fillColor(GREY)
+         .text(`Page ${i + 1} of ${total}`, 0, fy + 6, {
+           width:     W - MARGIN_H,
            align:     "right",
            lineBreak: false,
          });
 
-      // "AiStaff Legal Toolkit" branding in footer
+      // Branding
       doc.font("Helvetica")
          .fontSize(6)
-         .fillColor(C.amberDim)
-         .text("AiStaff Legal Toolkit — aistaff.app", 60, pageH - 26, {
-           lineBreak: false,
-         });
+         .fillColor(GREEN)
+         .text("aistaff.app · Legal Toolkit", MARGIN_H, fy + 18, { lineBreak: false });
     }
 
     // ── Stream → buffer → response ────────────────────────────────────────────
