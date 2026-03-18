@@ -205,6 +205,72 @@ pub async fn resolve_warranty_claim(
     }
 }
 
+// ── Contract list endpoint ────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+pub struct ContractListQuery {
+    pub profile_id: Option<Uuid>,
+}
+
+pub async fn list_contracts(
+    State(svc): State<AppState>,
+    Query(q): Query<ContractListQuery>,
+) -> impl IntoResponse {
+    let rows = if let Some(pid) = q.profile_id {
+        sqlx::query(
+            "SELECT id, contract_type, status::TEXT AS status, document_hash,
+                    party_a, party_b, deployment_id, created_at, signed_at
+             FROM contracts
+             WHERE party_a = $1 OR party_b = $1
+             ORDER BY created_at DESC
+             LIMIT 200",
+        )
+        .bind(pid)
+        .fetch_all(&svc.db)
+        .await
+    } else {
+        sqlx::query(
+            "SELECT id, contract_type, status::TEXT AS status, document_hash,
+                    party_a, party_b, deployment_id, created_at, signed_at
+             FROM contracts
+             ORDER BY created_at DESC
+             LIMIT 200",
+        )
+        .fetch_all(&svc.db)
+        .await
+    };
+
+    match rows {
+        Ok(rows) => {
+            use sqlx::Row;
+            let data: Vec<_> = rows
+                .iter()
+                .map(|r| {
+                    let id: Uuid = r.get("id");
+                    let party_a: Uuid = r.get("party_a");
+                    let party_b: Uuid = r.get("party_b");
+                    let dep_id: Option<Uuid> = r.get("deployment_id");
+                    let created_at: chrono::DateTime<chrono::Utc> = r.get("created_at");
+                    let signed_at: Option<chrono::DateTime<chrono::Utc>> = r.get("signed_at");
+                    serde_json::json!({
+                        "id":            id,
+                        "contract_type": r.get::<&str, _>("contract_type"),
+                        "status":        r.get::<Option<&str>, _>("status"),
+                        "document_hash": r.get::<&str, _>("document_hash"),
+                        "party_a":       party_a,
+                        "party_b":       party_b,
+                        "deployment_id": dep_id,
+                        "created_at":    created_at.to_rfc3339(),
+                        "signed_at":     signed_at.map(|d| d.to_rfc3339()),
+                    })
+                })
+                .collect();
+            (StatusCode::OK, Json(data)).into_response()
+        }
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
 pub async fn health() -> StatusCode {
     StatusCode::OK
 }

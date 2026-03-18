@@ -1,55 +1,63 @@
-﻿"use client";
+"use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import {
   LayoutDashboard, Store, Trophy, User, Shuffle,
   Brain, ScanSearch, GitMerge, Target, TrendingUp,
   Lock, Wallet, Receipt, FileText, Calculator, Link2,
   BookOpen, Video, MessageSquare, Layers, ShieldCheck,
   Scale, FileSignature, Globe, Download, Check,
-  ChevronDown, ChevronUp, Clock, AlertCircle, Plus,
-  Landmark, Copy, Eye, Pen
+  ChevronDown, ChevronUp, AlertCircle, Plus,
+  Landmark, Copy, Eye, Pen, X, Loader2,
 } from "lucide-react";
+import {
+  fetchContracts,
+  createContract,
+  signContract,
+  fetchWarrantyClaims,
+  resolveWarrantyClaim,
+  type Contract,
+  type WarrantyClaim,
+} from "@/lib/api";
 
-// ── Nav constants ─────────────────────────────────────────────────────────────
+// ── Nav ───────────────────────────────────────────────────────────────────────
 const MAIN_NAV = [
-  { href: "/dashboard",   label: "Dashboard",   icon: LayoutDashboard },
-  { href: "/marketplace", label: "Marketplace",  icon: Store },
-  { href: "/matching",    label: "Matching",      icon: Shuffle },
-  { href: "/leaderboard", label: "Leaderboard",  icon: Trophy },
+  { href: "/dashboard",   label: "Dashboard",  icon: LayoutDashboard },
+  { href: "/marketplace", label: "Marketplace", icon: Store },
+  { href: "/matching",    label: "Matching",    icon: Shuffle },
+  { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
 ];
 const AI_TOOLS_NAV = [
-  { href: "/matching",     label: "AI Matching",  icon: Brain },
-  { href: "/scoping",      label: "Scoping",       icon: ScanSearch },
-  { href: "/outcomes",     label: "Outcomes",      icon: Target },
-  { href: "/proposals",    label: "Proposals",     icon: GitMerge },
-  { href: "/pricing-tool", label: "Pricing",       icon: TrendingUp },
+  { href: "/matching",     label: "AI Matching", icon: Brain },
+  { href: "/scoping",      label: "Scoping",      icon: ScanSearch },
+  { href: "/outcomes",     label: "Outcomes",     icon: Target },
+  { href: "/proposals",    label: "Proposals",    icon: GitMerge },
+  { href: "/pricing-tool", label: "Pricing",      icon: TrendingUp },
 ];
 const PAYMENTS_NAV = [
-  { href: "/escrow",             label: "Escrow",      icon: Lock },
-  { href: "/payouts",            label: "Payouts",      icon: Wallet },
-  { href: "/billing",            label: "Billing",      icon: Receipt },
-  { href: "/smart-contracts",    label: "Contracts",    icon: FileText },
-  { href: "/outcome-listings",   label: "Outcomes",     icon: Target },
-  { href: "/pricing-calculator", label: "Calculator",   icon: Calculator },
+  { href: "/escrow",             label: "Escrow",     icon: Lock },
+  { href: "/payouts",            label: "Payouts",    icon: Wallet },
+  { href: "/billing",            label: "Billing",    icon: Receipt },
+  { href: "/smart-contracts",    label: "Contracts",  icon: FileText },
+  { href: "/pricing-calculator", label: "Calculator", icon: Calculator },
 ];
 const WORKSPACE_NAV = [
-  { href: "/work-diaries",  label: "Work Diaries",   icon: BookOpen },
-  { href: "/async-collab",  label: "Async Collab",   icon: Video },
-  { href: "/collab",        label: "Collaboration",  icon: MessageSquare },
-  { href: "/success-layer", label: "Success Layer",  icon: Layers },
-  { href: "/quality-gate",  label: "Quality Gate",   icon: ShieldCheck },
+  { href: "/work-diaries",  label: "Work Diaries",  icon: BookOpen },
+  { href: "/async-collab",  label: "Async Collab",  icon: Video },
+  { href: "/collab",        label: "Collaboration", icon: MessageSquare },
+  { href: "/success-layer", label: "Success Layer", icon: Layers },
+  { href: "/quality-gate",  label: "Quality Gate",  icon: ShieldCheck },
 ];
 const LEGAL_NAV = [
-  { href: "/legal-toolkit",    label: "Legal Toolkit",  icon: Scale,       active: true },
-  { href: "/tax-engine",       label: "Tax Engine",      icon: Landmark },
-  { href: "/reputation-export",label: "Reputation",      icon: Link2 },
-  { href: "/transparency",     label: "Transparency",    icon: Eye },
+  { href: "/legal-toolkit",     label: "Legal Toolkit", icon: Scale,         active: true },
+  { href: "/tax-engine",        label: "Tax Engine",    icon: Landmark },
+  { href: "/reputation-export", label: "Reputation",   icon: Link2 },
+  { href: "/transparency",      label: "Transparency",  icon: Eye },
 ];
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-type DocStatus = "draft" | "pending_signature" | "signed" | "expired";
+// ── Template definitions ──────────────────────────────────────────────────────
 type TemplateKind = "nda" | "ip_assignment" | "sow" | "service_agreement" | "data_processing";
 
 interface DocTemplate {
@@ -58,227 +66,375 @@ interface DocTemplate {
   name:         string;
   description:  string;
   jurisdictions: string[];
-  fields:       string[];
+  fields:       Array<{ key: string; label: string; placeholder: string }>;
   lastUpdated:  string;
 }
 
-interface GeneratedDoc {
-  id:          string;
-  templateId:  string;
-  name:        string;
-  kind:        TemplateKind;
-  parties:     string[];
-  jurisdiction: string;
-  status:      DocStatus;
-  createdAt:   string;
-  signedAt?:   string;
-  expiresAt?:  string;
-}
-
-// ── Demo data ─────────────────────────────────────────────────────────────────
 const TEMPLATES: DocTemplate[] = [
   {
-    id: "tpl-nda",
-    kind: "nda",
+    id: "tpl-nda", kind: "nda",
     name: "Mutual NDA",
-    description: "Standard bilateral non-disclosure agreement. Covers confidential information shared during project scoping and delivery.",
+    description: "Standard bilateral NDA. Covers confidential information shared during scoping and delivery.",
     jurisdictions: ["US", "UK", "EU", "AU", "CA"],
-    fields: ["Party A name", "Party B name", "Effective date", "Duration (months)", "Governing jurisdiction"],
+    fields: [
+      { key: "party_b_name",    label: "Counterparty name",      placeholder: "Acme Corp" },
+      { key: "effective_date",  label: "Effective date",          placeholder: "2026-04-01" },
+      { key: "duration_months", label: "Duration (months)",       placeholder: "12" },
+      { key: "jurisdiction",    label: "Governing jurisdiction",  placeholder: "Delaware, USA" },
+    ],
     lastUpdated: "2026-01-15",
   },
   {
-    id: "tpl-ip",
-    kind: "ip_assignment",
+    id: "tpl-ip", kind: "ip_assignment",
     name: "IP Assignment",
-    description: "Full intellectual property assignment from talent to client upon project completion and final payment.",
+    description: "Full IP assignment from talent to client upon project completion and final payment.",
     jurisdictions: ["US", "UK", "EU"],
-    fields: ["Assignor (talent)", "Assignee (client)", "Project description", "Consideration amount", "Effective date"],
+    fields: [
+      { key: "party_b_name",    label: "Assignee (client)",        placeholder: "Acme Corp" },
+      { key: "project_desc",    label: "Project description",      placeholder: "DataSync Pipeline" },
+      { key: "consideration",   label: "Consideration amount",     placeholder: "USD 5,000" },
+      { key: "effective_date",  label: "Effective date",           placeholder: "2026-04-01" },
+    ],
     lastUpdated: "2026-02-01",
   },
   {
-    id: "tpl-sow",
-    kind: "sow",
+    id: "tpl-sow", kind: "sow",
     name: "Statement of Work",
     description: "Milestone-based SOW aligned with escrow release schedule. Includes deliverable hash verification clause.",
     jurisdictions: ["US", "UK", "EU", "AU", "CA", "SG"],
-    fields: ["Project title", "Talent name", "Client name", "Milestones", "Total value", "Start / end dates"],
+    fields: [
+      { key: "project_title",  label: "Project title",    placeholder: "DataSync Pipeline v2" },
+      { key: "party_b_name",   label: "Client name",      placeholder: "Acme Corp" },
+      { key: "milestones",     label: "Milestones",       placeholder: "M1: Design, M2: Build, M3: Deploy" },
+      { key: "total_value",    label: "Total value",      placeholder: "USD 10,000" },
+      { key: "start_date",     label: "Start date",       placeholder: "2026-04-01" },
+      { key: "end_date",       label: "End date",         placeholder: "2026-07-01" },
+    ],
     lastUpdated: "2026-02-28",
   },
   {
-    id: "tpl-service",
-    kind: "service_agreement",
+    id: "tpl-service", kind: "service_agreement",
     name: "Independent Contractor Agreement",
-    description: "Establishes independent contractor relationship. Includes IR35/1099 classification markers and no employment obligation clauses.",
+    description: "Establishes independent contractor relationship. Includes IR35/1099 classification markers.",
     jurisdictions: ["US", "UK", "EU"],
-    fields: ["Contractor name", "Client name", "Service description", "Rate / fee structure", "Termination notice period"],
+    fields: [
+      { key: "party_b_name",  label: "Client name",              placeholder: "DevOps Inc" },
+      { key: "service_desc",  label: "Service description",      placeholder: "Backend engineering" },
+      { key: "rate",          label: "Rate / fee structure",     placeholder: "USD 120/hr" },
+      { key: "notice_period", label: "Termination notice (days)", placeholder: "14" },
+    ],
     lastUpdated: "2026-03-01",
   },
   {
-    id: "tpl-dpa",
-    kind: "data_processing",
+    id: "tpl-dpa", kind: "data_processing",
     name: "Data Processing Agreement",
-    description: "GDPR-compliant DPA for projects involving personal data. Maps controller/processor roles and data retention rules.",
+    description: "GDPR Article 28 compliant DPA for projects involving personal data.",
     jurisdictions: ["EU", "UK"],
-    fields: ["Controller (client)", "Processor (talent)", "Data categories", "Processing purpose", "Retention period"],
+    fields: [
+      { key: "party_b_name",     label: "Controller (client)",   placeholder: "NeuralCo GmbH" },
+      { key: "data_categories",  label: "Data categories",       placeholder: "Names, emails, usage logs" },
+      { key: "processing_purpose", label: "Processing purpose",  placeholder: "ML model training" },
+      { key: "retention_period", label: "Retention period",      placeholder: "24 months" },
+    ],
     lastUpdated: "2026-02-10",
   },
 ];
 
-const GENERATED_DOCS: GeneratedDoc[] = [
-  {
-    id: "doc-001",
-    templateId: "tpl-nda",
-    name: "NDA — Acme Corp × Marcus T.",
-    kind: "nda",
-    parties: ["Acme Corp", "Marcus T."],
-    jurisdiction: "US",
-    status: "signed",
-    createdAt: "2026-02-14",
-    signedAt: "2026-02-14",
-    expiresAt: "2027-02-14",
-  },
-  {
-    id: "doc-002",
-    templateId: "tpl-sow",
-    name: "SOW — DataSync Pipeline",
-    kind: "sow",
-    parties: ["Acme Corp", "Marcus T."],
-    jurisdiction: "US",
-    status: "signed",
-    createdAt: "2026-02-14",
-    signedAt: "2026-02-15",
-  },
-  {
-    id: "doc-003",
-    templateId: "tpl-ip",
-    name: "IP Assignment — DataSync",
-    kind: "ip_assignment",
-    parties: ["Marcus T.", "Acme Corp"],
-    jurisdiction: "US",
-    status: "pending_signature",
-    createdAt: "2026-03-01",
-  },
-  {
-    id: "doc-004",
-    templateId: "tpl-dpa",
-    name: "DPA — NeuralCo × Lena K.",
-    kind: "data_processing",
-    parties: ["NeuralCo", "Lena K."],
-    jurisdiction: "EU",
-    status: "signed",
-    createdAt: "2026-03-01",
-    signedAt: "2026-03-02",
-    expiresAt: "2027-03-01",
-  },
-  {
-    id: "doc-005",
-    templateId: "tpl-service",
-    name: "ICA — DevOps Inc × Diego R.",
-    kind: "service_agreement",
-    parties: ["DevOps Inc", "Diego R."],
-    jurisdiction: "UK",
-    status: "draft",
-    createdAt: "2026-03-08",
-  },
-];
-
+// ── Constants ─────────────────────────────────────────────────────────────────
 const KIND_LABEL: Record<TemplateKind, string> = {
   nda: "NDA", ip_assignment: "IP Assignment", sow: "SOW",
   service_agreement: "ICA", data_processing: "DPA",
 };
 const KIND_COLOR: Record<TemplateKind, string> = {
-  nda: "text-sky-400 border-sky-900",
-  ip_assignment: "text-violet-400 border-violet-900",
-  sow: "text-amber-400 border-amber-900",
+  nda:               "text-sky-400 border-sky-900",
+  ip_assignment:     "text-violet-400 border-violet-900",
+  sow:               "text-amber-400 border-amber-900",
   service_agreement: "text-green-400 border-green-900",
-  data_processing: "text-rose-400 border-rose-900",
+  data_processing:   "text-rose-400 border-rose-900",
 };
-const STATUS_MAP: Record<DocStatus, { label: string; color: string }> = {
-  draft:             { label: "Draft",            color: "text-zinc-400 border-zinc-700" },
-  pending_signature: { label: "Pending Sign",     color: "text-amber-400 border-amber-800" },
-  signed:            { label: "Signed",           color: "text-green-400 border-green-800" },
-  expired:           { label: "Expired",          color: "text-red-400 border-red-800" },
+const STATUS_MAP: Record<string, { label: string; color: string }> = {
+  DRAFT:             { label: "Draft",        color: "text-zinc-400 border-zinc-700" },
+  PENDING_SIGNATURE: { label: "Pending Sign", color: "text-amber-400 border-amber-800" },
+  SIGNED:            { label: "Signed",       color: "text-green-400 border-green-800" },
+  EXPIRED:           { label: "Expired",      color: "text-red-400 border-red-800" },
+  REVOKED:           { label: "Revoked",      color: "text-red-400 border-red-800" },
 };
-
 const JUR_FLAG: Record<string, string> = {
   US: "🇺🇸", UK: "🇬🇧", EU: "🇪🇺", AU: "🇦🇺", CA: "🇨🇦", SG: "🇸🇬",
 };
 
-// ── Sub-components ────────────────────────────────────────────────────────────
-function TemplateCard({ tpl }: { tpl: DocTemplate }) {
-  const [open, setOpen] = useState(false);
-  const [generated, setGenerated] = useState(false);
+// ── Document text generator ───────────────────────────────────────────────────
+function buildDocumentText(
+  kind: TemplateKind,
+  fields: Record<string, string>,
+  authorName: string,
+): string {
+  const date = new Date().toISOString().split("T")[0];
+  const counterparty = fields.party_b_name ?? "Counterparty";
+
+  const header = `${KIND_LABEL[kind]}
+Generated by AiStaff Legal Toolkit — ${date}
+Party A (talent): ${authorName}
+Party B (client): ${counterparty}
+
+`;
+
+  const body: Record<TemplateKind, string> = {
+    nda: `MUTUAL NON-DISCLOSURE AGREEMENT
+
+Effective Date: ${fields.effective_date ?? date}
+Duration: ${fields.duration_months ?? "12"} months
+Governing Law: ${fields.jurisdiction ?? ""}
+
+Both parties agree to hold the other party's Confidential Information in strict confidence and not to disclose such information to any third parties without prior written consent.
+
+This agreement shall be governed by the laws of ${fields.jurisdiction ?? "the agreed jurisdiction"}.`,
+
+    ip_assignment: `INTELLECTUAL PROPERTY ASSIGNMENT
+
+Project: ${fields.project_desc ?? ""}
+Consideration: ${fields.consideration ?? ""}
+Effective Date: ${fields.effective_date ?? date}
+
+The Assignor (Party A) hereby irrevocably assigns to the Assignee (Party B) all right, title, and interest in and to the Work Product created under the referenced project, including all intellectual property rights therein.`,
+
+    sow: `STATEMENT OF WORK
+
+Project: ${fields.project_title ?? ""}
+Total Value: ${fields.total_value ?? ""}
+Start Date: ${fields.start_date ?? ""}
+End Date: ${fields.end_date ?? ""}
+
+Milestones:
+${fields.milestones ?? ""}
+
+Deliverable verification: SHA-256 hash of each deliverable shall be recorded and verified against the escrow release condition.`,
+
+    service_agreement: `INDEPENDENT CONTRACTOR AGREEMENT
+
+Service Description: ${fields.service_desc ?? ""}
+Rate / Fee Structure: ${fields.rate ?? ""}
+Termination Notice: ${fields.notice_period ?? "14"} days
+
+Party A is an independent contractor. Nothing in this agreement shall be construed to create an employment, partnership, or joint venture relationship. Party A shall be responsible for all applicable taxes (1099-NEC / IR35 as applicable).`,
+
+    data_processing: `DATA PROCESSING AGREEMENT (GDPR Article 28)
+
+Data Categories: ${fields.data_categories ?? ""}
+Processing Purpose: ${fields.processing_purpose ?? ""}
+Retention Period: ${fields.retention_period ?? ""}
+
+Party B (Controller) appoints Party A (Processor) to process personal data solely on documented instructions from the Controller and in accordance with Regulation (EU) 2016/679.`,
+  };
+
+  return header + body[kind];
+}
+
+// ── Generate Doc Modal ────────────────────────────────────────────────────────
+interface GenerateModalProps {
+  tpl:       DocTemplate;
+  profileId: string;
+  name:      string;
+  onClose:   () => void;
+  onCreated: (c: Contract) => void;
+}
+
+function GenerateModal({ tpl, profileId, name, onClose, onCreated }: GenerateModalProps) {
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit() {
+    setLoading(true);
+    setError("");
+    try {
+      const text    = buildDocumentText(tpl.kind, values, name);
+      const b64     = btoa(unescape(encodeURIComponent(text)));
+      const result  = await createContract({
+        contract_type: tpl.kind,
+        party_a:       profileId,
+        party_b:       profileId,   // party_b set to same until counterparty is an actual profile UUID
+        document_b64:  b64,
+      });
+      // Download text copy
+      const blob = new Blob([text], { type: "text/plain" });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = `${tpl.kind}-${result.contract_id.slice(0, 8)}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+      // Fetch the newly created record to add to list
+      const fresh = await fetch(`/api/compliance/contracts/${result.contract_id}`)
+        .then(r => r.json()) as Contract;
+      onCreated(fresh);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to generate document");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
-    <div className={`border rounded-sm bg-zinc-900/40 ${open ? "border-zinc-700" : "border-zinc-800"}`}>
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={() => setOpen(v => !v)}
-        onKeyDown={(e) => e.key === "Enter" && setOpen(v => !v)}
-        className="flex items-start gap-3 px-3 py-2.5 cursor-pointer hover:bg-zinc-900/60 transition-colors"
-      >
-        <div className="flex-1 min-w-0">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60">
+      <div className="w-full sm:w-[520px] bg-zinc-900 border border-zinc-700 rounded-sm sm:rounded-sm mx-0 sm:mx-4">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
           <div className="flex items-center gap-2">
             <span className={`font-mono text-[10px] px-1 py-0.5 border rounded-sm ${KIND_COLOR[tpl.kind]}`}>
               {KIND_LABEL[tpl.kind]}
             </span>
             <span className="font-mono text-sm text-zinc-100">{tpl.name}</span>
           </div>
-          <p className="font-mono text-xs text-zinc-500 mt-0.5">{tpl.description}</p>
-          <div className="flex items-center gap-1 mt-1.5 flex-wrap">
-            {tpl.jurisdictions.map(j => (
-              <span key={j} className="font-mono text-[10px] text-zinc-500 border border-zinc-800 rounded-sm px-1 py-0.5">
-                {JUR_FLAG[j]} {j}
-              </span>
-            ))}
-          </div>
+          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300 transition-colors">
+            <X className="w-4 h-4" />
+          </button>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0 mt-0.5">
-          <span className="font-mono text-[10px] text-zinc-600">Updated {tpl.lastUpdated}</span>
-          {open ? <ChevronUp className="w-3.5 h-3.5 text-zinc-500" /> : <ChevronDown className="w-3.5 h-3.5 text-zinc-500" />}
+        {/* Fields */}
+        <div className="px-4 py-4 space-y-3 max-h-[60vh] overflow-y-auto">
+          {tpl.fields.map(f => (
+            <div key={f.key}>
+              <label className="block font-mono text-[11px] text-zinc-400 mb-1">{f.label}</label>
+              <input
+                className="w-full h-8 px-2.5 bg-zinc-950 border border-zinc-700 rounded-sm font-mono text-xs text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-amber-500"
+                placeholder={f.placeholder}
+                value={values[f.key] ?? ""}
+                onChange={e => setValues(v => ({ ...v, [f.key]: e.target.value }))}
+              />
+            </div>
+          ))}
+          {error && (
+            <p className="font-mono text-xs text-red-400 flex items-center gap-1.5">
+              <AlertCircle className="w-3 h-3" /> {error}
+            </p>
+          )}
+        </div>
+        {/* Footer */}
+        <div className="px-4 py-3 border-t border-zinc-800 flex items-center justify-between">
+          <p className="font-mono text-[10px] text-zinc-600">Document will be hashed (SHA-256) and stored on-chain.</p>
+          <div className="flex gap-2">
+            <button onClick={onClose} className="h-8 px-3 border border-zinc-700 rounded-sm font-mono text-xs text-zinc-400 hover:border-zinc-500 hover:text-zinc-300 transition-colors">
+              Cancel
+            </button>
+            <button
+              onClick={submit}
+              disabled={loading}
+              className="h-8 px-3 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-zinc-950 font-mono text-xs rounded-sm transition-colors flex items-center gap-1.5"
+            >
+              {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileSignature className="w-3 h-3" />}
+              Generate &amp; Download
+            </button>
+          </div>
         </div>
       </div>
-
-      {open && (
-        <div className="border-t border-zinc-800 px-3 py-3 space-y-3 bg-zinc-950/40">
-          <div>
-            <p className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest mb-1.5">Required fields</p>
-            <div className="flex flex-wrap gap-1.5">
-              {tpl.fields.map(f => (
-                <span key={f} className="font-mono text-[11px] text-zinc-400 border border-zinc-800 rounded-sm px-1.5 py-0.5 bg-zinc-900">
-                  {f}
-                </span>
-              ))}
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => { setGenerated(true); setTimeout(() => setGenerated(false), 2500); }}
-              className={`h-8 px-3 rounded-sm font-mono text-xs transition-colors flex items-center gap-1.5 ${
-                generated
-                  ? "bg-green-900/40 border border-green-800 text-green-400"
-                  : "bg-amber-500 hover:bg-amber-400 text-zinc-950"
-              }`}
-            >
-              {generated ? <><Check className="w-3 h-3" /> Generated!</> : <><Plus className="w-3 h-3" /> Generate Doc</>}
-            </button>
-            <button className="h-8 px-3 rounded-sm font-mono text-xs border border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-300 transition-colors flex items-center gap-1.5">
-              <Eye className="w-3 h-3" /> Preview
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
 
-function DocRow({ doc }: { doc: GeneratedDoc }) {
-  const s = STATUS_MAP[doc.status];
-  const [copied, setCopied] = useState(false);
+// ── Template card ─────────────────────────────────────────────────────────────
+function TemplateCard({
+  tpl, profileId, name, onCreated,
+}: {
+  tpl: DocTemplate;
+  profileId: string;
+  name: string;
+  onCreated: (c: Contract) => void;
+}) {
+  const [open, setOpen]       = useState(false);
+  const [modal, setModal]     = useState(false);
 
-  function copyLink() {
-    navigator.clipboard.writeText(`https://docs.aistaffapp.com/${doc.id}`).catch(() => {});
+  return (
+    <>
+      <div className={`border rounded-sm bg-zinc-900/40 ${open ? "border-zinc-700" : "border-zinc-800"}`}>
+        <div
+          role="button" tabIndex={0}
+          onClick={() => setOpen(v => !v)}
+          onKeyDown={e => e.key === "Enter" && setOpen(v => !v)}
+          className="flex items-start gap-3 px-3 py-2.5 cursor-pointer hover:bg-zinc-900/60 transition-colors"
+        >
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className={`font-mono text-[10px] px-1 py-0.5 border rounded-sm ${KIND_COLOR[tpl.kind]}`}>
+                {KIND_LABEL[tpl.kind]}
+              </span>
+              <span className="font-mono text-sm text-zinc-100">{tpl.name}</span>
+            </div>
+            <p className="font-mono text-xs text-zinc-500 mt-0.5">{tpl.description}</p>
+            <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+              {tpl.jurisdictions.map(j => (
+                <span key={j} className="font-mono text-[10px] text-zinc-500 border border-zinc-800 rounded-sm px-1 py-0.5">
+                  {JUR_FLAG[j]} {j}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0 mt-0.5">
+            <span className="font-mono text-[10px] text-zinc-600">Updated {tpl.lastUpdated}</span>
+            {open ? <ChevronUp className="w-3.5 h-3.5 text-zinc-500" /> : <ChevronDown className="w-3.5 h-3.5 text-zinc-500" />}
+          </div>
+        </div>
+        {open && (
+          <div className="border-t border-zinc-800 px-3 py-3 space-y-3 bg-zinc-950/40">
+            <div>
+              <p className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest mb-1.5">Required fields</p>
+              <div className="flex flex-wrap gap-1.5">
+                {tpl.fields.map(f => (
+                  <span key={f.key} className="font-mono text-[11px] text-zinc-400 border border-zinc-800 rounded-sm px-1.5 py-0.5 bg-zinc-900">
+                    {f.label}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setModal(true)}
+                className="h-8 px-3 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-mono text-xs rounded-sm transition-colors flex items-center gap-1.5"
+              >
+                <Plus className="w-3 h-3" /> Generate Doc
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {modal && (
+        <GenerateModal
+          tpl={tpl}
+          profileId={profileId}
+          name={name}
+          onClose={() => setModal(false)}
+          onCreated={c => { setModal(false); onCreated(c); }}
+        />
+      )}
+    </>
+  );
+}
+
+// ── Contract row ──────────────────────────────────────────────────────────────
+function ContractRow({ doc, profileId, onSigned }: {
+  doc:       Contract;
+  profileId: string;
+  onSigned:  (id: string) => void;
+}) {
+  const s      = STATUS_MAP[doc.status] ?? { label: doc.status, color: "text-zinc-400 border-zinc-700" };
+  const kind   = doc.contract_type as TemplateKind;
+  const kLabel = KIND_LABEL[kind] ?? doc.contract_type.toUpperCase();
+  const kColor = KIND_COLOR[kind] ?? "text-zinc-400 border-zinc-700";
+
+  const [copied, setCopied]   = useState(false);
+  const [signing, setSigning] = useState(false);
+
+  async function handleSign() {
+    setSigning(true);
+    try {
+      await signContract(doc.id, profileId);
+      onSigned(doc.id);
+    } catch { /* ignore */ }
+    setSigning(false);
+  }
+
+  function copyHash() {
+    navigator.clipboard.writeText(doc.document_hash).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   }
@@ -286,52 +442,143 @@ function DocRow({ doc }: { doc: GeneratedDoc }) {
   return (
     <div className="data-row justify-between">
       <div className="flex items-center gap-3 min-w-0">
-        <span className={`font-mono text-[10px] px-1 py-0.5 border rounded-sm flex-shrink-0 ${KIND_COLOR[doc.kind]}`}>
-          {KIND_LABEL[doc.kind]}
+        <span className={`font-mono text-[10px] px-1 py-0.5 border rounded-sm flex-shrink-0 ${kColor}`}>
+          {kLabel}
         </span>
         <div className="min-w-0">
-          <p className="font-mono text-xs text-zinc-200 truncate">{doc.name}</p>
+          <p className="font-mono text-xs text-zinc-200 truncate">{doc.contract_type} — {doc.id.slice(0, 8)}</p>
           <p className="font-mono text-[10px] text-zinc-600">
-            {doc.parties.join(" × ")} · {JUR_FLAG[doc.jurisdiction]} {doc.jurisdiction}
-            {doc.signedAt && ` · Signed ${doc.signedAt}`}
+            hash: {doc.document_hash.slice(0, 16)}…
+            {doc.signed_at && ` · Signed ${doc.signed_at.slice(0, 10)}`}
           </p>
         </div>
       </div>
       <div className="flex items-center gap-2 flex-shrink-0">
         <span className={`font-mono text-[10px] px-1.5 py-0.5 border rounded-sm ${s.color}`}>{s.label}</span>
-        {doc.status === "pending_signature" && (
-          <button className="h-6 px-2 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-mono text-[11px] rounded-sm transition-colors flex items-center gap-1">
-            <Pen className="w-2.5 h-2.5" /> Sign
+        {(doc.status === "DRAFT" || doc.status === "PENDING_SIGNATURE") && (
+          <button
+            onClick={handleSign}
+            disabled={signing}
+            className="h-6 px-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-zinc-950 font-mono text-[11px] rounded-sm transition-colors flex items-center gap-1"
+          >
+            {signing ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <Pen className="w-2.5 h-2.5" />}
+            Sign
           </button>
         )}
         <button
-          onClick={copyLink}
+          onClick={copyHash}
           className="h-6 px-2 border border-zinc-700 rounded-sm font-mono text-[11px] text-zinc-500 hover:text-zinc-300 hover:border-zinc-500 transition-colors flex items-center gap-1"
         >
-          {copied ? <><Check className="w-2.5 h-2.5" /> Copied</> : <><Copy className="w-2.5 h-2.5" /> Link</>}
-        </button>
-        <button className="h-6 px-2 border border-zinc-700 rounded-sm font-mono text-[11px] text-zinc-500 hover:text-zinc-300 hover:border-zinc-500 transition-colors flex items-center gap-1">
-          <Download className="w-2.5 h-2.5" /> PDF
+          {copied ? <><Check className="w-2.5 h-2.5" /> Copied</> : <><Copy className="w-2.5 h-2.5" /> Hash</>}
         </button>
       </div>
     </div>
   );
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────────
-export default function LegalToolkitPage() {
-  const [tab, setTab] = useState<"templates" | "documents">("templates");
-  const [jurFilter, setJurFilter] = useState("All");
+// ── Warranty claims tab ───────────────────────────────────────────────────────
+function WarrantyTab({ profileId }: { profileId: string }) {
+  const [claims, setClaims] = useState<WarrantyClaim[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const jurisdictions = ["All", "US", "UK", "EU", "AU", "CA", "SG"];
-  const filteredTpls = TEMPLATES.filter(t =>
-    jurFilter === "All" || t.jurisdictions.includes(jurFilter)
+  useEffect(() => {
+    fetchWarrantyClaims()
+      .then(setClaims)
+      .catch(() => setClaims([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function resolve(id: string, resolution: "REMEDIATED" | "REFUNDED" | "REJECTED") {
+    await resolveWarrantyClaim(id, resolution).catch(() => {});
+    setClaims(prev => prev.map(c => c.id === id ? { ...c, resolution, resolved_at: new Date().toISOString() } : c));
+  }
+
+  if (loading) return (
+    <div className="flex items-center gap-2 py-8 justify-center text-zinc-600 font-mono text-xs">
+      <Loader2 className="w-4 h-4 animate-spin" /> Loading claims…
+    </div>
   );
 
+  if (claims.length === 0) return (
+    <div className="py-12 text-center font-mono text-xs text-zinc-600">No warranty claims.</div>
+  );
+
+  const resolutionColor: Record<string, string> = {
+    REMEDIATED: "text-green-400 border-green-800",
+    REFUNDED:   "text-sky-400 border-sky-800",
+    REJECTED:   "text-red-400 border-red-800",
+  };
+
+  return (
+    <div className="border border-zinc-800 rounded-sm overflow-hidden">
+      {claims.map(c => (
+        <div key={c.id} className="data-row justify-between">
+          <div className="min-w-0">
+            <p className="font-mono text-xs text-zinc-200 truncate">
+              Deployment: {c.deployment_id.slice(0, 8)}…
+            </p>
+            <p className="font-mono text-[10px] text-zinc-600">
+              Filed {c.claimed_at.slice(0, 10)} · {c.drift_proof.slice(0, 40)}…
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {c.resolution ? (
+              <span className={`font-mono text-[10px] px-1.5 py-0.5 border rounded-sm ${resolutionColor[c.resolution] ?? "text-zinc-400 border-zinc-700"}`}>
+                {c.resolution}
+              </span>
+            ) : (
+              <>
+                <button onClick={() => resolve(c.id, "REMEDIATED")} className="h-6 px-2 border border-green-800 rounded-sm font-mono text-[11px] text-green-400 hover:bg-green-900/30 transition-colors">Fix</button>
+                <button onClick={() => resolve(c.id, "REFUNDED")}   className="h-6 px-2 border border-sky-800   rounded-sm font-mono text-[11px] text-sky-400   hover:bg-sky-900/30   transition-colors">Refund</button>
+                <button onClick={() => resolve(c.id, "REJECTED")}   className="h-6 px-2 border border-red-800   rounded-sm font-mono text-[11px] text-red-400   hover:bg-red-900/30   transition-colors">Reject</button>
+              </>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+export default function LegalToolkitPage() {
+  const { data: session } = useSession();
+  const profileId = (session?.user as { profileId?: string })?.profileId ?? "";
+  const displayName = session?.user?.name ?? "Me";
+
+  const [tab, setTab]           = useState<"templates" | "documents" | "warranty">("templates");
+  const [jurFilter, setJurFilter] = useState("All");
+  const [contracts, setContracts] = useState<Contract[]>([]);
+  const [loading, setLoading]   = useState(false);
+
+  const jurisdictions = ["All", "US", "UK", "EU", "AU", "CA", "SG"];
+  const filteredTpls  = TEMPLATES.filter(t =>
+    jurFilter === "All" || t.jurisdictions.includes(jurFilter),
+  );
+
+  const loadContracts = useCallback(() => {
+    if (!profileId) return;
+    setLoading(true);
+    fetchContracts(profileId)
+      .then(setContracts)
+      .catch(() => setContracts([]))
+      .finally(() => setLoading(false));
+  }, [profileId]);
+
+  useEffect(() => {
+    if (tab === "documents") loadContracts();
+  }, [tab, loadContracts]);
+
+  function handleSigned(id: string) {
+    setContracts(prev =>
+      prev.map(c => c.id === id ? { ...c, status: "SIGNED", signed_at: new Date().toISOString() } : c),
+    );
+  }
+
   const stats = {
-    signed:  GENERATED_DOCS.filter(d => d.status === "signed").length,
-    pending: GENERATED_DOCS.filter(d => d.status === "pending_signature").length,
-    draft:   GENERATED_DOCS.filter(d => d.status === "draft").length,
+    signed:  contracts.filter(c => c.status === "SIGNED").length,
+    pending: contracts.filter(c => c.status === "PENDING_SIGNATURE" || c.status === "DRAFT").length,
+    total:   contracts.length,
   };
 
   return (
@@ -385,9 +632,12 @@ export default function LegalToolkitPage() {
               <Scale className="w-4 h-4 text-amber-400" />
               <h1 className="font-mono text-base font-medium text-zinc-100">Legal Toolkit</h1>
             </div>
-            <p className="font-mono text-xs text-zinc-500">One-click NDAs, IP assignments &amp; jurisdiction-specific contracts</p>
+            <p className="font-mono text-xs text-zinc-500">NDAs, IP assignments &amp; jurisdiction-specific contracts — SHA-256 hashed on creation</p>
           </div>
-          <button className="h-8 px-3 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-mono text-xs rounded-sm transition-colors flex items-center gap-1.5">
+          <button
+            onClick={() => setTab("templates")}
+            className="h-8 px-3 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-mono text-xs rounded-sm transition-colors flex items-center gap-1.5"
+          >
             <Plus className="w-3 h-3" /> New Document
           </button>
         </div>
@@ -395,9 +645,9 @@ export default function LegalToolkitPage() {
         {/* Stats */}
         <div className="grid grid-cols-3 gap-2 mb-5">
           {[
-            { label: "Signed",          value: stats.signed,  color: "text-green-400" },
-            { label: "Pending Sign",    value: stats.pending, color: "text-amber-400" },
-            { label: "Draft",           value: stats.draft,   color: "text-zinc-400"  },
+            { label: "Signed",      value: stats.signed,  color: "text-green-400" },
+            { label: "In Progress", value: stats.pending, color: "text-amber-400" },
+            { label: "Total",       value: stats.total,   color: "text-zinc-400"  },
           ].map(({ label, value, color }) => (
             <div key={label} className="border border-zinc-800 rounded-sm p-2.5 text-center bg-zinc-900/40">
               <p className={`font-mono text-xl font-medium ${color}`}>{value}</p>
@@ -411,8 +661,8 @@ export default function LegalToolkitPage() {
           <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
           <p className="font-mono text-xs text-zinc-400">
             <span className="text-zinc-200">All templates are jurisdiction-aware.</span>{" "}
-            US templates include 1099 independent contractor language. UK templates include IR35 safe-harbour clauses.
-            EU templates are GDPR Article 28 compliant. Always consult a qualified lawyer before signing.
+            US: 1099-NEC language · UK: IR35 safe-harbour · EU: GDPR Article 28 compliant.
+            Always consult a qualified lawyer before signing.
           </p>
         </div>
 
@@ -420,7 +670,8 @@ export default function LegalToolkitPage() {
         <div className="flex gap-1 border-b border-zinc-800 mb-4">
           {[
             { key: "templates" as const, label: `Templates (${TEMPLATES.length})` },
-            { key: "documents" as const, label: `My Documents (${GENERATED_DOCS.length})` },
+            { key: "documents" as const, label: `My Contracts (${contracts.length})` },
+            { key: "warranty"  as const, label: "Warranty Claims" },
           ].map(({ key, label }) => (
             <button key={key} onClick={() => setTab(key)}
               className={`px-3 py-2 font-mono text-xs border-b-2 transition-colors ${
@@ -430,9 +681,9 @@ export default function LegalToolkitPage() {
           ))}
         </div>
 
+        {/* Templates tab */}
         {tab === "templates" && (
           <>
-            {/* Jurisdiction filter */}
             <div className="flex items-center gap-1.5 flex-wrap mb-4">
               {jurisdictions.map(j => (
                 <button key={j} onClick={() => setJurFilter(j)}
@@ -447,16 +698,48 @@ export default function LegalToolkitPage() {
               ))}
             </div>
             <div className="space-y-2">
-              {filteredTpls.map(tpl => <TemplateCard key={tpl.id} tpl={tpl} />)}
+              {filteredTpls.map(tpl => (
+                <TemplateCard
+                  key={tpl.id}
+                  tpl={tpl}
+                  profileId={profileId}
+                  name={displayName}
+                  onCreated={c => { setContracts(prev => [c, ...prev]); setTab("documents"); }}
+                />
+              ))}
             </div>
           </>
         )}
 
+        {/* Documents tab */}
         {tab === "documents" && (
-          <div className="border border-zinc-800 rounded-sm overflow-hidden">
-            {GENERATED_DOCS.map(doc => <DocRow key={doc.id} doc={doc} />)}
-          </div>
+          loading ? (
+            <div className="flex items-center gap-2 py-8 justify-center text-zinc-600 font-mono text-xs">
+              <Loader2 className="w-4 h-4 animate-spin" /> Loading contracts…
+            </div>
+          ) : contracts.length === 0 ? (
+            <div className="py-12 text-center">
+              <p className="font-mono text-xs text-zinc-600">No contracts yet.</p>
+              <button onClick={() => setTab("templates")} className="mt-3 h-8 px-4 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-mono text-xs rounded-sm transition-colors">
+                Generate your first document
+              </button>
+            </div>
+          ) : (
+            <div className="border border-zinc-800 rounded-sm overflow-hidden">
+              {contracts.map(doc => (
+                <ContractRow
+                  key={doc.id}
+                  doc={doc}
+                  profileId={profileId}
+                  onSigned={handleSigned}
+                />
+              ))}
+            </div>
+          )
         )}
+
+        {/* Warranty tab */}
+        {tab === "warranty" && <WarrantyTab profileId={profileId} />}
 
         {/* Jurisdiction guide */}
         <div className="mt-6 border border-zinc-800 rounded-sm p-3">
@@ -482,8 +765,8 @@ export default function LegalToolkitPage() {
       {/* Mobile nav */}
       <nav className="sm:hidden fixed bottom-0 left-0 right-0 h-16 bg-zinc-950 border-t border-zinc-800 flex items-center justify-around px-2 z-50">
         {[
-          { href: "/dashboard",   icon: LayoutDashboard, label: "Dash" },
-          { href: "/marketplace", icon: Store,            label: "Market" },
+          { href: "/dashboard",   icon: LayoutDashboard, label: "Dash"    },
+          { href: "/marketplace", icon: Store,            label: "Market"  },
           { href: "/matching",    icon: Shuffle,          label: "Matching" },
           { href: "/profile",     icon: User,             label: "Profile" },
         ].map(({ href, icon: Icon, label }) => (

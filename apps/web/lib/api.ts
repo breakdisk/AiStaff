@@ -325,14 +325,50 @@ export function exportVc(talentId: string): Promise<VcExportResponse> {
 export interface Contract {
   id:            string;
   contract_type: string;
-  status:        string;
+  status:        "DRAFT" | "PENDING_SIGNATURE" | "SIGNED" | "EXPIRED" | "REVOKED";
   document_hash: string;
+  party_a:       string;
+  party_b:       string;
+  deployment_id: string | null;
   created_at:    string;
   signed_at:     string | null;
 }
 
+export interface CreateContractPayload {
+  contract_type: string;
+  party_a:       string;
+  party_b:       string;
+  deployment_id?: string;
+  /** Base64-encoded document content bytes */
+  document_b64:  string;
+}
+
+export interface CreateContractResponse {
+  contract_id:   string;
+  document_hash: string;
+}
+
+export function fetchContracts(profileId?: string): Promise<Contract[]> {
+  const qs = profileId ? `?profile_id=${profileId}` : "";
+  return apiFetch(`/api/compliance/contracts${qs}`);
+}
+
 export function fetchContract(contractId: string): Promise<Contract> {
   return apiFetch(`/api/compliance/contracts/${contractId}`);
+}
+
+export function createContract(payload: CreateContractPayload): Promise<CreateContractResponse> {
+  return apiFetch("/api/compliance/contracts", {
+    method: "POST",
+    body:   JSON.stringify(payload),
+  });
+}
+
+export function signContract(contractId: string, signerId: string): Promise<void> {
+  return apiFetch(`/api/compliance/contracts/${contractId}/sign`, {
+    method: "POST",
+    body:   JSON.stringify({ signer_id: signerId }),
+  });
 }
 
 export interface WarrantyClaim {
