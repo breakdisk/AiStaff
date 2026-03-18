@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Github, Loader2, Linkedin } from "lucide-react";
-import { loginWithProvider } from "./actions";
+import { signIn } from "next-auth/react";
 
 // ── Google icon (Lucide does not include it) ──────────────────────────────────
 
@@ -33,11 +33,10 @@ function OAuthButton({
   callbackUrl: string;
 }) {
   function handleClick() {
-    // Call Server Action — Auth.js signIn() from a Server Action doesn't
-    // need a manual CSRF token; Next.js validates Server Actions automatically.
-    // This replaces the old /api/auth/login intermediate route that would
-    // silently fail the loopback CSRF fetch on fresh deploys → MissingCSRF.
-    void loginWithProvider(provider, callbackUrl);
+    // signIn() from next-auth/react fetches /api/auth/csrf in the browser,
+    // stores the cookie, then POSTs to /api/auth/signin/{provider} with the
+    // token — all client-side. No loopback, no Server Action CSRF issues.
+    void signIn(provider, { callbackUrl });
   }
 
   return (
