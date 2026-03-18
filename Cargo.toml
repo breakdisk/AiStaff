@@ -86,7 +86,7 @@ sys-info = "0.9"
 common = { path = "crates/common" }
 
 [profile.release]
-lto           = true      # Link-time optimisation — merges all codegen units
-codegen-units = 1         # Single unit: slower build, faster + smaller binary
+lto           = "thin"    # Thin LTO — ~90% of fat LTO benefit, fraction of RAM usage
+codegen-units = 2         # 2 units: reduces peak linker memory vs 1
 strip         = "symbols" # Strip debug symbols from final binary
 opt-level     = "z"       # Optimise for binary size (best cold-start on edge)
