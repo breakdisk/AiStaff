@@ -13,7 +13,8 @@ impl ContractService {
         Self { db }
     }
 
-    /// Creates a DRAFT contract. Returns `(contract_id, document_hash)`.
+    /// Creates a DRAFT contract. Party A is auto-signed at creation (implicit agreement).
+    /// Returns `(contract_id, document_hash)`.
     pub async fn create_draft(
         &self,
         contract_type: &str,
@@ -22,6 +23,7 @@ impl ContractService {
         deployment_id: Option<Uuid>,
         document_bytes: &[u8],
         party_b_email: Option<&str>,
+        party_a_email: Option<&str>,
     ) -> Result<(Uuid, String)> {
         let hash = hex::encode(Sha256::digest(document_bytes));
         let id = Uuid::new_v4();
@@ -30,8 +32,8 @@ impl ContractService {
         sqlx::query(
             "INSERT INTO contracts
                  (id, contract_type, party_a, party_b, deployment_id, document_hash,
-                  document_text, party_b_email)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+                  document_text, party_b_email, party_a_email, party_a_signed_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())",
         )
         .bind(id)
         .bind(contract_type)
@@ -41,6 +43,7 @@ impl ContractService {
         .bind(&hash)
         .bind(doc_text.as_deref())
         .bind(party_b_email)
+        .bind(party_a_email)
         .execute(&self.db)
         .await?;
 
@@ -48,6 +51,7 @@ impl ContractService {
     }
 
     /// Transitions the contract to SIGNED after verifying the signer is a party.
+    /// Used for authenticated (Party A) signing from the dashboard.
     pub async fn record_signature(&self, contract_id: Uuid, signer_id: Uuid) -> Result<()> {
         let row = sqlx::query!(
             "SELECT party_a, party_b, status::TEXT AS status FROM contracts WHERE id = $1",
@@ -175,17 +179,18 @@ impl ContractService {
         }))
     }
 
-    /// External party signs via token — validates token and marks contract SIGNED.
+    /// External party signs via token. Returns both party emails for confirmation emails.
     pub async fn sign_external(
         &self,
         contract_id: Uuid,
         token: &str,
         _signer_name: &str,
-    ) -> Result<()> {
+    ) -> Result<(Option<String>, Option<String>)> {
         use sqlx::Row;
 
         let row = sqlx::query(
-            "SELECT status::TEXT AS status, sign_token, sign_token_expires_at
+            "SELECT status::TEXT AS status, sign_token, sign_token_expires_at,
+                    party_a_email, party_b_email
              FROM contracts WHERE id = $1",
         )
         .bind(contract_id)
@@ -200,6 +205,8 @@ impl ContractService {
         let stored_token: Option<String> = row.get("sign_token");
         let expires_at: Option<chrono::DateTime<Utc>> = row.get("sign_token_expires_at");
         let status: Option<String> = row.get("status");
+        let party_a_email: Option<String> = row.get("party_a_email");
+        let party_b_email: Option<String> = row.get("party_b_email");
 
         if stored_token.as_deref() != Some(token) {
             bail!("invalid token");
@@ -222,6 +229,6 @@ impl ContractService {
         .execute(&self.db)
         .await?;
 
-        Ok(())
+        Ok((party_a_email, party_b_email))
     }
 }

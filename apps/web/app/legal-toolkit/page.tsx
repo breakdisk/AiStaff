@@ -10,7 +10,7 @@ import {
   BookOpen, Video, MessageSquare, Layers, ShieldCheck,
   Scale, FileSignature, Globe, Download, Check,
   ChevronDown, ChevronUp, AlertCircle, Plus,
-  Landmark, Copy, Eye, Pen, X, Loader2,
+  Landmark, Copy, Eye, Pen, X, Loader2, Mail, Send,
 } from "lucide-react";
 import {
   fetchContracts,
@@ -236,11 +236,12 @@ interface GenerateModalProps {
   tpl:       DocTemplate;
   profileId: string;
   name:      string;
+  email:     string;
   onClose:   () => void;
   onCreated: (c: Contract) => void;
 }
 
-function GenerateModal({ tpl, profileId, name, onClose, onCreated }: GenerateModalProps) {
+function GenerateModal({ tpl, profileId, name, email, onClose, onCreated }: GenerateModalProps) {
   const [values,      setValues]      = useState<Record<string, string>>({});
   const [partyBEmail, setPartyBEmail] = useState("");
   const [loading,     setLoading]     = useState(false);
@@ -258,6 +259,7 @@ function GenerateModal({ tpl, profileId, name, onClose, onCreated }: GenerateMod
         party_a:        profileId,
         party_b:        profileId,
         party_b_email:  partyBEmail.trim() || undefined,
+        party_a_email:  email || undefined,
         document_b64:   b64,
       });
 
@@ -385,11 +387,12 @@ function GenerateModal({ tpl, profileId, name, onClose, onCreated }: GenerateMod
 
 // ── Template card ─────────────────────────────────────────────────────────────
 function TemplateCard({
-  tpl, profileId, name, onCreated,
+  tpl, profileId, name, email, onCreated,
 }: {
-  tpl: DocTemplate;
+  tpl:       DocTemplate;
   profileId: string;
-  name: string;
+  name:      string;
+  email:     string;
   onCreated: (c: Contract) => void;
 }) {
   const [open, setOpen]       = useState(false);
@@ -454,6 +457,7 @@ function TemplateCard({
           tpl={tpl}
           profileId={profileId}
           name={name}
+          email={email}
           onClose={() => setModal(false)}
           onCreated={c => { setModal(false); onCreated(c); }}
         />
@@ -473,8 +477,13 @@ function ContractRow({ doc, profileId, onSigned }: {
   const kLabel = KIND_LABEL[kind] ?? doc.contract_type.toUpperCase();
   const kColor = KIND_COLOR[kind] ?? "text-zinc-400 border-zinc-700";
 
-  const [copied, setCopied]   = useState(false);
-  const [signing, setSigning] = useState(false);
+  const [copied,    setCopied]    = useState(false);
+  const [signing,   setSigning]   = useState(false);
+  const [showSend,  setShowSend]  = useState(false);
+  const [sendEmail, setSendEmail] = useState(doc.party_b_email ?? "");
+  const [sending,   setSending]   = useState(false);
+  const [signUrl,   setSignUrl]   = useState("");
+  const [sendDone,  setSendDone]  = useState(false);
 
   async function handleSign() {
     setSigning(true);
@@ -485,45 +494,113 @@ function ContractRow({ doc, profileId, onSigned }: {
     setSigning(false);
   }
 
+  async function handleSend() {
+    if (!sendEmail.trim()) return;
+    setSending(true);
+    try {
+      const result = await requestSignature(doc.id, sendEmail.trim());
+      setSignUrl(result.sign_url ?? "");
+      setSendDone(true);
+      setShowSend(false);
+    } catch { /* ignore */ }
+    setSending(false);
+  }
+
   function copyHash() {
     navigator.clipboard.writeText(doc.document_hash).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   }
 
+  const isPending = doc.status === "DRAFT" || doc.status === "PENDING_SIGNATURE";
+
   return (
-    <div className="data-row justify-between">
-      <div className="flex items-center gap-3 min-w-0">
-        <span className={`font-mono text-[10px] px-1 py-0.5 border rounded-sm flex-shrink-0 ${kColor}`}>
-          {kLabel}
-        </span>
-        <div className="min-w-0">
-          <p className="font-mono text-xs text-zinc-200 truncate">{doc.contract_type} — {doc.id.slice(0, 8)}</p>
-          <p className="font-mono text-[10px] text-zinc-600">
-            hash: {doc.document_hash.slice(0, 16)}…
-            {doc.signed_at && ` · Signed ${doc.signed_at.slice(0, 10)}`}
-          </p>
+    <div className="border-b border-zinc-800 last:border-0">
+      {/* Main row */}
+      <div className="flex items-center justify-between px-3 py-2.5 gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <span className={`font-mono text-[10px] px-1 py-0.5 border rounded-sm flex-shrink-0 ${kColor}`}>
+            {kLabel}
+          </span>
+          <div className="min-w-0">
+            <p className="font-mono text-xs text-zinc-200 truncate">{doc.contract_type} — {doc.id.slice(0, 8)}</p>
+            <p className="font-mono text-[10px] text-zinc-600">
+              {doc.party_a_signed_at && `You signed ${doc.party_a_signed_at.slice(0, 10)}`}
+              {doc.party_b_signed_at && ` · Counterparty signed ${doc.party_b_signed_at.slice(0, 10)}`}
+              {!doc.party_a_signed_at && `hash: ${doc.document_hash.slice(0, 16)}…`}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <span className={`font-mono text-[10px] px-1.5 py-0.5 border rounded-sm ${s.color}`}>{s.label}</span>
+          {isPending && !doc.party_a_signed_at && (
+            <button
+              onClick={handleSign}
+              disabled={signing}
+              className="h-6 px-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-zinc-950 font-mono text-[11px] rounded-sm transition-colors flex items-center gap-1"
+            >
+              {signing ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <Pen className="w-2.5 h-2.5" />}
+              Sign
+            </button>
+          )}
+          {isPending && (
+            <button
+              onClick={() => setShowSend(v => !v)}
+              className={`h-6 px-2 border rounded-sm font-mono text-[11px] transition-colors flex items-center gap-1 ${
+                sendDone
+                  ? "border-green-800 text-green-400"
+                  : "border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500"
+              }`}
+            >
+              {sendDone
+                ? <><Check className="w-2.5 h-2.5" /> Sent</>
+                : doc.status === "PENDING_SIGNATURE"
+                  ? <><Mail className="w-2.5 h-2.5" /> Resend</>
+                  : <><Send className="w-2.5 h-2.5" /> Send</>
+              }
+            </button>
+          )}
+          <button
+            onClick={copyHash}
+            className="h-6 px-2 border border-zinc-700 rounded-sm font-mono text-[11px] text-zinc-500 hover:text-zinc-300 hover:border-zinc-500 transition-colors flex items-center gap-1"
+          >
+            {copied ? <><Check className="w-2.5 h-2.5" /> Copied</> : <><Copy className="w-2.5 h-2.5" /> Hash</>}
+          </button>
         </div>
       </div>
-      <div className="flex items-center gap-2 flex-shrink-0">
-        <span className={`font-mono text-[10px] px-1.5 py-0.5 border rounded-sm ${s.color}`}>{s.label}</span>
-        {(doc.status === "DRAFT" || doc.status === "PENDING_SIGNATURE") && (
-          <button
-            onClick={handleSign}
-            disabled={signing}
-            className="h-6 px-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-zinc-950 font-mono text-[11px] rounded-sm transition-colors flex items-center gap-1"
-          >
-            {signing ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <Pen className="w-2.5 h-2.5" />}
-            Sign
-          </button>
-        )}
-        <button
-          onClick={copyHash}
-          className="h-6 px-2 border border-zinc-700 rounded-sm font-mono text-[11px] text-zinc-500 hover:text-zinc-300 hover:border-zinc-500 transition-colors flex items-center gap-1"
-        >
-          {copied ? <><Check className="w-2.5 h-2.5" /> Copied</> : <><Copy className="w-2.5 h-2.5" /> Hash</>}
-        </button>
-      </div>
+      {/* Inline send form */}
+      {showSend && (
+        <div className="px-3 pb-3 pt-0 bg-zinc-950/40 border-t border-zinc-800/50">
+          <p className="font-mono text-[10px] text-zinc-600 mb-1.5 pt-2">
+            {doc.status === "PENDING_SIGNATURE" ? "Resend sign link to counterparty" : "Send sign link to counterparty"}
+          </p>
+          <div className="flex gap-2">
+            <input
+              className="flex-1 h-7 px-2 bg-zinc-900 border border-zinc-700 rounded-sm font-mono text-xs text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-amber-500"
+              placeholder="counterparty@example.com"
+              type="email"
+              value={sendEmail}
+              onChange={e => setSendEmail(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleSend()}
+            />
+            <button
+              onClick={handleSend}
+              disabled={sending || !sendEmail.trim()}
+              className="h-7 px-2.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-zinc-950 font-mono text-xs rounded-sm transition-colors flex items-center gap-1"
+            >
+              {sending ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <Send className="w-2.5 h-2.5" />}
+              Send Link
+            </button>
+          </div>
+        </div>
+      )}
+      {/* Sign URL fallback (if email delivery is uncertain) */}
+      {signUrl && (
+        <div className="px-3 pb-2.5 border-t border-zinc-800/50 bg-zinc-950/40">
+          <p className="font-mono text-[10px] text-amber-400 mt-2 mb-1">Sign link (share if email didn&apos;t arrive)</p>
+          <p className="font-mono text-[11px] text-zinc-500 break-all">{signUrl}</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -595,8 +672,9 @@ function WarrantyTab({ profileId }: { profileId: string }) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function LegalToolkitPage() {
   const { data: session } = useSession();
-  const profileId = (session?.user as { profileId?: string })?.profileId ?? "";
+  const profileId   = (session?.user as { profileId?: string })?.profileId ?? "";
   const displayName = session?.user?.name ?? "Me";
+  const userEmail   = session?.user?.email ?? "";
 
   const [tab, setTab]           = useState<"templates" | "documents" | "warranty">("templates");
   const [jurFilter, setJurFilter] = useState("All");
@@ -756,6 +834,7 @@ export default function LegalToolkitPage() {
                   tpl={tpl}
                   profileId={profileId}
                   name={displayName}
+                  email={userEmail}
                   onCreated={c => { setContracts(prev => [c, ...prev]); setTab("documents"); }}
                 />
               ))}
@@ -777,7 +856,7 @@ export default function LegalToolkitPage() {
               </button>
             </div>
           ) : (
-            <div className="border border-zinc-800 rounded-sm overflow-hidden">
+            <div className="border border-zinc-800 rounded-sm divide-y-0 overflow-hidden">
               {contracts.map(doc => (
                 <ContractRow
                   key={doc.id}

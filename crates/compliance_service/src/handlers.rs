@@ -20,6 +20,7 @@ pub struct CreateContractRequest {
     /// Base64-encoded document bytes.
     pub document_b64: String,
     pub party_b_email: Option<String>,
+    pub party_a_email: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -46,6 +47,7 @@ pub async fn create_contract(
             req.deployment_id,
             &bytes,
             req.party_b_email.as_deref(),
+            req.party_a_email.as_deref(),
         )
         .await
     {
@@ -221,7 +223,8 @@ pub async fn list_contracts(
     let rows = if let Some(pid) = q.profile_id {
         sqlx::query(
             "SELECT id, contract_type, status::TEXT AS status, document_hash,
-                    party_a, party_b, deployment_id, created_at, signed_at
+                    party_a, party_b, deployment_id, created_at, signed_at,
+                    party_a_email, party_b_email, party_a_signed_at, party_b_signed_at
              FROM contracts
              WHERE party_a = $1 OR party_b = $1
              ORDER BY created_at DESC
@@ -233,7 +236,8 @@ pub async fn list_contracts(
     } else {
         sqlx::query(
             "SELECT id, contract_type, status::TEXT AS status, document_hash,
-                    party_a, party_b, deployment_id, created_at, signed_at
+                    party_a, party_b, deployment_id, created_at, signed_at,
+                    party_a_email, party_b_email, party_a_signed_at, party_b_signed_at
              FROM contracts
              ORDER BY created_at DESC
              LIMIT 200",
@@ -254,16 +258,24 @@ pub async fn list_contracts(
                     let dep_id: Option<Uuid> = r.get("deployment_id");
                     let created_at: chrono::DateTime<chrono::Utc> = r.get("created_at");
                     let signed_at: Option<chrono::DateTime<chrono::Utc>> = r.get("signed_at");
+                    let party_a_signed_at: Option<chrono::DateTime<chrono::Utc>> =
+                        r.get("party_a_signed_at");
+                    let party_b_signed_at: Option<chrono::DateTime<chrono::Utc>> =
+                        r.get("party_b_signed_at");
                     serde_json::json!({
-                        "id":            id,
-                        "contract_type": r.get::<&str, _>("contract_type"),
-                        "status":        r.get::<Option<&str>, _>("status"),
-                        "document_hash": r.get::<&str, _>("document_hash"),
-                        "party_a":       party_a,
-                        "party_b":       party_b,
-                        "deployment_id": dep_id,
-                        "created_at":    created_at.to_rfc3339(),
-                        "signed_at":     signed_at.map(|d| d.to_rfc3339()),
+                        "id":               id,
+                        "contract_type":    r.get::<&str, _>("contract_type"),
+                        "status":           r.get::<Option<&str>, _>("status"),
+                        "document_hash":    r.get::<&str, _>("document_hash"),
+                        "party_a":          party_a,
+                        "party_b":          party_b,
+                        "deployment_id":    dep_id,
+                        "created_at":       created_at.to_rfc3339(),
+                        "signed_at":        signed_at.map(|d| d.to_rfc3339()),
+                        "party_a_email":    r.get::<Option<&str>, _>("party_a_email"),
+                        "party_b_email":    r.get::<Option<&str>, _>("party_b_email"),
+                        "party_a_signed_at": party_a_signed_at.map(|d| d.to_rfc3339()),
+                        "party_b_signed_at": party_b_signed_at.map(|d| d.to_rfc3339()),
                     })
                 })
                 .collect();
@@ -335,7 +347,16 @@ pub async fn sign_external(
     Json(req): Json<SignExternalBody>,
 ) -> impl IntoResponse {
     match svc.sign_external(id, &req.token, &req.signer_name).await {
-        Ok(_) => (StatusCode::OK, Json(serde_json::json!({ "ok": true }))).into_response(),
+        Ok((party_a_email, party_b_email)) => (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "ok":            true,
+                "party_a_email": party_a_email,
+                "party_b_email": party_b_email,
+                "signer_name":   req.signer_name,
+            })),
+        )
+            .into_response(),
         Err(e) => {
             let msg = e.to_string();
             let code = if msg.contains("already signed") {

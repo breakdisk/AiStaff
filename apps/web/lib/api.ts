@@ -323,15 +323,19 @@ export function exportVc(talentId: string): Promise<VcExportResponse> {
 // ── Compliance service (:3006) ────────────────────────────────────────────
 
 export interface Contract {
-  id:            string;
-  contract_type: string;
-  status:        "DRAFT" | "PENDING_SIGNATURE" | "SIGNED" | "EXPIRED" | "REVOKED";
-  document_hash: string;
-  party_a:       string;
-  party_b:       string;
-  deployment_id: string | null;
-  created_at:    string;
-  signed_at:     string | null;
+  id:                 string;
+  contract_type:      string;
+  status:             "DRAFT" | "PENDING_SIGNATURE" | "SIGNED" | "EXPIRED" | "REVOKED";
+  document_hash:      string;
+  party_a:            string;
+  party_b:            string;
+  deployment_id:      string | null;
+  created_at:         string;
+  signed_at:          string | null;
+  party_a_email:      string | null;
+  party_b_email:      string | null;
+  party_a_signed_at:  string | null;
+  party_b_signed_at:  string | null;
 }
 
 export interface CreateContractPayload {
@@ -342,6 +346,7 @@ export interface CreateContractPayload {
   /** Base64-encoded document content bytes */
   document_b64:   string;
   party_b_email?: string;
+  party_a_email?: string;
 }
 
 export interface CreateContractResponse {
