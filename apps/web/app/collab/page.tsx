@@ -126,10 +126,14 @@ function CollabInner() {
   const [attached,      setAttached]     = useState<string | null>(null);
   const [files,         setFiles]        = useState<SharedFile[]>(DEMO_FILES);
   const [sending,       setSending]      = useState(false);
-  const [integrations,  setIntegrations] = useState<Integration[]>([]);
-  const [repoInput,     setRepoInput]    = useState("");
-  const [connecting,    setConnecting]   = useState(false);
-  const [connectError,  setConnectError] = useState<string | null>(null);
+  const [integrations,   setIntegrations]  = useState<Integration[]>([]);
+  const [repoInput,      setRepoInput]     = useState("");
+  const [connecting,     setConnecting]    = useState(false);
+  const [connectError,   setConnectError]  = useState<string | null>(null);
+  const [myEngagements,  setMyEngagements] = useState<Array<{
+    id: string; agent_name: string; state: string;
+  }>>([]);
+  const [engagementsLoading, setEngagementsLoading] = useState(false);
 
   const chatFileRef   = useRef<HTMLInputElement>(null);
   const uploadFileRef = useRef<HTMLInputElement>(null);
@@ -167,6 +171,17 @@ function CollabInner() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Fetch the user's engagements for the dropdown (when no deployment_id in URL)
+  useEffect(() => {
+    if (tab !== "integrations" || deploymentIdFromUrl) return;
+    setEngagementsLoading(true);
+    fetch("/api/marketplace/my-deployments")
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setMyEngagements(data))
+      .catch(() => setMyEngagements([]))
+      .finally(() => setEngagementsLoading(false));
+  }, [tab, deploymentIdFromUrl]);
 
   // Fetch integrations when tab is active and deployment is known
   const fetchIntegrations = useCallback(async () => {
@@ -456,19 +471,35 @@ function CollabInner() {
         {/* Integrations tab */}
         {tab === "integrations" && (
           <div className="p-4 space-y-3">
-            {/* Manual deployment_id entry when not opened from an engagement */}
+            {/* Engagement selector — shown when no deployment_id in URL */}
             {!deploymentIdFromUrl && (
               <div className="border border-amber-900/50 bg-amber-950/20 rounded-sm p-3 space-y-2">
-                <p className="font-mono text-[10px] text-amber-400 uppercase tracking-widest">Enter Engagement ID</p>
-                <p className="font-mono text-[9px] text-zinc-500">
-                  Or open this page via Marketplace → Deploy → Collaborate for automatic context.
-                </p>
-                <input
-                  value={manualDeploymentId}
-                  onChange={e => setManualDeploymentId(e.target.value)}
-                  placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                  className="w-full h-8 px-2.5 bg-zinc-900 border border-zinc-700 rounded-sm font-mono text-xs text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-amber-700"
-                />
+                <p className="font-mono text-[10px] text-amber-400 uppercase tracking-widest">Select Engagement</p>
+                {engagementsLoading ? (
+                  <div className="flex items-center gap-2">
+                    <Loader className="w-3 h-3 animate-spin text-zinc-500" />
+                    <span className="font-mono text-[9px] text-zinc-500">Loading your engagements…</span>
+                  </div>
+                ) : myEngagements.length > 0 ? (
+                  <select
+                    value={manualDeploymentId}
+                    onChange={e => { setManualDeploymentId(e.target.value); setIntegrations([]); }}
+                    className="w-full h-8 px-2.5 bg-zinc-900 border border-zinc-700 rounded-sm font-mono text-xs text-zinc-100 focus:outline-none focus:border-amber-700 cursor-pointer"
+                  >
+                    <option value="">— pick an engagement —</option>
+                    {myEngagements.map(eng => (
+                      <option key={eng.id} value={eng.id}>
+                        {eng.agent_name} · {eng.state} · {eng.id.slice(0, 8)}…
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <p className="font-mono text-[9px] text-zinc-500">
+                    No engagements found. Deploy from the{" "}
+                    <a href="/marketplace" className="text-amber-400 hover:underline">Marketplace</a>{" "}
+                    to create one.
+                  </p>
+                )}
               </div>
             )}
 
