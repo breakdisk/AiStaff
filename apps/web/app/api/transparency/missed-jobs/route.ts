@@ -24,7 +24,7 @@ function formatBudget(cents: number): string {
 function maskClient(email: string | null, listingId: string): string {
   if (email) {
     const [local] = email.split("@");
-    return local.slice(0, 4) + "…";
+    return local + "@…";
   }
   return "Client " + listingId.slice(0, 6);
 }
@@ -129,7 +129,7 @@ export async function GET() {
       [profileId],
     );
     const userSkills = new Set<string>(
-      skillRows.map(r => r.tag.toLowerCase()),
+      skillRows.map((r: SkillRow) => r.tag.toLowerCase()),
     );
 
     const trustScore  = Number(profile.trust_score)       || 0;
@@ -179,7 +179,9 @@ export async function GET() {
           : undefined,
         tip: trustStatus === "pass"
           ? "Trust score meets this listing's minimum."
-          : "Complete biometric verification to gain +40 trust points and reach Tier 2.",
+          : profile.tier === "BIOMETRIC_VERIFIED"
+            ? "Connect GitHub and LinkedIn to increase your trust score."
+            : "Complete biometric verification to gain +40 trust points and reach Tier 2.",
       };
 
       // ── Rate factor ────────────────────────────────────────────────────────
