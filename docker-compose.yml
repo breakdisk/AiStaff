@@ -8,6 +8,11 @@ x-rust-build: &rust-build
 # ── Shared service defaults ──────────────────────────────────────────────────
 x-rust-defaults: &rust-defaults
   restart: unless-stopped
+  logging:
+    driver: "json-file"
+    options:
+      max-size: "10m"   # rotate after 10 MB
+      max-file: "3"     # keep 3 rotated files max (30 MB total per service)
 
 services:
   # ── Infrastructure ─────────────────────────────────────────────────────────
