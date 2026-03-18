@@ -18,7 +18,9 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { v7 as uuidv7 } from "uuid";
 
-const API_BASE   = process.env.NETWORK_INTL_API_BASE   ?? "https://api-gateway.sandbox.ngenius-payments.com";
+// Always enforce HTTPS — Akamai WAF blocks http:// with 403 Access Denied
+const API_BASE   = (process.env.NETWORK_INTL_API_BASE ?? "https://api-gateway.sandbox.ngenius-payments.com")
+  .replace(/^http:\/\//, "https://");
 const API_KEY    = process.env.NETWORK_INTL_API_KEY    ?? "";
 const OUTLET_REF = process.env.NETWORK_INTL_OUTLET_REF ?? "";
 const APP_URL    = process.env.NEXTAUTH_URL             ?? "http://localhost:3000";
