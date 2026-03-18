@@ -16,6 +16,7 @@ import {
   fetchContracts,
   createContract,
   signContract,
+  requestSignature,
   fetchWarrantyClaims,
   resolveWarrantyClaim,
   type Contract,
@@ -240,31 +241,63 @@ interface GenerateModalProps {
 }
 
 function GenerateModal({ tpl, profileId, name, onClose, onCreated }: GenerateModalProps) {
-  const [values, setValues] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [values,      setValues]      = useState<Record<string, string>>({});
+  const [partyBEmail, setPartyBEmail] = useState("");
+  const [loading,     setLoading]     = useState(false);
+  const [error,       setError]       = useState("");
+  const [signUrl,     setSignUrl]     = useState("");
 
   async function submit() {
     setLoading(true);
     setError("");
     try {
-      const text    = buildDocumentText(tpl.kind, values, name);
-      const b64     = btoa(unescape(encodeURIComponent(text)));
-      const result  = await createContract({
-        contract_type: tpl.kind,
-        party_a:       profileId,
-        party_b:       profileId,   // party_b set to same until counterparty is an actual profile UUID
-        document_b64:  b64,
+      const text   = buildDocumentText(tpl.kind, values, name);
+      const b64    = btoa(unescape(encodeURIComponent(text)));
+      const result = await createContract({
+        contract_type:  tpl.kind,
+        party_a:        profileId,
+        party_b:        profileId,
+        party_b_email:  partyBEmail.trim() || undefined,
+        document_b64:   b64,
       });
-      // Download text copy
-      const blob = new Blob([text], { type: "text/plain" });
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement("a");
-      a.href     = url;
-      a.download = `${tpl.kind}-${result.contract_id.slice(0, 8)}.txt`;
-      a.click();
-      URL.revokeObjectURL(url);
-      // Fetch the newly created record to add to list
+
+      // Generate and download PDF
+      const { default: jsPDF } = await import("jspdf");
+      const doc    = new jsPDF({ unit: "mm", format: "a4" });
+      const pageW  = doc.internal.pageSize.getWidth();
+      const margin = 20;
+      let   y      = 20;
+      doc.setFillColor(9, 9, 11);
+      doc.rect(0, 0, pageW, 14, "F");
+      doc.setTextColor(251, 191, 36);
+      doc.setFontSize(9);
+      doc.text("AiStaff Legal Toolkit", margin, 9);
+      y = 22;
+      doc.setTextColor(30, 30, 30);
+      doc.setFontSize(10);
+      const lines = doc.splitTextToSize(text, pageW - margin * 2) as string[];
+      lines.forEach((line: string) => {
+        if (y > 275) { doc.addPage(); y = 20; }
+        doc.text(line, margin, y);
+        y += 5.5;
+      });
+      const pages = doc.getNumberOfPages();
+      for (let i = 1; i <= pages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(7);
+        doc.setTextColor(130, 130, 130);
+        doc.text(`SHA-256: ${result.document_hash}`, margin, 290);
+        doc.text(`Page ${i} / ${pages}`, pageW - margin - 12, 290);
+      }
+      doc.save(`${tpl.kind}-${result.contract_id.slice(0, 8)}.pdf`);
+
+      // Request counterparty signature if email provided
+      if (partyBEmail.trim()) {
+        const sig = await requestSignature(result.contract_id, partyBEmail.trim()).catch(() => null);
+        if (sig?.sign_url) setSignUrl(sig.sign_url);
+      }
+
+      // Fetch the newly created record and surface it
       const fresh = await fetch(`/api/compliance/contracts/${result.contract_id}`)
         .then(r => r.json()) as Contract;
       onCreated(fresh);
@@ -303,6 +336,25 @@ function GenerateModal({ tpl, profileId, name, onClose, onCreated }: GenerateMod
               />
             </div>
           ))}
+          {/* Counterparty email for e-signature */}
+          <div className="border-t border-zinc-800 pt-3">
+            <label className="block font-mono text-[11px] text-zinc-400 mb-1">
+              Counterparty email <span className="text-zinc-600">(optional — sends sign link)</span>
+            </label>
+            <input
+              className="w-full h-8 px-2.5 bg-zinc-950 border border-zinc-700 rounded-sm font-mono text-xs text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-amber-500"
+              placeholder="counterparty@example.com"
+              type="email"
+              value={partyBEmail}
+              onChange={e => setPartyBEmail(e.target.value)}
+            />
+          </div>
+          {signUrl && (
+            <div className="border border-amber-900 rounded-sm p-2 bg-amber-950/20">
+              <p className="font-mono text-[10px] text-amber-400 mb-1">Sign link (share if email failed)</p>
+              <p className="font-mono text-[11px] text-zinc-400 break-all">{signUrl}</p>
+            </div>
+          )}
           {error && (
             <p className="font-mono text-xs text-red-400 flex items-center gap-1.5">
               <AlertCircle className="w-3 h-3" /> {error}
@@ -311,7 +363,7 @@ function GenerateModal({ tpl, profileId, name, onClose, onCreated }: GenerateMod
         </div>
         {/* Footer */}
         <div className="px-4 py-3 border-t border-zinc-800 flex items-center justify-between">
-          <p className="font-mono text-[10px] text-zinc-600">Document will be hashed (SHA-256) and stored on-chain.</p>
+          <p className="font-mono text-[10px] text-zinc-600">SHA-256 hashed · PDF downloaded locally.</p>
           <div className="flex gap-2">
             <button onClick={onClose} className="h-8 px-3 border border-zinc-700 rounded-sm font-mono text-xs text-zinc-400 hover:border-zinc-500 hover:text-zinc-300 transition-colors">
               Cancel

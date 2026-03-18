@@ -335,12 +335,13 @@ export interface Contract {
 }
 
 export interface CreateContractPayload {
-  contract_type: string;
-  party_a:       string;
-  party_b:       string;
+  contract_type:  string;
+  party_a:        string;
+  party_b:        string;
   deployment_id?: string;
   /** Base64-encoded document content bytes */
-  document_b64:  string;
+  document_b64:   string;
+  party_b_email?: string;
 }
 
 export interface CreateContractResponse {
@@ -368,6 +369,16 @@ export function signContract(contractId: string, signerId: string): Promise<void
   return apiFetch(`/api/compliance/contracts/${contractId}/sign`, {
     method: "POST",
     body:   JSON.stringify({ signer_id: signerId }),
+  });
+}
+
+export function requestSignature(
+  contractId:  string,
+  partyBEmail: string,
+): Promise<{ sign_url: string; sign_token: string }> {
+  return apiFetch(`/api/compliance/contracts/${contractId}/request-signature`, {
+    method: "POST",
+    body:   JSON.stringify({ party_b_email: partyBEmail }),
   });
 }
 

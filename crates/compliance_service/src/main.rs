@@ -27,6 +27,15 @@ async fn main() -> Result<()> {
         .route("/contracts", get(handlers::list_contracts).post(handlers::create_contract))
         .route("/contracts/{id}", get(handlers::get_contract))
         .route("/contracts/{id}/sign", post(handlers::sign_contract))
+        .route(
+            "/contracts/{id}/request-signature",
+            post(handlers::request_signature),
+        )
+        .route("/contracts/{id}/preview", get(handlers::preview_token))
+        .route(
+            "/contracts/{id}/sign-external",
+            post(handlers::sign_external),
+        )
         .route("/warranty-claims", get(handlers::list_warranty_claims))
         .route(
             "/warranty-claims/{id}/resolve",
