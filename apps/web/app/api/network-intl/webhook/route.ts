@@ -21,9 +21,9 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { v7 as uuidv7 } from "uuid";
+import { NGENIUS_API_BASE } from "@/lib/ngenius-config";
 
-const API_BASE          = (process.env.NETWORK_INTL_API_BASE ?? "https://api-gateway.sandbox.ngenius-payments.com")
-  .replace(/^http:\/\//, "https://");
+const API_BASE          = NGENIUS_API_BASE;
 const API_KEY           = process.env.NETWORK_INTL_API_KEY           ?? "";
 const OUTLET_REF        = process.env.NETWORK_INTL_OUTLET_REF        ?? "";
 const MARKETPLACE_URL   = process.env.MARKETPLACE_SERVICE_URL        ?? "http://localhost:3002";
