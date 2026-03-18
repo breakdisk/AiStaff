@@ -18,6 +18,10 @@ const COMM  = process.env.COMMUNITY_SERVICE_URL    ?? "http://localhost:3011";
 const NOTIF = process.env.NOTIFICATION_SERVICE_URL ?? "http://localhost:3012";
 
 const nextConfig: NextConfig = {
+  // pdfkit reads font metric files (AFM) at runtime via fs — must NOT be
+  // bundled by webpack or it loses access to its own node_modules assets.
+  serverExternalPackages: ["pdfkit"],
+
   // ── Prevent Cloudflare (and any CDN) from caching auth API responses ────────
   // Cloudflare strips Set-Cookie headers from cached responses. If /api/auth/csrf
   // is cached, the CSRF cookie is never set → double-submit validation fails →
