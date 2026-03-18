@@ -183,11 +183,11 @@ function CollabInner() {
       .finally(() => setEngagementsLoading(false));
   }, [tab, deploymentIdFromUrl]);
 
-  // Fetch integrations when tab is active and deployment is known
+  // Fetch integrations — scoped to deployment if known, else workspace-level
   const fetchIntegrations = useCallback(async () => {
-    if (!deploymentId) return;
     try {
-      const r = await fetch(`/api/integrations?deployment_id=${deploymentId}`);
+      const qs = deploymentId ? `deployment_id=${deploymentId}` : "";
+      const r = await fetch(`/api/integrations${qs ? `?${qs}` : ""}`);
       if (r.ok) setIntegrations(await r.json());
     } catch { /* keep last state */ }
   }, [deploymentId]);
@@ -200,7 +200,7 @@ function CollabInner() {
   }, [tab, fetchIntegrations]);
 
   async function connectGitHub() {
-    if (!repoInput.trim() || !deploymentId || connecting) return;
+    if (!repoInput.trim() || connecting) return;
     setConnecting(true);
     setConnectError(null);
     try {
@@ -503,43 +503,30 @@ function CollabInner() {
               </div>
             )}
 
-            {/* Connect GitHub form — always visible, disabled when no engagement context */}
+            {/* Connect GitHub form — always available */}
             <div className="border border-zinc-800 rounded-sm p-3 space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="font-mono text-[10px] text-zinc-400 uppercase tracking-widest">Connect GitHub Repo</p>
-                {!deploymentId && (
-                  <span className="font-mono text-[9px] text-amber-400 border border-amber-400/30 px-1.5 py-0.5 rounded-sm">
-                    No engagement selected
-                  </span>
-                )}
-              </div>
+              <p className="font-mono text-[10px] text-zinc-400 uppercase tracking-widest">Connect GitHub Repo</p>
               <div className="flex gap-2">
                 <input
                   value={repoInput}
                   onChange={e => { setRepoInput(e.target.value); setConnectError(null); }}
                   onKeyDown={e => e.key === "Enter" && connectGitHub()}
-                  disabled={!deploymentId}
-                  placeholder={deploymentId ? "https://github.com/owner/repo" : "Open from an engagement to connect"}
-                  className="flex-1 h-8 px-2.5 bg-zinc-900 border border-zinc-800 rounded-sm font-mono text-xs text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed"
+                  placeholder="https://github.com/owner/repo"
+                  className="flex-1 h-8 px-2.5 bg-zinc-900 border border-zinc-800 rounded-sm font-mono text-xs text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-600"
                 />
                 <button
                   onClick={connectGitHub}
-                  disabled={!repoInput.trim() || connecting || !deploymentId}
+                  disabled={!repoInput.trim() || connecting}
                   className="h-8 px-3 rounded-sm border border-zinc-700 text-zinc-400 font-mono text-[9px] uppercase tracking-widest hover:border-zinc-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
                 >
-                  {connecting
-                    ? <Loader className="w-3 h-3 animate-spin" />
-                    : <Plus className="w-3 h-3" />}
+                  {connecting ? <Loader className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
                   Connect
                 </button>
               </div>
-              {connectError && (
-                <p className="font-mono text-[9px] text-red-400">{connectError}</p>
-              )}
+              {connectError && <p className="font-mono text-[9px] text-red-400">{connectError}</p>}
               <p className="font-mono text-[9px] text-zinc-600">
-                {deploymentId
-                  ? "Requires sign-in with GitHub · Registers a webhook for push + PR events"
-                  : "Navigate here via Marketplace → Engagement → Collaborate to link a repo"}
+                Requires sign-in with GitHub · Registers a webhook for push + PR events
+                {deploymentId && " · Scoped to current engagement"}
               </p>
             </div>
 

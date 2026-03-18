@@ -7,13 +7,17 @@ export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const profileId = (session.user as { profileId?: string }).profileId;
+  const profileId    = (session.user as { profileId?: string }).profileId;
   if (!profileId) return NextResponse.json({ error: "No profile" }, { status: 401 });
 
   const deploymentId = req.nextUrl.searchParams.get("deployment_id");
-  if (!deploymentId) return NextResponse.json({ error: "deployment_id required" }, { status: 400 });
 
-  const r = await fetch(`${MARKETPLACE}/integrations?deployment_id=${deploymentId}`, {
+  // Build query: scope to deployment when provided, otherwise fetch workspace integrations
+  const qs = deploymentId
+    ? `deployment_id=${deploymentId}`
+    : `profile_id=${profileId}`;
+
+  const r = await fetch(`${MARKETPLACE}/integrations?${qs}`, {
     headers: { "X-Profile-Id": profileId },
   });
   return NextResponse.json(await r.json().catch(() => []), { status: r.status });

@@ -61,18 +61,19 @@ export async function POST(req: NextRequest) {
   const ghData = await ghRes.json() as { id: number };
   const webhookId: number = ghData.id;
 
-  // Persist integration record
+  // Persist integration record — deployment_id optional (workspace-level when absent)
   const r = await fetch(`${MARKETPLACE}/integrations`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      deployment_id,
-      provider:      "github",
-      name:          repoFullName,
-      external_url:  `https://github.com/${repoFullName}`,
-      external_id:   repoFullName,
-      webhook_id:    webhookId,
-      connected_by:  profileId,
+      deployment_id:    deployment_id || null,
+      owner_profile_id: profileId,
+      provider:         "github",
+      name:             repoFullName,
+      external_url:     `https://github.com/${repoFullName}`,
+      external_id:      repoFullName,
+      webhook_id:       webhookId,
+      connected_by:     profileId,
     }),
   });
 
