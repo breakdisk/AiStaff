@@ -365,9 +365,13 @@ export default function TransparencyPage() {
 
         {/* Missed jobs */}
         {tab === "missed" && (
-          <div className="space-y-3">
+          <div
+            className="space-y-3"
+            aria-busy={jobs === null && !err}
+            aria-label={jobs === null && !err ? "Loading missed jobs" : undefined}
+          >
             {err ? (
-              <div className="border border-red-900/50 rounded-sm px-3 py-4 text-center">
+              <div role="alert" className="border border-red-900/50 rounded-sm px-3 py-4 text-center">
                 <p className="font-mono text-xs text-red-400">Failed to load match data. Please try refreshing.</p>
               </div>
             ) : jobs === null ? (
