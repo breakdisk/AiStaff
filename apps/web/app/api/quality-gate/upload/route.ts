@@ -73,9 +73,10 @@ ${content}`;
 
   try {
     const response = await model.invoke([new HumanMessage(prompt)]);
-    const text = typeof response.content === "string"
-      ? response.content
-      : response.content.map((c: { text?: string }) => c.text ?? "").join("");
+    const raw = response.content;
+    const text = typeof raw === "string"
+      ? raw
+      : (raw as Array<{ text?: string }>).map(c => c.text ?? "").join("");
 
     // Strip markdown code fences if present
     const cleaned = text.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "").trim();
