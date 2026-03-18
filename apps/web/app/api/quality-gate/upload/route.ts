@@ -4,6 +4,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { ChatAnthropic } from "@langchain/anthropic";
 import { HumanMessage } from "@langchain/core/messages";
+import {
+  embedText,
+  ensureCollection,
+  searchSimilar,
+  upsertVector,
+  SCORE_THRESHOLD,
+} from "@/lib/qdrant";
 
 const MARKETPLACE = process.env.MARKETPLACE_SERVICE_URL ?? "http://localhost:3002";
 const MAX_CONTENT_BYTES = 100_000; // 100 KB — truncate before sending to Claude
@@ -158,6 +165,40 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   // Step 3 — Run Claude analysis
   const result      = await runClaudeScan(file.name, scanType, content);
+
+  // Step 3b — Vector plagiarism check (plagiarism scan type only, fail-open)
+  let plagiarismVector: number[] | null = null;
+  if (scanType === "plagiarism") {
+    await ensureCollection();
+    plagiarismVector = await embedText(content);
+
+    if (plagiarismVector) {
+      const similar = await searchSimilar(plagiarismVector, scan_id);
+
+      for (const match of similar) {
+        const pct      = Math.round(match.score * 100);
+        const severity = match.score >= 0.95 ? "critical" : "high";
+        result.issues.push({
+          severity,
+          category:   "Plagiarism",
+          message:    `${pct}% similarity to previously submitted file "${match.file_name}"`,
+          location:   file.name,
+          suggestion: "Ensure all submitted work is original. Substantial similarity to prior submissions is not permitted.",
+        });
+      }
+
+      // Re-evaluate blocks_release after adding plagiarism issues
+      if (similar.length > 0) {
+        result.blocks_release = result.issues.some(
+          i => i.severity === "critical" || i.severity === "high",
+        );
+        if (result.score > 50 && similar.some(m => m.score >= SCORE_THRESHOLD)) {
+          result.score = Math.min(result.score, 49); // force below passing threshold
+        }
+      }
+    }
+  }
+
   const duration_ms = Date.now() - startMs;
   const status      = result.issues.some(i => i.severity === "critical" || i.severity === "high")
     ? "flagged"
@@ -182,6 +223,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       headers: { "Content-Type": "application/json", "X-Profile-Id": profileId },
       body: JSON.stringify({ issues: result.issues }),
     }).catch(() => null);
+  }
+
+  // Step 6 — Store deliverable vector for future plagiarism comparisons (fire-and-forget)
+  if (scanType === "plagiarism" && plagiarismVector) {
+    void upsertVector(scan_id, plagiarismVector, {
+      scan_id,
+      freelancer_id: profileId,
+      file_name:     file.name,
+      created_at:    new Date().toISOString(),
+    });
   }
 
   return NextResponse.json({

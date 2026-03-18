@@ -52,12 +52,10 @@ pub enum IdentityTier {
 /// Canonical identity record — written to DB, embedded in auth tokens.
 /// PRIVACY: raw biometric data is NEVER stored in this struct or the DB.
 ///
-/// NOTE: After running migration 0016 + `cargo sqlx prepare --workspace`,
-/// `github_uid` must be changed to `Option<String>` to match the nullable column.
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct UnifiedProfile {
     pub id: Uuid,
-    pub github_uid: String,
+    pub github_uid: Option<String>,
     pub linkedin_uid: Option<String>,
     pub display_name: String,
     pub email: String,

@@ -109,6 +109,14 @@ services:
       - "1025:1025"   # SMTP
       - "8025:8025"   # Web UI
 
+  qdrant:
+    image: qdrant/qdrant:v1.9.2
+    restart: unless-stopped
+    ports:
+      - "6333:6333"   # HTTP API
+    volumes:
+      - qdrant_data:/qdrant/storage
+
   # ── Phase 1 services ───────────────────────────────────────────────────────
   identity-service:
     <<: *rust-defaults
@@ -383,6 +391,10 @@ services:
       LINKEDIN_CLIENT_SECRET: ${LINKEDIN_CLIENT_SECRET}
       # Anthropic — required for LangGraph routes (/api/pm-agent, /api/proposal-copilot)
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # Qdrant — local vector DB for plagiarism detection (CLAUDE.md §0: offline-first AI)
+      QDRANT_URL: http://qdrant:6333
+      # OpenAI embeddings — text-embedding-3-small for deliverable similarity vectors
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       # Stripe — runtime server-side secrets (never exposed to client bundle)
       STRIPE_SECRET_KEY:       ${STRIPE_SECRET_KEY}
       STRIPE_WEBHOOK_SECRET:   ${STRIPE_WEBHOOK_SECRET}
@@ -419,3 +431,4 @@ services:
 
 volumes:
   pg_data:
+  qdrant_data:
