@@ -125,6 +125,15 @@ async fn handle_deployment_complete(
         }
 
         _ = &mut window => {
+            // ── Quality Gate check ────────────────────────────────────────
+            // Block escrow if any flagged scan for this deployment has
+            // blocks_release=true (CRITICAL or HIGH issues unresolved).
+            if quality_gate_blocks(&db, did).await {
+                warn!(%did, "Escrow HELD — quality gate has unresolved CRITICAL/HIGH issues");
+                set_state(&db, did, "QUALITY_GATE_BLOCKED").await.ok();
+                return;
+            }
+
             // SKIP_BIOMETRIC=true (default) bypasses ZK sign-off for Tier 1 users,
             // releasing escrow immediately after the veto window.  Set to false in
             // production once the biometric wallet integration is live.
@@ -171,6 +180,13 @@ async fn handle_deployment_complete(
                 match bio_result {
                     Ok(Some(bio)) => match verify_zk_proof(&bio) {
                         Ok(true) => {
+                            // Re-check quality gate after biometric sign-off
+                            if quality_gate_blocks(&db, did).await {
+                                warn!(%did, "Escrow HELD — quality gate blocks after biometric");
+                                set_state(&db, did, "QUALITY_GATE_BLOCKED").await.ok();
+                                return;
+                            }
+
                             let (platform_cents, dev_cents, talent_cents) =
                                 split_with_commission(event.total_cents);
 
@@ -253,6 +269,33 @@ pub fn split_with_commission(total_cents: u64) -> (u64, u64, u64) {
     let dev_cents      = remaining * 70 / 100;
     let talent_cents   = remaining - dev_cents; // remainder — lossless
     (platform_cents, dev_cents, talent_cents)
+}
+
+/// Returns true if any quality gate scan for this deployment has
+/// `blocks_release = true` AND `status = 'flagged'`.
+/// A non-fatal DB error is treated as non-blocking (fail-open) with a warning.
+async fn quality_gate_blocks(db: &PgPool, deployment_id: Uuid) -> bool {
+    let result = sqlx::query_scalar::<_, bool>(
+        r#"
+        SELECT EXISTS(
+            SELECT 1 FROM quality_gate_scans
+            WHERE deployment_id = $1
+              AND blocks_release = TRUE
+              AND status = 'flagged'
+        )
+        "#,
+    )
+    .bind(deployment_id)
+    .fetch_one(db)
+    .await;
+
+    match result {
+        Ok(blocked) => blocked,
+        Err(e) => {
+            warn!(%deployment_id, "quality_gate_blocks DB error (fail-open): {e}");
+            false // fail-open: don't block escrow if DB query fails
+        }
+    }
 }
 
 async fn set_state(db: &PgPool, id: Uuid, state: &str) -> anyhow::Result<()> {
