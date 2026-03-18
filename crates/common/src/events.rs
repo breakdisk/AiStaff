@@ -220,6 +220,23 @@ pub struct ReputationExported {
     pub issued_at: DateTime<Utc>,
 }
 
+// ── Collab / messaging events ─────────────────────────────────────────────────
+pub const TOPIC_MESSAGE_SENT: &str = "collab.message_sent";
+
+/// Emitted by marketplace_service after a chat message is persisted.
+/// Consumed by notification_service to send async email notifications.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct MessageSent {
+    pub deployment_id: Uuid,
+    pub message_id:    Uuid,
+    pub sender_id:     Uuid,
+    pub sender_name:   String,
+    /// All deployment participants except the sender.
+    pub recipient_ids: Vec<Uuid>,
+    /// First 120 chars of the message body — safe for email preview.
+    pub body_preview:  String,
+}
+
 // ── Community & Growth events (Feature 08) ────────────────────────────────────
 pub const TOPIC_COMMUNITY_EVENTS: &str = "community.events";
 

@@ -614,6 +614,68 @@ impl NotificationConsumer {
                         .ok();
                 }
 
+                // ─────────────────────────────────────────────────────────────
+                // Async collab: new chat message → email each recipient
+                // ─────────────────────────────────────────────────────────────
+                "MessageSent" => {
+                    let sender_name = envelope
+                        .payload
+                        .get("sender_name")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("A team member");
+
+                    let preview = envelope
+                        .payload
+                        .get("body_preview")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("(no preview)");
+
+                    let deployment_id = envelope
+                        .payload
+                        .get("deployment_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("unknown");
+
+                    let recipient_ids = envelope
+                        .payload
+                        .get("recipient_ids")
+                        .and_then(|v| v.as_array())
+                        .cloned()
+                        .unwrap_or_default();
+
+                    for rid in recipient_ids {
+                        let Some(rid_str) = rid.as_str() else { continue };
+                        let Ok(rid_uuid) = uuid::Uuid::parse_str(rid_str) else { continue };
+
+                        // Look up recipient email from unified_profiles
+                        let email_row = sqlx::query(
+                            "SELECT email FROM unified_profiles WHERE id = $1",
+                        )
+                        .bind(rid_uuid)
+                        .fetch_optional(&self.fanout.db)
+                        .await;
+
+                        let email = match email_row {
+                            Ok(Some(r)) => r.try_get::<String, _>("email").unwrap_or_default(),
+                            _ => continue,
+                        };
+
+                        if email.is_empty() { continue; }
+
+                        let subject = format!("New message from {sender_name}");
+                        let body = format!(
+                            "{sender_name} sent you a message on engagement {deployment_id}:\n\n\
+                             \"{preview}\"\n\n\
+                             Reply at https://aistaffglobal.com/collab?deployment_id={deployment_id}",
+                        );
+
+                        self.fanout
+                            .dispatch_email(rid_uuid, &email, &subject, &body)
+                            .await
+                            .ok();
+                    }
+                }
+
                 _ => {}
             }
         }

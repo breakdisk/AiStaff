@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { useEffect, useState } from "react";
 import { Inbox, Briefcase } from "lucide-react";
 
 // ── Nav definitions ─────────────────────────────────────────────────────────
@@ -102,6 +103,19 @@ export function AppSidebar({ status }: AppSidebarProps) {
   const showEnterprise = role === "agent-owner" || role === "client" || accountType === "agency";
   const showInbox = role !== "talent";
 
+  const [unread, setUnread] = useState(0);
+  useEffect(() => {
+    if (!session?.user) return;
+    const poll = () =>
+      fetch("/api/collab/unread")
+        .then(r => r.ok ? r.json() : { unread: 0 })
+        .then((d: { unread?: number }) => setUnread(d.unread ?? 0))
+        .catch(() => {});
+    poll();
+    const id = setInterval(poll, 30_000);
+    return () => clearInterval(id);
+  }, [session]);
+
   return (
     <aside className="hidden lg:flex lg:flex-col w-56 border-r border-zinc-800 bg-zinc-950 p-4 gap-6 lg:h-screen lg:sticky lg:top-0 overflow-y-auto">
       {/* Brand + status badge */}
@@ -181,9 +195,14 @@ export function AppSidebar({ status }: AppSidebarProps) {
               <a
                 key={label}
                 href={href}
-                className="block px-3 py-1.5 rounded-sm font-mono text-xs text-zinc-600 hover:text-zinc-300 hover:bg-zinc-900 transition-colors"
+                className="flex items-center justify-between px-3 py-1.5 rounded-sm font-mono text-xs text-zinc-600 hover:text-zinc-300 hover:bg-zinc-900 transition-colors"
               >
                 {label}
+                {label === "Collaboration" && unread > 0 && (
+                  <span className="ml-1.5 min-w-[16px] h-4 px-1 rounded-sm bg-amber-400 text-zinc-950 font-mono text-[9px] font-bold flex items-center justify-center">
+                    {unread > 99 ? "99+" : unread}
+                  </span>
+                )}
               </a>
             ))}
           </div>

@@ -87,6 +87,8 @@ async fn main() -> Result<()> {
             "/collab/messages",
             get(collab_handlers::list_messages).post(collab_handlers::post_message),
         )
+        .route("/collab/read",   post(collab_handlers::mark_read))
+        .route("/collab/unread", get(collab_handlers::unread_count))
         .route(
             "/integrations",
             get(integration_handlers::list_integrations)

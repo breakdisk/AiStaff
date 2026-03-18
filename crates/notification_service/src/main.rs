@@ -89,6 +89,7 @@ async fn main() -> Result<()> {
             common::events::TOPIC_MATCH_RESULTS,
             common::events::TOPIC_WARRANTY_EVENTS,
             common::events::TOPIC_COMMUNITY_EVENTS,
+            common::events::TOPIC_MESSAGE_SENT,
         ],
     )?;
 

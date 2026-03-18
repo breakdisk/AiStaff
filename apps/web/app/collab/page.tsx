@@ -172,6 +172,16 @@ function CollabInner() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Mark messages as read whenever chat tab is active and new messages arrive
+  useEffect(() => {
+    if (tab !== "chat" || !deploymentId) return;
+    fetch("/api/collab/read", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ deployment_id: deploymentId }),
+    }).catch(() => {});
+  }, [tab, deploymentId, messages]);
+
   // Fetch the user's engagements for the dropdown (when no deployment_id in URL)
   useEffect(() => {
     if (tab !== "integrations" || deploymentIdFromUrl) return;
