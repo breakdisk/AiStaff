@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Github, Loader2, Linkedin } from "lucide-react";
+import { loginWithProvider } from "./actions";
 
 // ── Google icon (Lucide does not include it) ──────────────────────────────────
 
@@ -32,12 +33,11 @@ function OAuthButton({
   callbackUrl: string;
 }) {
   function handleClick() {
-    // Use a full browser navigation to /api/auth/login instead of fetch()-based
-    // signIn(). This eliminates the mobile race condition where window.location.href
-    // can start before the browser stores the Set-Cookie from the fetch response,
-    // causing the PKCE cookie to be missing on the OAuth callback → InvalidCheck.
-    const url = `/api/auth/login?provider=${provider}&callbackUrl=${encodeURIComponent(callbackUrl)}`;
-    window.location.href = url;
+    // Call Server Action — Auth.js signIn() from a Server Action doesn't
+    // need a manual CSRF token; Next.js validates Server Actions automatically.
+    // This replaces the old /api/auth/login intermediate route that would
+    // silently fail the loopback CSRF fetch on fresh deploys → MissingCSRF.
+    void loginWithProvider(provider, callbackUrl);
   }
 
   return (
