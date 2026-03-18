@@ -23,7 +23,6 @@ export default auth((req) => {
     pathname.startsWith("/sign/") ||           // Public e-signature page (token-gated, no auth)
     pathname.startsWith("/api/sign/") ||       // Public e-signature API proxy
     pathname.startsWith("/api/generate-pdf") || // PDF generation — called from public sign page
-    pathname === "/api/health" ||               // Liveness probe — Dokploy health check
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico" ||
     /\.(?:png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|otf)$/i.test(pathname);

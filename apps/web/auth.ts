@@ -91,19 +91,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   // so AUTH_URL inference and redirect_uri generation use the public hostname.
   trustHost: true,
 
-  // Suppress MissingCSRF from production logs.
-  // Dokploy's health probe (and crawlers) occasionally POST to /api/auth/signin
-  // without a CSRF token — Auth.js correctly rejects those requests, but the
-  // ERROR-level log confuses deployment monitoring. Suppressing this specific
-  // error keeps logs clean; security behaviour is completely unchanged.
-  logger: {
-    error(error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      if (msg.includes("MissingCSRF")) return;
-      console.error("[auth][error]", msg);
-    },
-  },
-
   // Explicit cookie configuration.
   //
   // Root cause of the persistent InvalidCheck errors:
