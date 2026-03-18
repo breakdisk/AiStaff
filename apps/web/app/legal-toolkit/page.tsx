@@ -643,6 +643,64 @@ function WarrantyTab({ profileId }: { profileId: string }) {
   );
 }
 
+// ── Template picker modal ─────────────────────────────────────────────────────
+function TemplatePickerModal({
+  profileId, name, email, onClose, onCreated,
+}: {
+  profileId: string; name: string; email: string;
+  onClose: () => void; onCreated: (c: Contract) => void;
+}) {
+  const [selected, setSelected] = useState<DocTemplate | null>(null);
+
+  if (selected) {
+    return (
+      <GenerateModal
+        tpl={selected}
+        profileId={profileId}
+        name={name}
+        email={email}
+        onClose={onClose}
+        onCreated={onCreated}
+      />
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60">
+      <div className="w-full sm:w-[480px] bg-zinc-900 border border-zinc-700 rounded-sm sm:rounded-sm mx-0 sm:mx-4">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
+          <span className="font-mono text-sm text-zinc-100">Choose a template</span>
+          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300 transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="px-3 py-3 space-y-1.5 max-h-[60vh] overflow-y-auto">
+          {TEMPLATES.map(tpl => (
+            <button
+              key={tpl.id}
+              onClick={() => setSelected(tpl)}
+              className="w-full text-left flex items-start gap-3 px-3 py-2.5 rounded-sm border border-zinc-800 hover:border-zinc-600 hover:bg-zinc-800/60 transition-colors"
+            >
+              <span className={`font-mono text-[10px] px-1 py-0.5 border rounded-sm flex-shrink-0 mt-0.5 ${KIND_COLOR[tpl.kind]}`}>
+                {KIND_LABEL[tpl.kind]}
+              </span>
+              <div className="min-w-0">
+                <p className="font-mono text-sm text-zinc-100">{tpl.name}</p>
+                <p className="font-mono text-[11px] text-zinc-500 mt-0.5">{tpl.description}</p>
+                <div className="flex gap-1 mt-1.5 flex-wrap">
+                  {tpl.jurisdictions.map(j => (
+                    <span key={j} className="font-mono text-[10px] text-zinc-600">{JUR_FLAG[j]} {j}</span>
+                  ))}
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function LegalToolkitPage() {
   const { data: session } = useSession();
@@ -654,6 +712,7 @@ export default function LegalToolkitPage() {
   const [jurFilter, setJurFilter] = useState("All");
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loading, setLoading]   = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const jurisdictions = ["All", "US", "UK", "EU", "AU", "CA", "SG"];
   const filteredTpls  = TEMPLATES.filter(t =>
@@ -739,7 +798,7 @@ export default function LegalToolkitPage() {
             <p className="font-mono text-xs text-zinc-500">NDAs, IP assignments &amp; jurisdiction-specific contracts — SHA-256 hashed on creation</p>
           </div>
           <button
-            onClick={() => setTab("templates")}
+            onClick={() => setPickerOpen(true)}
             className="h-8 px-3 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-mono text-xs rounded-sm transition-colors flex items-center gap-1.5"
           >
             <Plus className="w-3 h-3" /> New Document
@@ -866,6 +925,20 @@ export default function LegalToolkitPage() {
           </div>
         </div>
       </main>
+
+      {pickerOpen && (
+        <TemplatePickerModal
+          profileId={profileId}
+          name={displayName}
+          email={userEmail}
+          onClose={() => setPickerOpen(false)}
+          onCreated={c => {
+            setPickerOpen(false);
+            setContracts(prev => [c, ...prev]);
+            setTab("documents");
+          }}
+        />
+      )}
 
       {/* Mobile nav */}
       <nav className="sm:hidden fixed bottom-0 left-0 right-0 h-16 bg-zinc-950 border-t border-zinc-800 flex items-center justify-around px-2 z-50">
