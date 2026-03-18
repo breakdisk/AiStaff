@@ -71,6 +71,37 @@ services:
       retries: 10
       start_period: 60s
 
+  # Pre-creates all Kafka topics so services start cleanly without
+  # UnknownTopicOrPartition errors. Exits 0 after creation — not a long-lived service.
+  kafka-init:
+    image: confluentinc/cp-kafka:7.6.0
+    depends_on:
+      kafka: { condition: service_healthy }
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic installation.events    --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic escrow.commands        --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic deployment.status      --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic deployment.started     --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic deployment.complete    --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic payout.veto            --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic biometric.signoff      --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic license.commands       --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic checklist.events       --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic warranty.events        --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic match.requests         --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic match.results          --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic notification.fanout    --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic telemetry.events       --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic drift.alerts           --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic trust.events           --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic reputation.commands    --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic collab.message_sent    --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic community.events       --partitions 1 --replication-factor 1
+        echo "All Kafka topics created."
+    restart: "no"
+
   mailhog:
     image: mailhog/mailhog:latest
     restart: unless-stopped
@@ -91,7 +122,7 @@ services:
     ports: ["3001:3001"]
     depends_on:
       postgres: { condition: service_healthy }
-      kafka:    { condition: service_healthy }
+      kafka-init: { condition: service_completed_successfully }
 
   marketplace-service:
     <<: *rust-defaults
@@ -105,7 +136,7 @@ services:
     ports: ["3002:3002"]
     depends_on:
       postgres: { condition: service_healthy }
-      kafka:    { condition: service_healthy }
+      kafka-init: { condition: service_completed_successfully }
 
   checklist-service:
     <<: *rust-defaults
@@ -119,7 +150,7 @@ services:
     ports: ["3003:3003"]
     depends_on:
       postgres: { condition: service_healthy }
-      kafka:    { condition: service_healthy }
+      kafka-init: { condition: service_completed_successfully }
 
   license-service:
     <<: *rust-defaults
@@ -133,7 +164,7 @@ services:
     ports: ["3004:3004"]
     depends_on:
       postgres: { condition: service_healthy }
-      kafka:    { condition: service_healthy }
+      kafka-init: { condition: service_completed_successfully }
 
   matching-service:
     <<: *rust-defaults
@@ -175,7 +206,7 @@ services:
     ports: ["3007:3007"]
     depends_on:
       postgres: { condition: service_healthy }
-      kafka:    { condition: service_healthy }
+      kafka-init: { condition: service_completed_successfully }
 
   analytics-service:
     <<: *rust-defaults
@@ -202,7 +233,7 @@ services:
     ports: ["3009:3009"]
     depends_on:
       postgres: { condition: service_healthy }
-      kafka:    { condition: service_healthy }
+      kafka-init: { condition: service_completed_successfully }
 
   payout-service:
     <<: *rust-defaults
@@ -216,7 +247,7 @@ services:
     ports: ["3010:3010"]
     depends_on:
       postgres: { condition: service_healthy }
-      kafka:    { condition: service_healthy }
+      kafka-init: { condition: service_completed_successfully }
 
   community-service:
     <<: *rust-defaults
@@ -230,7 +261,7 @@ services:
     ports: ["3011:3011"]
     depends_on:
       postgres: { condition: service_healthy }
-      kafka:    { condition: service_healthy }
+      kafka-init: { condition: service_completed_successfully }
 
   # ── Kafka-only consumers (no HTTP port) ───────────────────────────────────
   deployment-engine:
@@ -245,7 +276,7 @@ services:
       RUST_LOG: info
     depends_on:
       postgres:   { condition: service_healthy }
-      kafka:      { condition: service_healthy }
+      kafka-init: { condition: service_completed_successfully }
       mcp-server: { condition: service_started }
 
   environment-orchestrator:
@@ -259,7 +290,7 @@ services:
       RUST_LOG: info
     depends_on:
       postgres: { condition: service_healthy }
-      kafka:    { condition: service_healthy }
+      kafka-init: { condition: service_completed_successfully }
 
   notification-service:
     <<: *rust-defaults
@@ -295,7 +326,7 @@ services:
       RUST_LOG: info
     depends_on:
       postgres: { condition: service_healthy }
-      kafka:    { condition: service_healthy }
+      kafka-init: { condition: service_completed_successfully }
       mailhog:  { condition: service_started }
 
   mcp-server:
