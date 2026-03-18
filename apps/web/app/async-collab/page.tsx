@@ -2,7 +2,7 @@
 
 import {
   useState, useRef, useEffect, useCallback,
-  type RefObject,
+  type RefObject, Suspense,
 } from "react";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -514,7 +514,7 @@ function RecordTab({
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-export default function AsyncCollabPage() {
+function AsyncCollabPageInner() {
   const { data: session } = useSession();
   const searchParams = useSearchParams();
   const deploymentId = searchParams.get("deployment_id");
@@ -652,5 +652,13 @@ export default function AsyncCollabPage() {
         <AppMobileNav />
       </div>
     </>
+  );
+}
+
+export default function AsyncCollabPage() {
+  return (
+    <Suspense>
+      <AsyncCollabPageInner />
+    </Suspense>
   );
 }
