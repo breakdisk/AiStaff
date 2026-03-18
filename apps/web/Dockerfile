@@ -75,4 +75,10 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
+# Liveness probe — Dokploy/Docker uses this instead of probing auth endpoints.
+# wget is built into node:alpine. Waits 15s for Next.js to finish starting,
+# then checks every 30s. 3 failures → container marked unhealthy.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD wget -qO- http://localhost:3000/api/health || exit 1
+
 CMD ["npm", "start"]
