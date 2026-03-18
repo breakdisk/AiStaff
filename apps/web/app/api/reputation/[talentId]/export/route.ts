@@ -41,13 +41,7 @@ export async function POST(
   try {
     client = await pool.connect();
 
-    const { rows } = await client.query<{
-      total_deployments: string;
-      avg_checklist_pass_pct: string;
-      drift_incidents: string;
-      trust_score: number;
-      tier: string;
-    }>(
+    const { rows } = await client.query(
       `SELECT
          COALESCE(tr.total_deployments, 0)       AS total_deployments,
          COALESCE(tr.avg_checklist_pass_pct, 0)  AS avg_checklist_pass_pct,
