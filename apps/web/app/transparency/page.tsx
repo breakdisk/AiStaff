@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   LayoutDashboard, Store, Trophy, User, Shuffle,
@@ -91,56 +91,6 @@ const ALGO_WEIGHTS: AlgorithmWeight[] = [
   { factor: "Repeat Hire Rate",    weight: 5,  color: "bg-zinc-500"   },
 ];
 
-const MISSED_JOBS: MissedJob[] = [
-  {
-    id: "mj-001",
-    title: "Senior Rust API Engineer",
-    client: "FinanceOS",
-    budget: "$8,000",
-    postedAt: "2026-03-05",
-    yourScore: 71,
-    topScore: 94,
-    factors: [
-      { id: "f1", category: "Rate",      label: "Hourly Rate",           yourValue: "$120/hr",   required: "< $90/hr",   status: "fail",    weight: 20, gap: "33% above market rate for this role",           tip: "Consider offering a fixed-price SOW instead of hourly to remove rate comparison." },
-      { id: "f2", category: "Skills",    label: "gRPC / Tonic",          yourValue: "Not listed", required: "Required",   status: "fail",    weight: 30, gap: "Missing required skill tag",                   tip: "Add 'gRPC' and 'Tonic' to your skill profile if you have experience with these." },
-      { id: "f3", category: "Trust",     label: "Trust Score",           yourValue: "58 / 100",  required: "> 70",       status: "fail",    weight: 25, gap: "12 points below minimum threshold",             tip: "Complete biometric verification to gain +40 trust points and reach Tier 2." },
-      { id: "f4", category: "Portfolio", label: "Fintech project",       yourValue: "None",       required: "Preferred",  status: "partial", weight: 15, gap: "No verifiable fintech work history",            tip: "Take a smaller fintech project to build portfolio evidence in this vertical." },
-      { id: "f5", category: "Response",  label: "Avg. Response Time",    yourValue: "4.2h",      required: "< 2h",       status: "pass",    weight: 5,  tip: "Good — your response time is within the acceptable range." },
-    ],
-  },
-  {
-    id: "mj-002",
-    title: "Kafka Streams Engineer",
-    client: "DataBridge",
-    budget: "$4,500",
-    postedAt: "2026-03-06",
-    yourScore: 83,
-    topScore: 91,
-    factors: [
-      { id: "f1", category: "Skills",    label: "Kafka Streams (Java)",  yourValue: "Rust/rdkafka", required: "Java preferred", status: "partial", weight: 30, gap: "Language mismatch — Java preferred", tip: "Add Java Kafka experience to your profile, or note Rust↔Java interop experience in your bio." },
-      { id: "f2", category: "Trust",     label: "Trust Score",           yourValue: "58 / 100",     required: "> 50",           status: "pass",    weight: 25, tip: "Trust score meets minimum threshold." },
-      { id: "f3", category: "Portfolio", label: "Kafka deployments",     yourValue: "2 verified",   required: "2+",             status: "pass",    weight: 15, tip: "Good — verified deployments meet the requirement." },
-      { id: "f4", category: "Rate",      label: "Day Rate",              yourValue: "$960/day",     required: "< $1,000/day",   status: "pass",    weight: 20, tip: "Rate is competitive for this role." },
-      { id: "f5", category: "Response",  label: "Avg. Response Time",    yourValue: "4.2h",         required: "< 6h",           status: "pass",    weight: 5,  tip: "Response time is within acceptable range." },
-    ],
-  },
-  {
-    id: "mj-003",
-    title: "WebAssembly Systems Engineer",
-    client: "EdgeRuntime",
-    budget: "$6,200",
-    postedAt: "2026-03-07",
-    yourScore: 68,
-    topScore: 97,
-    factors: [
-      { id: "f1", category: "Trust",     label: "Identity Tier",         yourValue: "Tier 1",   required: "Tier 2",    status: "fail",    weight: 25, gap: "Biometric verification required",                tip: "Complete biometric verification — this client requires Tier 2 identity for all contractors." },
-      { id: "f2", category: "Skills",    label: "WASI Preview 2",        yourValue: "Not listed",required: "Required",  status: "fail",    weight: 30, gap: "WASI P2 experience not listed",                  tip: "Add WASI Preview 2 experience to your skill profile — you likely have this from Wasmtime projects." },
-      { id: "f3", category: "Portfolio", label: "Production Wasm deploy", yourValue: "3 verified",required: "2+",        status: "pass",    weight: 15, tip: "Strong Wasm portfolio — above requirement." },
-      { id: "f4", category: "Rate",      label: "Project Rate",          yourValue: "$5,800",   required: "< $6,500",  status: "pass",    weight: 20, tip: "Rate is within the project budget." },
-      { id: "f5", category: "Response",  label: "Repeat Hire Rate",      yourValue: "0%",       required: "> 25%",     status: "fail",    weight: 5,  gap: "No repeat clients yet",                          tip: "Focus on getting at least one client to re-hire you — this signals reliability." },
-    ],
-  },
-];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const STATUS_CONFIG: Record<FactorStatus, { icon: React.ElementType; color: string; bg: string }> = {
@@ -267,12 +217,40 @@ function MissedJobCard({ job }: { job: MissedJob }) {
   );
 }
 
+function MissedJobSkeleton() {
+  return (
+    <div className="border border-zinc-800 rounded-sm bg-zinc-900/40 overflow-hidden animate-pulse">
+      <div className="flex items-start gap-3 px-3 py-3">
+        <div className="flex-1 space-y-2">
+          <div className="h-4 w-48 bg-zinc-800 rounded-sm" />
+          <div className="h-3 w-32 bg-zinc-800 rounded-sm" />
+          <div className="h-3 w-24 bg-zinc-800 rounded-sm" />
+        </div>
+        <div className="w-36 space-y-2">
+          <div className="h-2 bg-zinc-800 rounded-full" />
+          <div className="h-2 bg-zinc-800 rounded-full" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function TransparencyPage() {
   const [tab, setTab] = useState<"missed" | "algorithm">("missed");
+  const [jobs, setJobs] = useState<MissedJob[] | null>(null);
+  const [err,  setErr]  = useState(false);
 
-  const totalGaps = MISSED_JOBS.flatMap(j => j.factors).filter(f => f.status === "fail").length;
-  const topGap    = MISSED_JOBS.flatMap(j => j.factors).find(f => f.status === "fail" && f.category === "Trust");
+  useEffect(() => {
+    fetch("/api/transparency/missed-jobs")
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then((data: MissedJob[]) => setJobs(data))
+      .catch(() => setErr(true));
+  }, []);
+
+  const displayJobs = jobs ?? [];
+  const totalGaps   = displayJobs.flatMap(j => j.factors).filter(f => f.status === "fail").length;
+  const topGap      = displayJobs.flatMap(j => j.factors).find(f => f.status === "fail" && f.category === "Trust");
 
   return (
     <div className="flex min-h-screen bg-zinc-950 text-zinc-100">
@@ -346,7 +324,7 @@ export default function TransparencyPage() {
               <div>
                 <p className="font-mono text-sm text-amber-300 font-medium">Highest-impact action</p>
                 <p className="font-mono text-xs text-zinc-400 mt-0.5">
-                  Your <span className="text-amber-300">Trust Score</span> is below threshold for {MISSED_JOBS.filter(j => j.factors.some(f => f.category === "Trust" && f.status === "fail")).length} missed jobs.
+                  Your <span className="text-amber-300">Trust Score</span> is below threshold for {displayJobs.filter(j => j.factors.some(f => f.category === "Trust" && f.status === "fail")).length} missed jobs.
                   Completing biometric verification adds +40 pts and unlocks Tier 2.
                 </p>
               </div>
@@ -360,9 +338,9 @@ export default function TransparencyPage() {
         {/* Summary stats */}
         <div className="grid grid-cols-3 gap-2 mb-5">
           {[
-            { label: "Missed jobs (30d)", value: MISSED_JOBS.length,   color: "text-zinc-100" },
-            { label: "Gaps identified",   value: totalGaps,            color: "text-red-400"  },
-            { label: "Fixable this week", value: 2,                    color: "text-green-400"},
+            { label: "Missed jobs (30d)", value: jobs === null ? "—" : displayJobs.length,         color: "text-zinc-100"  },
+            { label: "Gaps identified",   value: jobs === null ? "—" : totalGaps,                  color: "text-red-400"   },
+            { label: "Fixable this week", value: jobs === null ? "—" : Math.min(2, totalGaps),     color: "text-green-400" },
           ].map(({ label, value, color }) => (
             <div key={label} className="border border-zinc-800 rounded-sm p-2.5 text-center bg-zinc-900/40">
               <p className={`font-mono text-xl font-medium ${color}`}>{value}</p>
@@ -374,7 +352,7 @@ export default function TransparencyPage() {
         {/* Tabs */}
         <div className="flex gap-1 border-b border-zinc-800 mb-4">
           {[
-            { key: "missed"    as const, label: `Missed Jobs (${MISSED_JOBS.length})` },
+            { key: "missed"    as const, label: jobs === null ? "Missed Jobs" : `Missed Jobs (${displayJobs.length})` },
             { key: "algorithm" as const, label: "How The Algorithm Works" },
           ].map(({ key, label }) => (
             <button key={key} onClick={() => setTab(key)}
@@ -388,7 +366,27 @@ export default function TransparencyPage() {
         {/* Missed jobs */}
         {tab === "missed" && (
           <div className="space-y-3">
-            {MISSED_JOBS.map(job => <MissedJobCard key={job.id} job={job} />)}
+            {err ? (
+              <div className="border border-red-900/50 rounded-sm px-3 py-4 text-center">
+                <p className="font-mono text-xs text-red-400">Failed to load match data. Please try refreshing.</p>
+              </div>
+            ) : jobs === null ? (
+              <>
+                <MissedJobSkeleton />
+                <MissedJobSkeleton />
+                <MissedJobSkeleton />
+              </>
+            ) : jobs.length === 0 ? (
+              <div className="border border-zinc-800 rounded-sm px-3 py-8 text-center bg-zinc-900/40">
+                <Eye className="w-6 h-6 text-zinc-700 mx-auto mb-2" />
+                <p className="font-mono text-sm text-zinc-400">No missed jobs yet</p>
+                <p className="font-mono text-xs text-zinc-600 mt-1">
+                  Match breakdowns appear here once the matching engine has ranked you for listings.
+                </p>
+              </div>
+            ) : (
+              jobs.map(job => <MissedJobCard key={job.id} job={job} />)
+            )}
           </div>
         )}
 
