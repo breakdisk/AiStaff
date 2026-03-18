@@ -13,7 +13,7 @@ Build a public `/talent/[id]` page so clients can view a talent's profile withou
 
 ## Background
 
-`GET /identity/public-profile/{id}` already exists in `identity_service` and returns: `profile_id`, `display_name`, `trust_score`, `identity_tier`, `bio`, `hourly_rate_cents`, `availability`, `role`. `GET /marketplace/talent-skills/{id}` returns the talent's skill tags with proficiency + verified_at. Neither endpoint enforces privacy — that logic lives in the new Next.js layer.
+`GET /identity/public-profile/{id}` already exists in `identity_service` and returns: `profile_id`, `display_name`, `trust_score`, `identity_tier`, `bio`, `hourly_rate_cents`, `availability`, `role` (nullable). `GET /talent-skills/{id}` in `marketplace_service` (route mounted at service root) returns the talent's skill tags with proficiency + verified_at. Neither endpoint enforces privacy — that logic lives in the new Next.js layer.
 
 ---
 
@@ -27,9 +27,9 @@ No Rust changes. All new logic is in Next.js using `pg` Pool (same pattern as `/
 |---|---|---|
 | `migrations/0039_profile_privacy.sql` | Create | `profile_privacy` table — per-talent visibility flags |
 | `apps/web/app/api/talent/[id]/route.ts` | Create | Public `GET` — fetches profile + skills, applies privacy filter |
-| `apps/web/app/api/talent/privacy/route.ts` | Create | Auth-gated `PATCH` — talent updates their own visibility settings |
+| `apps/web/app/api/talent/privacy/route.ts` | Create | Auth-gated `GET` + `PATCH` — read and update visibility settings |
 | `apps/web/app/talent/[id]/page.tsx` | Create | Public profile page — no auth required, client component |
-| `apps/web/middleware.ts` | Modify | Add `/talent/` to `isPublic` paths |
+| `apps/web/middleware.ts` | Modify | Add `/talent/` to `isPublic` paths (page + API) |
 | `apps/web/app/profile/page.tsx` | Modify | Add Privacy section to edit form |
 
 ---
@@ -63,13 +63,17 @@ CREATE TABLE profile_privacy (
 **Auth:** None required — public endpoint.
 
 **Logic:**
-1. Validate `id` is a UUID.
-2. Fetch privacy settings from `profile_privacy` (LEFT JOIN so missing row = all defaults = all visible).
-3. If `profile_public = false` → return `{ hidden: true, display_name, role }` (name + role always shown).
-4. Fetch profile from identity_service: `GET {IDENTITY_SERVICE_URL}/identity/public-profile/{id}`.
-5. Fetch skills from marketplace_service: `GET {MARKETPLACE_SERVICE_URL}/talent-skills/{id}`.
-6. Strip hidden fields per privacy flags before returning.
+1. Validate `id` is a valid UUID (regex check) — return 400 if not.
+2. Query `profile_privacy` via `pg` Pool for this `id` (LEFT JOIN / single SELECT; missing row = all defaults = all visible).
+3. If `profile_public = false` → fetch only `display_name` and `role` from identity_service (`GET {IDENTITY_SERVICE_URL}/identity/public-profile/{id}`), then return `{ hidden: true, display_name, role: role ?? null }`. Do not fetch skills. Identity_service 404 on this call → return 404.
+4. Fetch full profile from identity_service: `GET {IDENTITY_SERVICE_URL}/identity/public-profile/{id}`. If identity_service returns 404, return 404 to client immediately — do not consult `profile_privacy` row presence. 404 from identity_service always wins.
+5. Fetch skills from marketplace_service: `GET {MARKETPLACE_SERVICE_URL}/talent-skills/{id}`. If this fails (404 or error), treat as empty skills array (non-fatal).
+6. Apply privacy filter: omit fields whose flag is `false`.
 7. Return unified response.
+
+**Upstream URL notes:**
+- identity_service: `GET {IDENTITY_SERVICE_URL}/identity/public-profile/{id}` — confirmed route from `identity_service/src/main.rs`.
+- marketplace_service: `GET {MARKETPLACE_SERVICE_URL}/talent-skills/{id}` — route is mounted at service root (not prefixed). Confirm against `marketplace_service/src/main.rs` before implementing.
 
 **Response shape:**
 
@@ -77,12 +81,13 @@ CREATE TABLE profile_privacy (
 interface PublicProfileResponse {
   profile_id:    string;
   display_name:  string;
-  role:          string;
-  hidden:        boolean;           // true = profile_public=false, only name+role present
-  // conditionally present (omitted if privacy flag is false):
+  role:          string | null;      // null if not set (new user)
+  hidden:        boolean;            // true = profile_public=false; only name+role present
+  // conditionally present (omitted when privacy flag is false OR hidden=true):
   bio?:          string | null;
   hourly_rate_cents?: number | null;
   availability?: string;
+  // identity_tier and trust_score are intentionally absent when hidden=true
   identity_tier?: string;
   trust_score?:  number;
   skills?:       Array<{
@@ -96,14 +101,39 @@ interface PublicProfileResponse {
 
 **Error responses:**
 - `400` — invalid UUID format
-- `404` — profile not found (identity_service returns 404)
+- `404` — profile not found (identity_service returns 404; privacy row presence is irrelevant)
 - `500` — upstream fetch failed
+
+---
+
+### `GET /api/talent/privacy`
+
+**Auth:** Required — `auth()` session, uses `session.user.profileId`. Returns 401 if no session.
+
+**Logic:**
+1. Get `profileId` from session — return 401 if missing.
+2. Query `profile_privacy` for `profileId`.
+3. If no row, return the default values (all `true`).
+
+**Response shape:**
+```typescript
+{
+  profile_public:    boolean;  // default true
+  show_bio:          boolean;  // default true
+  show_rate:         boolean;  // default true
+  show_skills:       boolean;  // default true
+  show_trust_score:  boolean;  // default true
+  show_availability: boolean;  // default true
+}
+```
+
+---
 
 ### `PATCH /api/talent/privacy`
 
-**Auth:** Required — `auth()` session, uses `session.user.profileId`.
+**Auth:** Required — `auth()` session, uses `session.user.profileId`. Returns 401 if no session.
 
-**Request body:**
+**Request body** (all fields optional — partial update):
 ```typescript
 {
   profile_public?:    boolean;
@@ -117,9 +147,25 @@ interface PublicProfileResponse {
 
 **Logic:**
 1. Get `profileId` from session — return 401 if missing.
-2. Validate all provided fields are booleans.
-3. Upsert into `profile_privacy` (INSERT ... ON CONFLICT DO UPDATE).
-4. Return updated privacy settings.
+2. Validate all provided fields are booleans — return 400 on invalid type.
+3. Upsert with **partial merge** — unspecified fields keep their existing DB value using `COALESCE(EXCLUDED.field, profile_privacy.field)`. This prevents a partial PATCH from silently resetting unspecified flags to `TRUE`.
+
+```sql
+INSERT INTO profile_privacy (profile_id, profile_public, show_bio, show_rate, show_skills, show_trust_score, show_availability, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+ON CONFLICT (profile_id) DO UPDATE SET
+  profile_public    = COALESCE(EXCLUDED.profile_public,    profile_privacy.profile_public),
+  show_bio          = COALESCE(EXCLUDED.show_bio,          profile_privacy.show_bio),
+  show_rate         = COALESCE(EXCLUDED.show_rate,         profile_privacy.show_rate),
+  show_skills       = COALESCE(EXCLUDED.show_skills,       profile_privacy.show_skills),
+  show_trust_score  = COALESCE(EXCLUDED.show_trust_score,  profile_privacy.show_trust_score),
+  show_availability = COALESCE(EXCLUDED.show_availability, profile_privacy.show_availability),
+  updated_at        = NOW()
+```
+
+Since COALESCE skips NULL, pass `null` (not `undefined`) for unspecified fields in the query parameters so the merge works correctly.
+
+4. Return the full updated `profile_privacy` row (same shape as `GET /api/talent/privacy`).
 
 ---
 
@@ -133,11 +179,11 @@ interface PublicProfileResponse {
 
 | State | Condition | UI |
 |---|---|---|
-| Loading | Fetch in progress | Shimmer skeleton (avatar + 3 content blocks) |
-| Hidden | `hidden: true` | Name + "This talent has chosen to keep their profile private." |
-| Not found | 404 from API | "Profile not found." |
+| Loading | Fetch in progress | Shimmer skeleton (avatar block + 3 content blocks) |
+| Hidden | `hidden: true` | Avatar + name + "This talent has chosen to keep their profile private." |
+| Not found | 404 from API | "Profile not found." with back link |
 | Error | Network / 500 | "Could not load profile. Please try again." |
-| Loaded | Success | Full profile (with hidden sections omitted) |
+| Loaded | Success | Full profile (hidden sections simply absent — no "hidden" placeholder) |
 
 ### Loaded layout
 
@@ -149,7 +195,7 @@ interface PublicProfileResponse {
 ├──────────────────────────────────────────┤
 │ Bio text                           ──▶ show_bio
 ├──────────────────────────────────────────┤
-│ $150/hr  ·  Available              ──▶ show_rate
+│ $150/hr                            ──▶ show_rate
 ├──────────────────────────────────────────┤
 │ Trust Score [bar]  Tier badge      ──▶ show_trust_score
 ├──────────────────────────────────────────┤
@@ -159,27 +205,33 @@ interface PublicProfileResponse {
 └──────────────────────────────────────────┘
 ```
 
-- Avatar: coloured circle with initials (no file upload; initials from `display_name`)
-- Role badge: zinc border pill ("talent" / "client" / "agent-owner")
-- Trust score bar: amber progress bar 0–100, tier label beside it
-- Skills: tag name + proficiency dots (filled/empty) + green "Verified" if `verified_at` was set
-- No action buttons on this page (Express Interest is a separate MVP task)
-- Design tokens: zinc-950 background, zinc-900 surface, zinc-800 border, amber-400 accent — matches existing app
+- **Avatar:** coloured circle with initials derived from `display_name` (first char of first and last word)
+- **Role badge:** zinc border pill — display value: "talent" → "Talent", "agent-owner" → "Agency Owner", "client" → "Client"; null role → no badge
+- **Trust score bar:** amber progress bar 0–100, tier label beside it (UNVERIFIED / SOCIAL_VERIFIED / BIOMETRIC_VERIFIED)
+- **Skills:** tag name + 5 proficiency dots (filled/empty) + green "Verified" chip if `verified = true`
+- **No action buttons** on this page (Express Interest is a separate MVP task)
+- **Design tokens:** zinc-950 background, zinc-900 surface, zinc-800 border, amber-400 accent, font-mono text
 
 ### Page does NOT include
-- Sidebar navigation (public page — no app shell)
+- Sidebar navigation (public page — standalone layout)
 - Edit controls
 - Connected account details
 - BYOK / AI provider settings
-- Express Interest / contact button (deferred — separate task)
+- Express Interest / contact button (deferred)
 
 ---
 
 ## Profile Page Changes (`/profile`)
 
-Add a **Privacy** section at the bottom of the edit form (visible only when `editing === true`).
+Add a **Privacy** section at the bottom of the edit form — visible only when `editing === true`.
 
-Six toggle rows — one per privacy flag:
+### Loading privacy settings
+
+On mount (alongside existing profile/skills fetch), call `GET /api/talent/privacy` and store the result in a `privacy` state variable. Default to all-true while loading.
+
+### Privacy section UI
+
+Six toggle rows — one per flag:
 
 | Toggle label | Controls |
 |---|---|
@@ -190,49 +242,44 @@ Six toggle rows — one per privacy flag:
 | Show trust score & tier | `show_trust_score` |
 | Show availability | `show_availability` |
 
-When "Public profile" is OFF, a callout appears: "Your profile is hidden from public view. Only your name and role are visible."
+When `profile_public = false`, show an amber callout: "Your profile is hidden from public view. Only your name and role are visible."
 
-Privacy settings are **saved separately** from the main profile save — a dedicated "Save privacy" button calls `PATCH /api/talent/privacy`. This avoids coupling privacy state to the profile form.
+### Saving privacy
 
-Privacy settings are **loaded on mount** (alongside skills/profile) via `GET /api/talent/[profileId]` (reuses the public endpoint — no new fetch needed; the talent's own profile returns all fields regardless of privacy since the page is rendered server-side with no auth restriction on the GET endpoint).
+A dedicated **"Save privacy"** button at the bottom of the Privacy section calls `PATCH /api/talent/privacy` with the current toggle state. This is intentionally decoupled from the main "Save profile" button — privacy and profile data are independent saves.
 
-Wait — actually the public GET endpoint strips fields based on privacy. To load *current* privacy settings into the edit form, a separate fetch is needed: `GET /api/talent/privacy` (auth-gated, returns the raw `profile_privacy` row for the current user).
-
-### `GET /api/talent/privacy`
-
-**Auth:** Required.
-**Returns:** Current `profile_privacy` row for `session.user.profileId`, or all-default values if no row exists.
+Toggle implementation: simple boolean state, rendered as a styled `<button>` that toggles between on/off visually (amber = on, zinc = off). No external toggle library.
 
 ---
 
 ## Middleware Change
 
-`apps/web/middleware.ts` — add to the `isPublic` block:
+`apps/web/middleware.ts` — add to the `isPublic` block only (do **not** add to the matcher regex exclusion list):
 
 ```typescript
 pathname.startsWith("/talent/") ||          // Public talent profiles
-pathname.startsWith("/api/talent/") ||      // Public talent profile API
+pathname.startsWith("/api/talent/") ||      // Public talent API (profile + privacy GET/PATCH)
 ```
 
-Note: `/api/talent/privacy` is auth-gated in the route handler itself (returns 401), so it is safe to exclude from the middleware auth check. The middleware would otherwise redirect API calls to `/login` instead of returning 401.
+**Important:** `/api/talent/` must remain **inside** the matcher (not added to the negative lookahead). This ensures unauthenticated requests to `/api/talent/privacy` (PATCH) pass through the middleware and reach the route handler, which returns 401. If `/api/talent/` were in the matcher exclusion, the handler's auth check would never execute.
 
 ---
 
 ## Privacy Defaults
 
-- New users: no `profile_privacy` row → API returns all fields (open-world default = fully visible)
-- Talent can opt out of any section at any time
-- Toggling `profile_public = false` overrides all other flags — page shows hidden state regardless
+- New users: no `profile_privacy` row → all fields visible (open-world assumption)
+- Talent can toggle any section at any time
+- `profile_public = false` overrides all other flags — page shows hidden state regardless of other flags
 
 ---
 
 ## What This Does NOT Include
 
-- CV / document upload (no file storage in scope)
+- CV / document upload
 - Endorsements or client reviews
 - Work history / past projects
 - Contact / Express Interest button (separate task)
-- Profile sharing link button (nice-to-have, not required)
+- Profile sharing link / copy URL button
 - Analytics (profile view count)
 
 ---
@@ -240,12 +287,12 @@ Note: `/api/talent/privacy` is auth-gated in the route handler itself (returns 4
 ## Verification Criteria
 
 1. `GET /api/talent/{uuid}` returns full profile when no privacy row exists
-2. `GET /api/talent/{uuid}` omits `bio` when `show_bio = false`
-3. `GET /api/talent/{uuid}` returns `{ hidden: true, display_name, role }` when `profile_public = false`
-4. `GET /api/talent/{uuid}` returns 404 for unknown UUID
+2. `GET /api/talent/{uuid}` omits `bio` when `show_bio = false`; omits `trust_score`/`identity_tier` when `show_trust_score = false`
+3. `GET /api/talent/{uuid}` returns `{ hidden: true, display_name, role }` (role may be null) when `profile_public = false`
+4. `GET /api/talent/{uuid}` returns 404 for unknown UUID regardless of privacy row
 5. `PATCH /api/talent/privacy` returns 401 without session
-6. `PATCH /api/talent/privacy` upserts correctly on first and subsequent saves
-7. `/talent/[id]` renders without auth (middleware allows through)
-8. `/talent/[id]` shows shimmer → loads → displays correct sections
-9. Profile edit form shows Privacy section when `editing = true`
-10. Toggling privacy and saving reflects on the public page on reload
+6. `PATCH /api/talent/privacy` with only `{ show_bio: false }` does not reset other flags
+7. `GET /api/talent/privacy` returns all-true defaults when no row exists
+8. `/talent/[id]` renders without auth (middleware allows through)
+9. `/talent/[id]` shows shimmer → hidden/not-found/error/loaded states correctly
+10. Profile edit form shows Privacy section when `editing = true`; privacy saves independently
