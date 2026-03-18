@@ -8,6 +8,7 @@ mod escrow_consumer;
 mod handlers;
 mod integration_handlers;
 mod proposal_handlers;
+mod quality_gate_handlers;
 
 use anyhow::Result;
 use axum::{
@@ -98,6 +99,18 @@ async fn main() -> Result<()> {
         .route(
             "/integrations/by-external-id",
             get(integration_handlers::get_by_external_id),
+        )
+        .route(
+            "/quality-gate/scans",
+            get(quality_gate_handlers::list_scans).post(quality_gate_handlers::create_scan),
+        )
+        .route(
+            "/quality-gate/scans/{id}/status",
+            axum::routing::patch(quality_gate_handlers::update_scan_status),
+        )
+        .route(
+            "/quality-gate/scans/{id}/issues",
+            post(quality_gate_handlers::bulk_insert_issues),
         )
         .with_state(state)
         .layer(TraceLayer::new_for_http());
