@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { LogOut, MessageSquare, ExternalLink } from "lucide-react";
+import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
 import type { Session } from "@/lib/session";
 import { StitchingDashboard }    from "@/components/StitchingDashboard";
 import { VetoCard }               from "@/components/VetoCard";
@@ -318,156 +319,7 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col lg:flex-row min-h-screen">
-      {/* Sidebar — hidden on mobile */}
-      <aside className="hidden lg:flex lg:flex-col w-56 border-r border-zinc-800 bg-zinc-950 p-4 gap-6 lg:h-screen lg:sticky lg:top-0 overflow-y-auto">
-        <div className="flex items-center justify-between">
-          <img src="/logo.png" alt="AiStaff" className="h-20 w-auto" />
-          {/* Live / demo indicator */}
-          <span className={`font-mono text-[9px] px-1.5 py-0.5 rounded-sm border ${
-            serviceStatus === "live"
-              ? "border-green-800 text-green-400"
-              : serviceStatus === "demo"
-              ? "border-zinc-700 text-zinc-500"
-              : "border-zinc-800 text-zinc-700"
-          }`}>
-            {serviceStatus === "live" ? "LIVE" : serviceStatus === "demo" ? "DEMO" : "…"}
-          </span>
-        </div>
-        <nav className="flex flex-col gap-1">
-          {[
-            { label: "Dashboard",    href: "/dashboard",   active: true  },
-            { label: "Marketplace",  href: "/marketplace", active: false },
-            { label: "Leaderboard",  href: "/leaderboard", active: false },
-            { label: "Matching",     href: "/matching",    active: false },
-            { label: "Profile",      href: "/profile",     active: false },
-          ].map(({ label, href, active }) => (
-            <a
-              key={label}
-              href={href}
-              className={`px-3 py-2 rounded-sm font-mono text-xs transition-colors ${
-                active
-                  ? "text-zinc-100 bg-zinc-800"
-                  : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900"
-              }`}
-            >
-              {label}
-            </a>
-          ))}
-        </nav>
-        <div className="space-y-1">
-          <p className="font-mono text-[10px] text-zinc-300 uppercase tracking-widest px-3">AI Tools</p>
-          {[
-            { label: "Scoping",      href: "/scoping"      },
-            { label: "Outcomes",     href: "/outcomes"     },
-            { label: "Proposals",    href: "/proposals"    },
-            { label: "Pricing Tool", href: "/pricing-tool" },
-          ].map(({ label, href }) => (
-            <a key={label} href={href}
-              className="block px-3 py-1.5 rounded-sm font-mono text-xs text-zinc-600 hover:text-zinc-300 hover:bg-zinc-900 transition-colors"
-            >{label}</a>
-          ))}
-        </div>
-        <div className="space-y-1">
-          <p className="font-mono text-[10px] text-zinc-300 uppercase tracking-widest px-3">Payments</p>
-          {[
-            { label: "Escrow",             href: "/escrow"             },
-            { label: "Payouts",            href: "/payouts"            },
-            { label: "Billing",            href: "/billing"            },
-            { label: "Smart Contracts",    href: "/smart-contracts"    },
-            { label: "Outcome Listings",   href: "/outcome-listings"   },
-            { label: "Pricing Calculator", href: "/pricing-calculator" },
-          ].map(({ label, href }) => (
-            <a key={label} href={href}
-              className="block px-3 py-1.5 rounded-sm font-mono text-xs text-zinc-600 hover:text-zinc-300 hover:bg-zinc-900 transition-colors"
-            >{label}</a>
-          ))}
-        </div>
-        <div className="space-y-1">
-          <p className="font-mono text-[10px] text-zinc-300 uppercase tracking-widest px-3">Workspace</p>
-          {[
-            { label: "Work Diaries",  href: "/work-diaries"  },
-            { label: "Async Collab",  href: "/async-collab"  },
-            { label: "Collaboration", href: "/collab"         },
-            { label: "Success Layer", href: "/success-layer"  },
-            { label: "Quality Gate",  href: "/quality-gate"   },
-          ].map(({ label, href }) => (
-            <a key={label} href={href}
-              className="block px-3 py-1.5 rounded-sm font-mono text-xs text-zinc-600 hover:text-zinc-300 hover:bg-zinc-900 transition-colors"
-            >{label}</a>
-          ))}
-        </div>
-        <div className="space-y-1">
-          <p className="font-mono text-[10px] text-zinc-300 uppercase tracking-widest px-3">Legal</p>
-          {[
-            { label: "Legal Toolkit",    href: "/legal-toolkit"     },
-            { label: "Tax Engine",       href: "/tax-engine"        },
-            { label: "Reputation",       href: "/reputation-export" },
-            { label: "Transparency",     href: "/transparency"      },
-          ].map(({ label, href }) => (
-            <a key={label} href={href}
-              className="block px-3 py-1.5 rounded-sm font-mono text-xs text-zinc-600 hover:text-zinc-300 hover:bg-zinc-900 transition-colors"
-            >{label}</a>
-          ))}
-        </div>
-        <div className="space-y-1">
-          <p className="font-mono text-[10px] text-zinc-300 uppercase tracking-widest px-3">Notifications</p>
-          {[
-            { label: "Alerts",    href: "/notifications"         },
-            { label: "Reminders", href: "/reminders"             },
-            { label: "Settings",  href: "/notification-settings" },
-          ].map(({ label, href }) => (
-            <a key={label} href={href}
-              className="block px-3 py-1.5 rounded-sm font-mono text-xs text-zinc-600 hover:text-zinc-300 hover:bg-zinc-900 transition-colors"
-            >{label}</a>
-          ))}
-        </div>
-        <div className="space-y-1">
-          <p className="font-mono text-[10px] text-zinc-300 uppercase tracking-widest px-3">Enterprise</p>
-          {[
-            { label: "Industry Suites", href: "/vertical"               },
-            { label: "Enterprise Hub",  href: "/enterprise"             },
-            { label: "Talent Pools",    href: "/enterprise/talent-pools" },
-            { label: "SLA Dashboard",   href: "/enterprise/sla"         },
-            { label: "Global & Access", href: "/global"                 },
-          ].map(({ label, href }) => (
-            <a key={label} href={href}
-              className="block px-3 py-1.5 rounded-sm font-mono text-xs text-zinc-600 hover:text-zinc-300 hover:bg-zinc-900 transition-colors"
-            >{label}</a>
-          ))}
-        </div>
-
-        <div className="space-y-1">
-          <p className="font-mono text-[10px] text-zinc-300 uppercase tracking-widest px-3">Trust</p>
-          {[
-            { label: "Proof of Human", href: "/proof-of-human" },
-          ].map(({ label, href }) => (
-            <a key={label} href={href}
-              className="block px-3 py-1.5 rounded-sm font-mono text-xs text-zinc-600 hover:text-zinc-300 hover:bg-zinc-900 transition-colors"
-            >{label}</a>
-          ))}
-        </div>
-
-        {/* User chip + logout */}
-        <div className="mt-auto pt-4 border-t border-zinc-800 space-y-2">
-          {session && (
-            <div className="px-2 space-y-0.5">
-              <p className="font-mono text-xs text-zinc-300 truncate">{session.name}</p>
-              <p className="font-mono text-[10px] text-zinc-600 truncate capitalize">
-                {session.roles.join(" + ")} · Tier {session.identityTier} · {session.trustScore} pts
-              </p>
-            </div>
-          )}
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-2 w-full px-3 py-2 rounded-sm font-mono text-xs
-                       text-zinc-500 hover:text-red-400 hover:bg-red-950/30
-                       transition-colors border border-transparent hover:border-red-900/50"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            Sign out
-          </button>
-        </div>
-      </aside>
+      <AppSidebar />
 
       {/* Main content */}
       <main className="flex-1 p-4 pb-20 lg:pb-4 space-y-4 max-w-2xl mx-auto w-full">
@@ -670,22 +522,7 @@ export default function DashboardPage() {
 
       </main>
 
-      {/* Bottom tab bar — mobile only */}
-      <nav
-        className="lg:hidden fixed bottom-0 left-0 right-0 z-50
-                   h-16 flex items-center border-t border-zinc-800 bg-zinc-950"
-      >
-        {[
-          { label: "Dashboard", href: "/dashboard",   active: true  },
-          { label: "Market",    href: "/marketplace", active: false },
-          { label: "Matching",  href: "/matching",    active: false },
-          { label: "Profile",   href: "/profile",     active: false },
-        ].map(({ label, href, active }) => (
-          <a key={label} href={href} className={`nav-tab ${active ? "active" : ""}`}>
-            <span className="text-[10px]">{label}</span>
-          </a>
-        ))}
-      </nav>
+      <AppMobileNav />
     </div>
   );
 }

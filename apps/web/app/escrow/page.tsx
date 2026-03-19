@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Shield, CheckCircle2, Clock, AlertTriangle, ArrowUpRight, ChevronDown, ChevronUp } from "lucide-react";
+import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
 
 // ── Types & demo data ─────────────────────────────────────────────────────────
 
@@ -118,24 +119,6 @@ const DEMO_CONTRACTS: EscrowContract[] = [
   },
 ];
 
-// ── Sidebar nav ───────────────────────────────────────────────────────────────
-
-const SIDEBAR_NAV = [
-  { label: "Dashboard",    href: "/dashboard"   },
-  { label: "Marketplace",  href: "/marketplace" },
-  { label: "Leaderboard",  href: "/leaderboard" },
-  { label: "Matching",     href: "/matching"    },
-  { label: "Profile",      href: "/profile"     },
-];
-
-const PAYMENTS_NAV = [
-  { label: "Escrow",             href: "/escrow",              active: true },
-  { label: "Payouts",            href: "/payouts"              },
-  { label: "Billing",            href: "/billing"              },
-  { label: "Smart Contracts",    href: "/smart-contracts"      },
-  { label: "Outcome Listings",   href: "/outcome-listings"     },
-  { label: "Pricing Calculator", href: "/pricing-calculator"   },
-];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -337,27 +320,7 @@ export default function EscrowPage() {
 
   return (
     <div className="flex flex-col lg:flex-row min-h-screen">
-      {/* Sidebar */}
-      <aside className="hidden lg:flex lg:flex-col w-56 border-r border-zinc-800 bg-zinc-950 p-4 gap-6">
-        <span className="font-mono text-xs text-zinc-500 uppercase tracking-widest">AiStaffApp</span>
-        <nav className="flex flex-col gap-1">
-          {SIDEBAR_NAV.map(({ label, href }) => (
-            <Link key={label} href={href}
-              className="px-3 py-2 rounded-sm font-mono text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900 transition-colors"
-            >{label}</Link>
-          ))}
-        </nav>
-        <div className="space-y-1">
-          <p className="font-mono text-[10px] text-zinc-300 uppercase tracking-widest px-3">Payments</p>
-          {PAYMENTS_NAV.map(({ label, href, active: isActive }) => (
-            <Link key={label} href={href}
-              className={`block px-3 py-1.5 rounded-sm font-mono text-xs transition-colors ${
-                isActive ? "text-zinc-100 bg-zinc-800" : "text-zinc-600 hover:text-zinc-300 hover:bg-zinc-900"
-              }`}
-            >{label}</Link>
-          ))}
-        </div>
-      </aside>
+      <AppSidebar />
 
       {/* Main */}
       <main className="flex-1 p-4 pb-20 lg:pb-4 max-w-3xl mx-auto w-full space-y-4">
@@ -405,19 +368,7 @@ export default function EscrowPage() {
         </div>
       </main>
 
-      {/* Mobile nav */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 h-16 flex items-center border-t border-zinc-800 bg-zinc-950">
-        {[
-          { label: "Dash",    href: "/dashboard"  },
-          { label: "Market",  href: "/marketplace"},
-          { label: "Matching",href: "/matching"   },
-          { label: "Profile", href: "/profile"    },
-        ].map(({ label, href }) => (
-          <Link key={label} href={href} className="nav-tab">
-            <span className="text-[10px]">{label}</span>
-          </Link>
-        ))}
-      </nav>
+      <AppMobileNav />
     </div>
   );
 }

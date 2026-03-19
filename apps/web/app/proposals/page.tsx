@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Filter, X, CheckCircle2, AlertTriangle, Star } from "lucide-react";
+import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
 import { SubScoreBar } from "@/components/SubScoreBar";
 import { VettingBadge } from "@/components/VettingBadge";
 
@@ -140,22 +141,6 @@ const DEMO_PROPOSALS: Proposal[] = [
   },
 ];
 
-// ── Sidebar nav ────────────────────────────────────────────────────────────────
-
-const SIDEBAR_NAV = [
-  { label: "Dashboard",    href: "/dashboard"   },
-  { label: "Marketplace",  href: "/marketplace" },
-  { label: "Leaderboard",  href: "/leaderboard" },
-  { label: "Matching",     href: "/matching"    },
-  { label: "Profile",      href: "/profile"     },
-];
-
-const AI_TOOLS_NAV = [
-  { label: "Scoping",      href: "/scoping"      },
-  { label: "Outcomes",     href: "/outcomes"     },
-  { label: "Proposals",    href: "/proposals",    active: true },
-  { label: "Pricing Tool", href: "/pricing-tool" },
-];
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -336,27 +321,7 @@ export default function ProposalsPage() {
 
   return (
     <div className="flex flex-col lg:flex-row min-h-screen">
-      {/* Sidebar */}
-      <aside className="hidden lg:flex lg:flex-col w-56 border-r border-zinc-800 bg-zinc-950 p-4 gap-6">
-        <span className="font-mono text-xs text-zinc-500 uppercase tracking-widest">AiStaffApp</span>
-        <nav className="flex flex-col gap-1">
-          {SIDEBAR_NAV.map(({ label, href }) => (
-            <Link key={label} href={href}
-              className="px-3 py-2 rounded-sm font-mono text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900 transition-colors"
-            >{label}</Link>
-          ))}
-        </nav>
-        <div className="space-y-1">
-          <p className="font-mono text-[10px] text-zinc-300 uppercase tracking-widest px-3">AI Tools</p>
-          {AI_TOOLS_NAV.map(({ label, href, active }) => (
-            <Link key={label} href={href}
-              className={`block px-3 py-1.5 rounded-sm font-mono text-xs transition-colors ${
-                active ? "text-zinc-100 bg-zinc-800" : "text-zinc-600 hover:text-zinc-300 hover:bg-zinc-900"
-              }`}
-            >{label}</Link>
-          ))}
-        </div>
-      </aside>
+      <AppSidebar />
 
       <main className="flex-1 pb-20 lg:pb-0 max-w-2xl mx-auto w-full">
         {/* Header */}
@@ -440,19 +405,7 @@ export default function ProposalsPage() {
       {/* Detail panel */}
       {selected && <DetailPanel p={selected} onClose={() => setSelected(null)} />}
 
-      {/* Mobile nav */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 h-16 flex items-center border-t border-zinc-800 bg-zinc-950">
-        {[
-          { label: "Dash",     href: "/dashboard"  },
-          { label: "Market",   href: "/marketplace"},
-          { label: "Matching", href: "/matching"   },
-          { label: "Profile",  href: "/profile"    },
-        ].map(({ label, href }) => (
-          <Link key={label} href={href} className="nav-tab">
-            <span className="text-[10px]">{label}</span>
-          </Link>
-        ))}
-      </nav>
+      <AppMobileNav />
     </div>
   );
 }

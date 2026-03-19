@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { VettingBadge } from "@/components/VettingBadge";
 import type { PMAgentResponse, MatchCandidate, Sow } from "@/lib/pm-agent/types";
+import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -16,22 +17,6 @@ interface Message {
   content: string;
 }
 
-// ── Sidebar nav ────────────────────────────────────────────────────────────
-
-const SIDEBAR_NAV = [
-  { label: "Dashboard",    href: "/dashboard"   },
-  { label: "Marketplace",  href: "/marketplace" },
-  { label: "Leaderboard",  href: "/leaderboard" },
-  { label: "Matching",     href: "/matching"    },
-  { label: "Profile",      href: "/profile"     },
-];
-
-const AI_TOOLS_NAV = [
-  { label: "Scoping",      href: "/scoping",      active: true },
-  { label: "Outcomes",     href: "/outcomes"     },
-  { label: "Proposals",    href: "/proposals"    },
-  { label: "Pricing Tool", href: "/pricing-tool" },
-];
 
 // ── FreelancerRow ──────────────────────────────────────────────────────────
 
@@ -159,27 +144,7 @@ export default function ScopingPage() {
 
   return (
     <div className="flex flex-col lg:flex-row min-h-screen">
-      {/* Sidebar */}
-      <aside className="hidden lg:flex lg:flex-col w-56 border-r border-zinc-800 bg-zinc-950 p-4 gap-6">
-        <span className="font-mono text-xs text-zinc-500 uppercase tracking-widest">AiStaffApp</span>
-        <nav className="flex flex-col gap-1">
-          {SIDEBAR_NAV.map(({ label, href }) => (
-            <Link key={label} href={href}
-              className="px-3 py-2 rounded-sm font-mono text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900 transition-colors"
-            >{label}</Link>
-          ))}
-        </nav>
-        <div className="space-y-1">
-          <p className="font-mono text-[10px] text-zinc-300 uppercase tracking-widest px-3">AI Tools</p>
-          {AI_TOOLS_NAV.map(({ label, href, active }) => (
-            <Link key={label} href={href}
-              className={`block px-3 py-1.5 rounded-sm font-mono text-xs transition-colors ${
-                active ? "text-zinc-100 bg-zinc-800" : "text-zinc-600 hover:text-zinc-300 hover:bg-zinc-900"
-              }`}
-            >{label}</Link>
-          ))}
-        </div>
-      </aside>
+      <AppSidebar />
 
       {/* Main */}
       <main className="flex-1 flex flex-col pb-20 lg:pb-0 max-w-2xl mx-auto w-full">
@@ -383,19 +348,7 @@ export default function ScopingPage() {
         )}
       </main>
 
-      {/* Mobile bottom nav */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 h-16 flex items-center border-t border-zinc-800 bg-zinc-950">
-        {[
-          { label: "Dash",     href: "/dashboard"  },
-          { label: "Market",   href: "/marketplace"},
-          { label: "Matching", href: "/matching"   },
-          { label: "Profile",  href: "/profile"    },
-        ].map(({ label, href }) => (
-          <Link key={label} href={href} className="nav-tab">
-            <span className="text-[10px]">{label}</span>
-          </Link>
-        ))}
-      </nav>
+      <AppMobileNav />
     </div>
   );
 }

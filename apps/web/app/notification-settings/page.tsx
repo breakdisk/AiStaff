@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useState, useEffect, useCallback } from "react";
+import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
 import {
   Bell, Mail, MessageSquare, Smartphone, Check, Settings,
   Clock, Shield, AlertTriangle, FileText, Zap, ChevronDown,
@@ -424,92 +425,7 @@ export default function NotificationSettingsPage() {
 
   return (
     <div className="flex flex-col lg:flex-row min-h-screen">
-      {/* Sidebar */}
-      <aside className="hidden lg:flex lg:flex-col w-56 border-r border-zinc-800 bg-zinc-950 p-4 gap-6">
-        <span className="font-mono text-xs text-zinc-500 uppercase tracking-widest">AiStaffApp</span>
-        <nav className="flex flex-col gap-1">
-          {[
-            { label: "Dashboard",   href: "/dashboard"   },
-            { label: "Marketplace", href: "/marketplace" },
-            { label: "Leaderboard", href: "/leaderboard" },
-            { label: "Matching",    href: "/matching"    },
-            { label: "Profile",     href: "/profile"     },
-          ].map(({ label, href }) => (
-            <a key={label} href={href}
-              className="px-3 py-2 rounded-sm font-mono text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900 transition-colors"
-            >{label}</a>
-          ))}
-        </nav>
-        <div className="space-y-1">
-          <p className="font-mono text-[10px] text-zinc-300 uppercase tracking-widest px-3">AI Tools</p>
-          {[
-            { label: "Scoping",      href: "/scoping"      },
-            { label: "Outcomes",     href: "/outcomes"     },
-            { label: "Proposals",    href: "/proposals"    },
-            { label: "Pricing Tool", href: "/pricing-tool" },
-          ].map(({ label, href }) => (
-            <a key={label} href={href}
-              className="block px-3 py-1.5 rounded-sm font-mono text-xs text-zinc-600 hover:text-zinc-300 hover:bg-zinc-900 transition-colors"
-            >{label}</a>
-          ))}
-        </div>
-        <div className="space-y-1">
-          <p className="font-mono text-[10px] text-zinc-300 uppercase tracking-widest px-3">Payments</p>
-          {[
-            { label: "Escrow",             href: "/escrow"             },
-            { label: "Payouts",            href: "/payouts"            },
-            { label: "Billing",            href: "/billing"            },
-            { label: "Smart Contracts",    href: "/smart-contracts"    },
-            { label: "Outcome Listings",   href: "/outcome-listings"   },
-            { label: "Pricing Calculator", href: "/pricing-calculator" },
-          ].map(({ label, href }) => (
-            <a key={label} href={href}
-              className="block px-3 py-1.5 rounded-sm font-mono text-xs text-zinc-600 hover:text-zinc-300 hover:bg-zinc-900 transition-colors"
-            >{label}</a>
-          ))}
-        </div>
-        <div className="space-y-1">
-          <p className="font-mono text-[10px] text-zinc-300 uppercase tracking-widest px-3">Workspace</p>
-          {[
-            { label: "Work Diaries",  href: "/work-diaries"  },
-            { label: "Async Collab",  href: "/async-collab"  },
-            { label: "Collaboration", href: "/collab"         },
-            { label: "Success Layer", href: "/success-layer"  },
-            { label: "Quality Gate",  href: "/quality-gate"   },
-          ].map(({ label, href }) => (
-            <a key={label} href={href}
-              className="block px-3 py-1.5 rounded-sm font-mono text-xs text-zinc-600 hover:text-zinc-300 hover:bg-zinc-900 transition-colors"
-            >{label}</a>
-          ))}
-        </div>
-        <div className="space-y-1">
-          <p className="font-mono text-[10px] text-zinc-300 uppercase tracking-widest px-3">Legal</p>
-          {[
-            { label: "Legal Toolkit", href: "/legal-toolkit"     },
-            { label: "Tax Engine",    href: "/tax-engine"        },
-            { label: "Reputation",    href: "/reputation-export" },
-            { label: "Transparency",  href: "/transparency"      },
-          ].map(({ label, href }) => (
-            <a key={label} href={href}
-              className="block px-3 py-1.5 rounded-sm font-mono text-xs text-zinc-600 hover:text-zinc-300 hover:bg-zinc-900 transition-colors"
-            >{label}</a>
-          ))}
-        </div>
-        <div className="space-y-1">
-          <p className="font-mono text-[10px] text-zinc-300 uppercase tracking-widest px-3">Notifications</p>
-          {[
-            { label: "Alerts",    href: "/notifications",        active: false },
-            { label: "Reminders", href: "/reminders",            active: false },
-            { label: "Settings",  href: "/notification-settings",active: true  },
-          ].map(({ label, href, active }) => (
-            <a key={label} href={href}
-              className={`block px-3 py-1.5 rounded-sm font-mono text-xs transition-colors ${
-                active ? "text-zinc-100 bg-zinc-800" : "text-zinc-600 hover:text-zinc-300 hover:bg-zinc-900"
-              }`}
-            >{label}</a>
-          ))}
-        </div>
-      </aside>
+      <AppSidebar />
 
       {/* Main */}
       <main className="flex-1 p-4 pb-20 lg:pb-4 space-y-6 max-w-2xl mx-auto w-full">
@@ -723,6 +639,7 @@ export default function NotificationSettingsPage() {
           )}
         </div>
       </main>
+      <AppMobileNav />
     </div>
   );
 }

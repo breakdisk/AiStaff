@@ -23,41 +23,8 @@ import {
   type WarrantyClaim,
 } from "@/lib/api";
 import { downloadContractPdf } from "@/lib/download-pdf";
+import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
 
-// ── Nav ───────────────────────────────────────────────────────────────────────
-const MAIN_NAV = [
-  { href: "/dashboard",   label: "Dashboard",  icon: LayoutDashboard },
-  { href: "/marketplace", label: "Marketplace", icon: Store },
-  { href: "/matching",    label: "Matching",    icon: Shuffle },
-  { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
-];
-const AI_TOOLS_NAV = [
-  { href: "/matching",     label: "AI Matching", icon: Brain },
-  { href: "/scoping",      label: "Scoping",      icon: ScanSearch },
-  { href: "/outcomes",     label: "Outcomes",     icon: Target },
-  { href: "/proposals",    label: "Proposals",    icon: GitMerge },
-  { href: "/pricing-tool", label: "Pricing",      icon: TrendingUp },
-];
-const PAYMENTS_NAV = [
-  { href: "/escrow",             label: "Escrow",     icon: Lock },
-  { href: "/payouts",            label: "Payouts",    icon: Wallet },
-  { href: "/billing",            label: "Billing",    icon: Receipt },
-  { href: "/smart-contracts",    label: "Contracts",  icon: FileText },
-  { href: "/pricing-calculator", label: "Calculator", icon: Calculator },
-];
-const WORKSPACE_NAV = [
-  { href: "/work-diaries",  label: "Work Diaries",  icon: BookOpen },
-  { href: "/async-collab",  label: "Async Collab",  icon: Video },
-  { href: "/collab",        label: "Collaboration", icon: MessageSquare },
-  { href: "/success-layer", label: "Success Layer", icon: Layers },
-  { href: "/quality-gate",  label: "Quality Gate",  icon: ShieldCheck },
-];
-const LEGAL_NAV = [
-  { href: "/legal-toolkit",     label: "Legal Toolkit", icon: Scale,         active: true },
-  { href: "/tax-engine",        label: "Tax Engine",    icon: Landmark },
-  { href: "/reputation-export", label: "Reputation",   icon: Link2 },
-  { href: "/transparency",      label: "Transparency",  icon: Eye },
-];
 
 // ── Template definitions ──────────────────────────────────────────────────────
 type TemplateKind = "nda" | "ip_assignment" | "sow" | "service_agreement" | "data_processing";
@@ -959,45 +926,7 @@ export default function LegalToolkitPage() {
 
   return (
     <div className="flex min-h-screen bg-zinc-950 text-zinc-100">
-      {/* Sidebar */}
-      <aside className="hidden sm:flex flex-col w-56 border-r border-zinc-800 px-2 py-4 gap-1 flex-shrink-0">
-        {MAIN_NAV.map(({ href, label, icon: Icon }) => (
-          <Link key={href} href={href} className="flex items-center gap-2.5 px-2 py-1.5 rounded-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 font-mono text-xs transition-colors">
-            <Icon className="w-3.5 h-3.5" />{label}
-          </Link>
-        ))}
-        <p className="font-mono text-[10px] text-zinc-600 uppercase tracking-widest px-2 mt-4 mb-1">AI Tools</p>
-        {AI_TOOLS_NAV.map(({ href, label, icon: Icon }) => (
-          <Link key={href} href={href} className="flex items-center gap-2.5 px-2 py-1 rounded-sm text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 font-mono text-xs transition-colors">
-            <Icon className="w-3 h-3" />{label}
-          </Link>
-        ))}
-        <p className="font-mono text-[10px] text-zinc-600 uppercase tracking-widest px-2 mt-4 mb-1">Payments</p>
-        {PAYMENTS_NAV.map(({ href, label, icon: Icon }) => (
-          <Link key={href} href={href} className="flex items-center gap-2.5 px-2 py-1 rounded-sm text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 font-mono text-xs transition-colors">
-            <Icon className="w-3 h-3" />{label}
-          </Link>
-        ))}
-        <p className="font-mono text-[10px] text-zinc-600 uppercase tracking-widest px-2 mt-4 mb-1">Workspace</p>
-        {WORKSPACE_NAV.map(({ href, label, icon: Icon }) => (
-          <Link key={href} href={href} className="flex items-center gap-2.5 px-2 py-1 rounded-sm text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 font-mono text-xs transition-colors">
-            <Icon className="w-3 h-3" />{label}
-          </Link>
-        ))}
-        <p className="font-mono text-[10px] text-zinc-600 uppercase tracking-widest px-2 mt-4 mb-1">Legal</p>
-        {LEGAL_NAV.map(({ href, label, icon: Icon, active }) => (
-          <Link key={href} href={href} className={`flex items-center gap-2.5 px-2 py-1 rounded-sm font-mono text-xs transition-colors ${
-            active ? "text-amber-400 bg-amber-950/40 border border-amber-900/50" : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800"
-          }`}>
-            <Icon className="w-3 h-3" />{label}
-          </Link>
-        ))}
-        <div className="mt-auto">
-          <Link href="/profile" className="flex items-center gap-2.5 px-2 py-1.5 rounded-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 font-mono text-xs transition-colors">
-            <User className="w-3.5 h-3.5" />Profile
-          </Link>
-        </div>
-      </aside>
+      <AppSidebar />
 
       {/* Main */}
       <main className="flex-1 min-w-0 px-4 sm:px-6 py-6 pb-24 sm:pb-6">
@@ -1153,20 +1082,7 @@ export default function LegalToolkitPage() {
         />
       )}
 
-      {/* Mobile nav */}
-      <nav className="sm:hidden fixed bottom-0 left-0 right-0 h-16 bg-zinc-950 border-t border-zinc-800 flex items-center justify-around px-2 z-50">
-        {[
-          { href: "/dashboard",   icon: LayoutDashboard, label: "Dash"    },
-          { href: "/marketplace", icon: Store,            label: "Market"  },
-          { href: "/matching",    icon: Shuffle,          label: "Matching" },
-          { href: "/profile",     icon: User,             label: "Profile" },
-        ].map(({ href, icon: Icon, label }) => (
-          <Link key={href} href={href} className="flex flex-col items-center gap-1 text-zinc-500 hover:text-zinc-300 transition-colors min-w-[56px] py-2">
-            <Icon className="w-5 h-5" />
-            <span className="font-mono text-[10px]">{label}</span>
-          </Link>
-        ))}
-      </nav>
+      <AppMobileNav />
     </div>
   );
 }

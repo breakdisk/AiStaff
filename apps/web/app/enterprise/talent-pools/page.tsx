@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   Users, Plus, ChevronDown, Check, X, Trash2, CheckCheck,
 } from "lucide-react";
+import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -254,49 +255,6 @@ function AddCandidateAccordion({ onAdd }: { onAdd: (t: PoolTalent) => void }) {
   );
 }
 
-// ── Sidebar ───────────────────────────────────────────────────────────────────
-
-function Sidebar() {
-  return (
-    <aside className="hidden lg:flex lg:flex-col w-56 border-r border-zinc-800 bg-zinc-950 p-4 gap-6">
-      <span className="font-mono text-xs text-zinc-500 uppercase tracking-widest">AiStaffApp</span>
-      <nav className="flex flex-col gap-1">
-        {[
-          { label: "Dashboard",   href: "/dashboard"   },
-          { label: "Marketplace", href: "/marketplace" },
-          { label: "Leaderboard", href: "/leaderboard" },
-          { label: "Matching",    href: "/matching"    },
-          { label: "Profile",     href: "/profile"     },
-        ].map(({ label, href }) => (
-          <a key={label} href={href}
-            className="px-3 py-2 rounded-sm font-mono text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900 transition-colors"
-          >{label}</a>
-        ))}
-      </nav>
-      {[
-        { label: "Payments",      items: [["Escrow","/escrow"],["Payouts","/payouts"],["Billing","/billing"],["Smart Contracts","/smart-contracts"],["Outcome Listings","/outcome-listings"],["Pricing Calculator","/pricing-calculator"]] },
-        { label: "Workspace",     items: [["Work Diaries","/work-diaries"],["Async Collab","/async-collab"],["Collaboration","/collab"],["Success Layer","/success-layer"],["Quality Gate","/quality-gate"]] },
-        { label: "Legal",         items: [["Legal Toolkit","/legal-toolkit"],["Tax Engine","/tax-engine"],["Reputation","/reputation-export"],["Transparency","/transparency"]] },
-        { label: "Notifications", items: [["Alerts","/notifications"],["Reminders","/reminders"],["Settings","/notification-settings"]] },
-        { label: "Enterprise",    items: [["Industry Suites","/vertical"],["Enterprise Hub","/enterprise"],["Talent Pools","/enterprise/talent-pools"],["SLA Dashboard","/enterprise/sla"],["Global & Access","/global"]] },
-      ].map(({ label, items }) => (
-        <div key={label} className="space-y-1">
-          <p className="font-mono text-[10px] text-zinc-300 uppercase tracking-widest px-3">{label}</p>
-          {items.map(([lbl, href]) => (
-            <a key={lbl} href={href}
-              className={`block px-3 py-1.5 rounded-sm font-mono text-xs transition-colors ${
-                lbl === "Talent Pools"
-                  ? "text-zinc-100 bg-zinc-800"
-                  : "text-zinc-600 hover:text-zinc-300 hover:bg-zinc-900"
-              }`}
-            >{lbl}</a>
-          ))}
-        </div>
-      ))}
-    </aside>
-  );
-}
-
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function TalentPoolsPage() {
@@ -327,7 +285,7 @@ export default function TalentPoolsPage() {
 
   return (
     <div className="flex flex-col lg:flex-row min-h-screen">
-      <Sidebar />
+      <AppSidebar />
 
       <main className="flex-1 p-4 pb-20 lg:pb-4 space-y-4 max-w-3xl mx-auto w-full">
         {/* Header */}
@@ -399,6 +357,7 @@ export default function TalentPoolsPage() {
           Approved talent can be assigned to any deployment in your org. Pending candidates require manual review before activation.
         </p>
       </main>
+      <AppMobileNav />
     </div>
   );
 }

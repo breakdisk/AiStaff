@@ -6,6 +6,7 @@ import {
   Shield, Info, ChevronRight, AlertTriangle, CheckCircle,
   Clock, User, Cpu, BookOpen, Save, Filter,
 } from "lucide-react";
+import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
 
 /* ─── Demo data ─────────────────────────────────────── */
 const POH_SCORE = 88;
@@ -113,15 +114,6 @@ const AUDIT_LABEL: Record<AuditKind, string> = {
 
 type AuditFilter = "all" | "human" | "ai" | "deep";
 
-/* ─── Sidebar nav (same pattern as other pages) ──────── */
-const MAIN_NAV = [
-  { label: "Dashboard",   href: "/dashboard"   },
-  { label: "Marketplace", href: "/marketplace" },
-  { label: "Leaderboard", href: "/leaderboard" },
-];
-const TRUST_NAV = [
-  { label: "Proof of Human", href: "/proof-of-human" },
-];
 
 /* ═══════════════════════════════════════════════════════
    HLI HERO — SVG circular gauge
@@ -540,38 +532,7 @@ export default function ProofOfHumanPage() {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex">
-
-      {/* ── Sidebar ─────────────────────────────────────── */}
-      <aside className="hidden md:flex flex-col w-52 shrink-0 border-r border-zinc-800 p-3 gap-6">
-        <div className="flex items-center gap-2 py-2">
-          <span className="font-mono text-sm font-bold text-amber-400">AiStaff</span>
-          <span className="text-[10px] text-zinc-600 border border-zinc-800 px-1 rounded-sm">POH</span>
-        </div>
-
-        {/* main nav */}
-        <nav className="flex flex-col gap-1">
-          {MAIN_NAV.map(n => (
-            <Link key={n.href} href={n.href}
-              className="flex items-center gap-2 px-2 py-1.5 text-xs text-zinc-400 rounded-sm
-                         hover:bg-zinc-800 hover:text-zinc-100 transition-colors">
-              {n.label}
-            </Link>
-          ))}
-        </nav>
-
-        {/* trust nav */}
-        <div>
-          <p className="text-[10px] text-zinc-600 uppercase tracking-wider px-2 mb-1">Trust</p>
-          {TRUST_NAV.map(n => (
-            <Link key={n.href} href={n.href}
-              className="flex items-center gap-2 px-2 py-1.5 text-xs rounded-sm
-                         bg-zinc-800 text-amber-400 font-medium">
-              <Shield size={11} />
-              {n.label}
-            </Link>
-          ))}
-        </div>
-      </aside>
+      <AppSidebar />
 
       {/* ── Main ────────────────────────────────────────── */}
       <main className="flex-1 min-w-0 p-4 md:p-6 space-y-4">
@@ -630,17 +591,7 @@ export default function ProofOfHumanPage() {
         {/* section 7 — defense box */}
         <DefenseBox />
 
-        {/* mobile bottom nav */}
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-zinc-950 border-t border-zinc-800
-                        flex items-center justify-around px-4 z-50">
-          {MAIN_NAV.map(n => (
-            <Link key={n.href} href={n.href}
-              className="text-[10px] text-zinc-500 flex flex-col items-center gap-0.5 hover:text-zinc-100">
-              <ChevronRight size={14} />
-              {n.label}
-            </Link>
-          ))}
-        </nav>
+        <AppMobileNav />
       </main>
     </div>
   );

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { MessageSquare, Paperclip, GitBranch, Send, File, Image, Archive, ExternalLink, Clock, X, Plus, Loader } from "lucide-react";
+import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
 
 // ── Types & demo data ─────────────────────────────────────────────────────────
 
@@ -70,23 +71,6 @@ const DEMO_FILES: SharedFile[] = [
 ];
 
 
-// ── Sidebar nav ───────────────────────────────────────────────────────────────
-
-const SIDEBAR_NAV = [
-  { label: "Dashboard",   href: "/dashboard"   },
-  { label: "Marketplace", href: "/marketplace" },
-  { label: "Leaderboard", href: "/leaderboard" },
-  { label: "Matching",    href: "/matching"    },
-  { label: "Profile",     href: "/profile"     },
-];
-
-const WORKSPACE_NAV = [
-  { label: "Work Diaries",  href: "/work-diaries"            },
-  { label: "Async Collab",  href: "/async-collab"            },
-  { label: "Collaboration", href: "/collab",    active: true },
-  { label: "Success Layer", href: "/success-layer"           },
-  { label: "Quality Gate",  href: "/quality-gate"            },
-];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -297,27 +281,7 @@ function CollabInner() {
 
   return (
     <div className="flex flex-col lg:flex-row min-h-screen">
-      {/* Sidebar */}
-      <aside className="hidden lg:flex lg:flex-col w-56 border-r border-zinc-800 bg-zinc-950 p-4 gap-6">
-        <span className="font-mono text-xs text-zinc-500 uppercase tracking-widest">AiStaffApp</span>
-        <nav className="flex flex-col gap-1">
-          {SIDEBAR_NAV.map(({ label, href }) => (
-            <Link key={label} href={href}
-              className="px-3 py-2 rounded-sm font-mono text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900 transition-colors"
-            >{label}</Link>
-          ))}
-        </nav>
-        <div className="space-y-1">
-          <p className="font-mono text-[10px] text-zinc-300 uppercase tracking-widest px-3">Workspace</p>
-          {WORKSPACE_NAV.map(({ label, href, active }) => (
-            <Link key={label} href={href}
-              className={`block px-3 py-1.5 rounded-sm font-mono text-xs transition-colors ${
-                active ? "text-zinc-100 bg-zinc-800" : "text-zinc-600 hover:text-zinc-300 hover:bg-zinc-900"
-              }`}
-            >{label}</Link>
-          ))}
-        </div>
-      </aside>
+      <AppSidebar />
 
       {/* Main */}
       <main className="flex-1 flex flex-col pb-16 lg:pb-0 max-w-3xl mx-auto w-full">
@@ -590,19 +554,7 @@ function CollabInner() {
         )}
       </main>
 
-      {/* Mobile nav */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 h-16 flex items-center border-t border-zinc-800 bg-zinc-950">
-        {[
-          { label: "Dash",    href: "/dashboard"   },
-          { label: "Market",  href: "/marketplace" },
-          { label: "Matching",href: "/matching"    },
-          { label: "Profile", href: "/profile"     },
-        ].map(({ label, href }) => (
-          <Link key={label} href={href} className="nav-tab">
-            <span className="text-[10px]">{label}</span>
-          </Link>
-        ))}
-      </nav>
+      <AppMobileNav />
     </div>
   );
 }

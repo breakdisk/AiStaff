@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
 import {
   Bot, User, ArrowRight, Loader2, FileText, CheckCircle2,
   AlertCircle, Edit3, Send, ChevronDown, ChevronUp,
@@ -44,20 +45,6 @@ interface SubmitResult {
   };
 }
 
-// ── Sidebar nav ────────────────────────────────────────────────────────────
-
-const SIDEBAR_NAV = [
-  { label: "Dashboard",   href: "/dashboard"  },
-  { label: "Marketplace", href: "/marketplace"},
-  { label: "Matching",    href: "/matching"   },
-];
-
-const AI_TOOLS_NAV = [
-  { label: "Scoping",      href: "/scoping"       },
-  { label: "Proposals",    href: "/proposals"     },
-  { label: "Draft Proposal", href: "/proposals/draft", active: true },
-  { label: "Pricing Tool", href: "/pricing-tool"  },
-];
 
 // ── BriefPanel ─────────────────────────────────────────────────────────────
 
@@ -437,27 +424,7 @@ export default function ProposalDraftPage() {
 
   return (
     <div className="flex min-h-screen bg-zinc-950 text-zinc-100">
-      {/* Sidebar */}
-      <aside className="hidden lg:flex flex-col w-56 shrink-0 border-r border-zinc-800 p-4 gap-6">
-        <span className="font-mono text-xs text-zinc-500 uppercase tracking-widest">AiStaffApp</span>
-        <nav className="flex flex-col gap-1">
-          {SIDEBAR_NAV.map(({ label, href }) => (
-            <Link key={label} href={href}
-              className="px-3 py-2 rounded-sm font-mono text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900 transition-colors"
-            >{label}</Link>
-          ))}
-        </nav>
-        <div className="space-y-1">
-          <p className="font-mono text-[10px] text-zinc-300 uppercase tracking-widest px-3">AI Tools</p>
-          {AI_TOOLS_NAV.map(({ label, href, active }) => (
-            <Link key={label} href={href}
-              className={`block px-3 py-1.5 rounded-sm font-mono text-xs transition-colors ${
-                active ? "text-zinc-100 bg-zinc-800" : "text-zinc-600 hover:text-zinc-300 hover:bg-zinc-900"
-              }`}
-            >{label}</Link>
-          ))}
-        </div>
-      </aside>
+      <AppSidebar />
 
       {/* Main */}
       <main className="flex-1 flex flex-col lg:flex-row min-w-0 pb-20 lg:pb-0">
@@ -588,33 +555,7 @@ export default function ProposalDraftPage() {
         </div>
       </main>
 
-      {/* Mobile tab bar */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 h-16 flex items-center
-                      border-t border-zinc-800 bg-zinc-950">
-        {[
-          { label: "Brief",   tab: "brief"   as const },
-          { label: "Copilot", tab: "copilot" as const },
-        ].map(({ label, tab }) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`flex-1 flex flex-col items-center justify-center gap-0.5 font-mono text-[10px] transition-colors ${
-              activeTab === tab ? "text-amber-400" : "text-zinc-600"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-        {[
-          { label: "Dash",    href: "/dashboard"  },
-          { label: "Market",  href: "/marketplace"},
-          { label: "Profile", href: "/profile"    },
-        ].map(({ label, href }) => (
-          <Link key={label} href={href} className="nav-tab">
-            <span className="text-[10px]">{label}</span>
-          </Link>
-        ))}
-      </nav>
+      <AppMobileNav />
     </div>
   );
 }
