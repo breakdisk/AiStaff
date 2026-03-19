@@ -287,6 +287,9 @@ struct PublicProfileResponse {
     hourly_rate_cents: Option<i32>,
     availability: Option<String>,
     role: Option<String>,
+    // Added in migration 0045 — GitHub social proof metrics
+    github_followers: i32,
+    github_stars: i32,
 }
 
 async fn public_profile(
@@ -298,7 +301,8 @@ async fn public_profile(
     let res = sqlx::query(
         "SELECT display_name, trust_score, identity_tier::TEXT AS identity_tier,
                 github_uid, linkedin_uid, google_uid,
-                bio, hourly_rate_cents, availability, role
+                bio, hourly_rate_cents, availability, role,
+                github_followers, github_stars
          FROM unified_profiles WHERE id = $1",
     )
     .bind(id)
@@ -317,6 +321,8 @@ async fn public_profile(
             let hourly_rate_cents: Option<i32> = row.get("hourly_rate_cents");
             let availability: Option<String> = row.get("availability");
             let role: Option<String> = row.get("role");
+            let github_followers: i32 = row.get("github_followers");
+            let github_stars: i32 = row.get("github_stars");
 
             Json(PublicProfileResponse {
                 profile_id: id,
@@ -330,6 +336,8 @@ async fn public_profile(
                 hourly_rate_cents,
                 availability,
                 role,
+                github_followers,
+                github_stars,
             })
             .into_response()
         }
