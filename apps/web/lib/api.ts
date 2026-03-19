@@ -194,6 +194,10 @@ export function fetchTalentSkills(profileId: string): Promise<{ skills: TalentSk
   return apiFetch(`/api/marketplace/talent-skills/${profileId}`);
 }
 
+export function fetchListingRequiredSkills(listingId: string): Promise<{ skills: SkillTag[] }> {
+  return apiFetch(`/api/listings/${listingId}/required-skills`);
+}
+
 export function updateTalentSkills(
   profileId: string,
   skills:    { tag_id: string; proficiency: number }[],

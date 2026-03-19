@@ -12,6 +12,36 @@ const pool = new Pool({
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// Public — no auth required
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id: listingId } = await params;
+  if (!UUID_RE.test(listingId)) {
+    return NextResponse.json({ error: "Invalid listing ID" }, { status: 400 });
+  }
+
+  let client;
+  try {
+    client = await pool.connect();
+    const result = await client.query(
+      `SELECT st.id, st.tag, st.domain
+         FROM agent_required_skills ars
+         JOIN skill_tags st ON ars.tag_id = st.id
+        WHERE ars.listing_id = $1
+        ORDER BY st.domain, st.tag`,
+      [listingId],
+    );
+    return NextResponse.json({ skills: result.rows });
+  } catch (err) {
+    console.error("[GET api/listings/[id]/required-skills]", err);
+    return NextResponse.json({ skills: [] }, { status: 500 });
+  } finally {
+    client?.release();
+  }
+}
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },

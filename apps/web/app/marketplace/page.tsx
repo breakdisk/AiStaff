@@ -9,7 +9,8 @@ import {
 } from "lucide-react";
 import {
   fetchListings, createListing, expressInterest, fetchPublicProfile,
-  type AgentListing, type ListingCategory, type SellerType,
+  fetchListingRequiredSkills, fetchTalentSkills,
+  type AgentListing, type ListingCategory, type SellerType, type SkillTag,
 } from "@/lib/api";
 import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
 import { VettingBadge }  from "@/components/VettingBadge";
@@ -392,6 +393,36 @@ function ListingDetailSheet({ listing, userTier, profileId, marketView, onClose 
   marketView: MarketView;
   onClose:    () => void;
 }) {
+  const [reqSkills,    setReqSkills]    = useState<SkillTag[]>([]);
+  const [myTagIds,     setMyTagIds]     = useState<Set<string>>(new Set());
+  const [skillsLoaded, setSkillsLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSkillsLoaded(false);
+    setReqSkills([]);
+    setMyTagIds(new Set());
+
+    async function load() {
+      const [reqRes, myRes] = await Promise.allSettled([
+        fetchListingRequiredSkills(listing.id),
+        profileId && marketView === "freelancer"
+          ? fetchTalentSkills(profileId)
+          : Promise.resolve(null),
+      ]);
+      if (cancelled) return;
+      if (reqRes.status === "fulfilled") setReqSkills(reqRes.value.skills);
+      if (myRes.status === "fulfilled" && myRes.value) {
+        setMyTagIds(new Set(myRes.value.skills.map((s) => s.tag_id)));
+      }
+      setSkillsLoaded(true);
+    }
+    void load();
+    return () => { cancelled = true; };
+  }, [listing.id, profileId, marketView]);
+
+  const matchedCount = reqSkills.filter((s) => myTagIds.has(s.id)).length;
+
   return (
     <>
       {/* Backdrop — on desktop starts after the sidebar (lg:left-56 = 224px) */}
@@ -447,6 +478,60 @@ function ListingDetailSheet({ listing, userTier, profileId, marketView, onClose 
             </p>
             <p className="text-sm text-zinc-300 leading-relaxed">{listing.description}</p>
           </div>
+
+          {/* Required skills */}
+          {(skillsLoaded || reqSkills.length > 0) && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[10px] font-mono text-zinc-600 uppercase tracking-widest">
+                  Required Skills
+                </p>
+                {marketView === "freelancer" && reqSkills.length > 0 && (
+                  <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded-sm ${
+                    matchedCount === reqSkills.length
+                      ? "bg-emerald-950 text-emerald-400"
+                      : matchedCount > 0
+                        ? "bg-amber-950 text-amber-400"
+                        : "bg-zinc-800 text-zinc-400"
+                  }`}>
+                    {matchedCount}/{reqSkills.length} matched
+                  </span>
+                )}
+              </div>
+              {!skillsLoaded && reqSkills.length === 0 ? (
+                <div className="flex gap-1.5 flex-wrap">
+                  {[1,2,3].map((i) => (
+                    <div key={i} className="h-6 w-16 rounded-sm bg-zinc-800 animate-pulse" />
+                  ))}
+                </div>
+              ) : reqSkills.length === 0 ? (
+                <p className="font-mono text-xs text-zinc-600">No specific skills required</p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {reqSkills.map((skill) => {
+                    const have = myTagIds.has(skill.id);
+                    return (
+                      <span
+                        key={skill.id}
+                        className={`inline-flex items-center gap-1 px-2 h-6 rounded-sm border font-mono text-[11px] ${
+                          marketView === "freelancer"
+                            ? have
+                              ? "border-emerald-800 bg-emerald-950/50 text-emerald-300"
+                              : "border-zinc-700 bg-zinc-800/50 text-zinc-400"
+                            : "border-zinc-700 bg-zinc-800/50 text-zinc-400"
+                        }`}
+                      >
+                        {marketView === "freelancer" && (
+                          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${have ? "bg-emerald-400" : "bg-zinc-600"}`} />
+                        )}
+                        {skill.tag}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Price + escrow split */}
           <div className="flex items-end gap-6">
