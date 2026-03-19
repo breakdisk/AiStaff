@@ -24,7 +24,7 @@ interface OutcomeMatch {
 
 const DEMO_OUTCOMES: OutcomeMatch[] = [
   {
-    id:            "out-001",
+    id:            "de000002-0000-0000-0000-222222222222",
     name:          "Marcus T.",
     title:         "Senior Rust / Wasm Engineer",
     match_score:   0.94,
@@ -43,7 +43,7 @@ const DEMO_OUTCOMES: OutcomeMatch[] = [
     ],
   },
   {
-    id:            "out-002",
+    id:            "de000003-0000-0000-0000-333333333333",
     name:          "Lena K.",
     title:         "ML Systems Architect",
     match_score:   0.87,
@@ -62,7 +62,7 @@ const DEMO_OUTCOMES: OutcomeMatch[] = [
     ],
   },
   {
-    id:            "out-003",
+    id:            "a6000001-0000-0000-0000-a1a1a1a1a1a1",
     name:          "Diego R.",
     title:         "DevOps + Wasm Specialist",
     match_score:   0.78,
@@ -79,7 +79,7 @@ const DEMO_OUTCOMES: OutcomeMatch[] = [
     ],
   },
   {
-    id:            "out-004",
+    id:            "a6000002-0000-0000-0000-b2b2b2b2b2b2",
     name:          "Aisha M.",
     title:         "Backend + Kafka Engineer",
     match_score:   0.71,
@@ -127,9 +127,10 @@ function valueColor(v: string) {
 // ── OutcomeCard ───────────────────────────────────────────────────────────────
 
 function OutcomeCard({ match, rank }: { match: OutcomeMatch; rank: number }) {
-  const [open,     setOpen]     = useState(false);
-  const [inviting, setInviting] = useState(false);
-  const [invited,  setInvited]  = useState(false);
+  const [open,        setOpen]        = useState(false);
+  const [inviting,    setInviting]    = useState(false);
+  const [invited,     setInvited]     = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
 
   return (
     <div className="border border-zinc-800 rounded-sm bg-zinc-900/50 overflow-hidden">
@@ -214,11 +215,12 @@ function OutcomeCard({ match, rank }: { match: OutcomeMatch; rank: number }) {
             disabled={inviting || invited}
             onClick={async () => {
               setInviting(true);
+              setInviteError(null);
               try {
                 await inviteToProject(match.id);
                 setInvited(true);
-              } catch {
-                // non-fatal — button state stays active for retry
+              } catch (err) {
+                setInviteError(err instanceof Error ? err.message : "Invite failed — try again");
               } finally {
                 setInviting(false);
               }
@@ -231,6 +233,9 @@ function OutcomeCard({ match, rank }: { match: OutcomeMatch; rank: number }) {
             {inviting && <Loader2 className="w-3 h-3 animate-spin" />}
             {invited ? "Invited ✓" : "Invite to Project"}
           </button>
+          {inviteError && (
+            <p className="font-mono text-[10px] text-red-400">{inviteError}</p>
+          )}
         </div>
       )}
     </div>
