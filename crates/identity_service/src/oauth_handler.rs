@@ -154,11 +154,16 @@ async fn link_provider(db: &PgPool, id: Uuid, p: &OAuthCallbackPayload) -> Resul
     match p.provider {
         OAuthProvider::GitHub => sqlx::query(
             "UPDATE unified_profiles
-                 SET github_uid = $1, github_connected_at = NOW(), updated_at = NOW()
+                 SET github_uid = $1, github_connected_at = NOW(),
+                     github_followers = COALESCE($3, github_followers),
+                     github_stars     = COALESCE($4, github_stars),
+                     updated_at = NOW()
                  WHERE id = $2",
         )
         .bind(&p.provider_uid)
-        .bind(id),
+        .bind(id)
+        .bind(p.github_followers.map(|v| v as i32))
+        .bind(p.github_stars.map(|v| v as i32)),
         OAuthProvider::Google => sqlx::query(
             "UPDATE unified_profiles
                  SET google_uid = $1, google_connected_at = NOW(), updated_at = NOW()
