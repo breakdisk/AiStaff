@@ -1,8 +1,9 @@
 "use client";
 
-import { Suspense } from "react";
+import { useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { signIn } from "next-auth/react";
 import { Github, Loader2, Linkedin } from "lucide-react";
 
 // ── Google icon (Lucide does not include it) ──────────────────────────────────
@@ -31,24 +32,31 @@ function OAuthButton({
   icon:        React.ReactNode;
   callbackUrl: string;
 }) {
-  function handleClick() {
-    // Use a full browser navigation to /api/auth/login instead of fetch()-based
-    // signIn(). This eliminates the mobile race condition where window.location.href
-    // can start before the browser stores the Set-Cookie from the fetch response,
-    // causing the PKCE cookie to be missing on the OAuth callback → InvalidCheck.
-    const url = `/api/auth/login?provider=${provider}&callbackUrl=${encodeURIComponent(callbackUrl)}`;
-    window.location.href = url;
+  const [loading, setLoading] = useState(false);
+
+  async function handleClick() {
+    setLoading(true);
+    // signIn() from next-auth/react:
+    //   1. GETs /api/auth/csrf (awaits — cookie is stored before continuing)
+    //   2. POSTs /api/auth/signin/{provider} with csrfToken in body
+    //   3. Follows redirect to OAuth provider
+    // PKCE is disabled (checks:["state"]) so there is no code_verifier cookie
+    // race condition — the original reason for the /api/auth/login workaround.
+    await signIn(provider, { callbackUrl });
+    // Navigation has started; loading spinner stays until the page unloads.
   }
 
   return (
     <button
       type="button"
       onClick={handleClick}
+      disabled={loading}
       className="w-full h-11 flex items-center gap-3 px-4 rounded-sm
                  border border-zinc-700 bg-zinc-900 hover:bg-zinc-800 hover:border-zinc-600
-                 text-zinc-200 font-mono text-sm transition-all active:scale-[0.98]"
+                 text-zinc-200 font-mono text-sm transition-all active:scale-[0.98]
+                 disabled:opacity-60 disabled:cursor-not-allowed"
     >
-      {icon}
+      {loading ? <Loader2 className="w-4 h-4 animate-spin text-zinc-400" /> : icon}
       <span className="flex-1 text-left">{label}</span>
     </button>
   );
