@@ -102,7 +102,7 @@ export function AppSidebar({ status }: AppSidebarProps) {
   const accountType = (session?.user as { accountType?: string })?.accountType ?? "";
   const showEnterprise = role === "agent-owner" || role === "client" || accountType === "agency";
   const showInbox        = role !== "talent";
-  const showInvitations  = role === "talent" || role === null;
+  const showInvitations  = !!session?.user;
 
   const [unread, setUnread] = useState(0);
   useEffect(() => {
@@ -232,7 +232,7 @@ export function AppMobileNav() {
   const pathname = usePathname();
   const { data: session } = useSession();
   const role = (session?.user as { role?: string | null })?.role ?? null;
-  const showInvitations = role === "talent" || role === null;
+  const showInvitations = !!session?.user;
 
   const mobileItems = [
     ...MOBILE_NAV,
