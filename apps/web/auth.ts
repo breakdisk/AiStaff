@@ -36,7 +36,7 @@ interface OAuthCallbackResponse {
 async function callIdentityOAuthCallback(
   account: Account,
   profile: Profile,
-  githubExtra?: { public_repos: number; created_at: string }
+  githubExtra?: { public_repos: number; created_at: string; followers: number }
 ): Promise<OAuthCallbackResponse> {
   const payload: OAuthCallbackPayload = {
     provider: account.provider as "github" | "google" | "linkedin",
@@ -53,6 +53,8 @@ async function callIdentityOAuthCallback(
     })(),
     github_repos: githubExtra?.public_repos,
     github_created_at: githubExtra?.created_at,
+    github_followers: githubExtra?.followers,
+    github_stars:     githubExtra?.public_repos,
   };
 
   try {
@@ -190,7 +192,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
       if (account && profile) {
         // Fetch extra GitHub data (public_repos, created_at) for trust scoring
-        let githubExtra: { public_repos: number; created_at: string } | undefined;
+        let githubExtra: { public_repos: number; created_at: string; followers: number } | undefined;
         if (account.provider === "github" && account.access_token) {
           try {
             const ghRes = await fetch("https://api.github.com/user", {
