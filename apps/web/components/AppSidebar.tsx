@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
-import { Inbox, Briefcase, Mail } from "lucide-react";
+import { Inbox, Briefcase, Mail, Bell } from "lucide-react";
 
 // ── Nav definitions ─────────────────────────────────────────────────────────
 
@@ -117,22 +117,47 @@ export function AppSidebar({ status }: AppSidebarProps) {
     return () => clearInterval(id);
   }, [session]);
 
+  const [notifCount, setNotifCount] = useState(0);
+  useEffect(() => {
+    if (!session?.user) return;
+    const poll = () =>
+      fetch("/api/notifications/count")
+        .then(r => r.ok ? r.json() : { count: 0 })
+        .then((d: { count?: number }) => setNotifCount(d.count ?? 0))
+        .catch(() => {});
+    poll();
+    const id = setInterval(poll, 30_000);
+    return () => clearInterval(id);
+  }, [session]);
+
   return (
     <aside className="hidden lg:flex lg:flex-col w-56 border-r border-zinc-800 bg-zinc-950 p-4 gap-6 lg:h-screen lg:sticky lg:top-0 overflow-y-auto">
       {/* Brand + status badge */}
       <div className="flex items-center justify-between">
         <span className="font-mono text-xs text-zinc-500 uppercase tracking-widest">AiStaffApp</span>
-        {status && (
-          <span className={`font-mono text-[9px] px-1.5 py-0.5 rounded-sm border ${
-            status === "live"
-              ? "border-green-800 text-green-400"
-              : status === "demo"
-              ? "border-zinc-700 text-zinc-500"
-              : "border-zinc-800 text-zinc-700"
-          }`}>
-            {status === "live" ? "LIVE" : status === "demo" ? "DEMO" : "…"}
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {session?.user && (
+            <a href="/notifications" className="relative p-0.5" aria-label="Notifications">
+              <Bell size={13} className={notifCount > 0 ? "text-amber-400" : "text-zinc-600"} />
+              {notifCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-0.5 rounded-sm bg-amber-400 text-zinc-950 font-mono text-[8px] font-bold flex items-center justify-center">
+                  {notifCount > 99 ? "99+" : notifCount}
+                </span>
+              )}
+            </a>
+          )}
+          {status && (
+            <span className={`font-mono text-[9px] px-1.5 py-0.5 rounded-sm border ${
+              status === "live"
+                ? "border-green-800 text-green-400"
+                : status === "demo"
+                ? "border-zinc-700 text-zinc-500"
+                : "border-zinc-800 text-zinc-700"
+            }`}>
+              {status === "live" ? "LIVE" : status === "demo" ? "DEMO" : "…"}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Primary nav */}
