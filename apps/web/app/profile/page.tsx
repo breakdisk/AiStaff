@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSession, signIn } from "next-auth/react";
 import {
-  Bot, Star, TrendingUp, Rocket,
+  Bot, Star, TrendingUp, Rocket, Bell,
   CheckCircle2, Clock, Shield, Github, Linkedin, CheckCheck, AlertTriangle,
   Pencil, X, Save, Loader2, DollarSign, Key, Eye, EyeOff,
 } from "lucide-react";
@@ -617,6 +617,7 @@ export default function ProfilePage() {
     show_availability: true,
   });
   const [privacySaving, setPrivacySaving] = useState(false);
+  const [notifCount,    setNotifCount]    = useState(0);
   const [privacyMsg,    setPrivacyMsg]    = useState<string | null>(null);
 
   // BYOK — provider + key stored in localStorage
@@ -660,6 +661,18 @@ export default function ProfilePage() {
         .catch(() => {});
     }
   }, [profileId]);
+
+  useEffect(() => {
+    if (!session?.user) return;
+    const poll = () =>
+      fetch("/api/notifications/count")
+        .then(r => r.ok ? r.json() : { count: 0 })
+        .then((d: { count?: number }) => setNotifCount(d.count ?? 0))
+        .catch(() => {});
+    poll();
+    const id = setInterval(poll, 30_000);
+    return () => clearInterval(id);
+  }, [session]);
 
   if (status === "loading") {
     return (
@@ -841,7 +854,15 @@ export default function ProfilePage() {
         )}
 
         {/* Identity card */}
-        <div className="border border-zinc-800 rounded-sm bg-zinc-900 p-4">
+        <div className="relative border border-zinc-800 rounded-sm bg-zinc-900 p-4">
+          <a href="/notifications" className="absolute top-3 right-3 p-0.5" aria-label="Notifications">
+            <Bell size={15} className={notifCount > 0 ? "text-amber-400" : "text-zinc-400"} />
+            {notifCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-0.5 rounded-sm bg-amber-400 text-zinc-950 font-mono text-[8px] font-bold flex items-center justify-center">
+                {notifCount > 99 ? "99+" : notifCount}
+              </span>
+            )}
+          </a>
           <div className="flex items-start gap-4">
             {user.image ? (
               // eslint-disable-next-line @next/next/no-img-element
