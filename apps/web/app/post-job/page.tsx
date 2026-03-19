@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
@@ -9,6 +9,8 @@ import {
   DollarSign, Calendar, Tag,
 } from "lucide-react";
 import { createListing, type ListingCategory } from "@/lib/api";
+
+type SkillTag = { id: string; tag: string; domain: string };
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -34,7 +36,6 @@ const BUDGET_RANGES: { value: BudgetRange; label: string; cents: number }[] = [
   { value: "15000+",     label: "$15k+",        cents: 1500000 },
 ];
 const TIMELINES: Timeline[] = ["1-2 weeks", "2-4 weeks", "1-3 months", "3+ months"];
-const SKILL_SUGGESTIONS = ["rust", "wasm", "kafka", "postgres", "mlops", "k8s", "python", "typescript", "terraform", "llm"];
 
 // ── Field components ───────────────────────────────────────────────────────────
 
@@ -57,22 +58,27 @@ export default function PostJobPage() {
   const [category,    setCategory]    = useState<JobCategory | "">("");
   const [budget,      setBudget]      = useState<BudgetRange | "">("");
   const [timeline,    setTimeline]    = useState<Timeline | "">("");
-  const [skills,      setSkills]      = useState<string[]>([]);
-  const [skillInput,  setSkillInput]  = useState("");
+  const [allTags,     setAllTags]     = useState<SkillTag[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [tagsLoading, setTagsLoading] = useState(true);
   const [submitting,  setSubmitting]  = useState(false);
   const [done,        setDone]        = useState(false);
   const [error,       setError]       = useState<string | null>(null);
 
-  function addSkill(tag: string) {
-    const clean = tag.trim().toLowerCase();
-    if (clean && !skills.includes(clean) && skills.length < 8) {
-      setSkills([...skills, clean]);
-    }
-    setSkillInput("");
-  }
+  useEffect(() => {
+    fetch("/api/skill-tags")
+      .then((r) => r.json())
+      .then((d) => setAllTags(d.skill_tags ?? []))
+      .catch(() => {})
+      .finally(() => setTagsLoading(false));
+  }, []);
 
-  function removeSkill(tag: string) {
-    setSkills(skills.filter((s) => s !== tag));
+  function toggleTag(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else if (next.size < 10) next.add(id);
+      return next;
+    });
   }
 
   const budgetEntry = BUDGET_RANGES.find((b) => b.value === budget);
@@ -85,15 +91,22 @@ export default function PostJobPage() {
     setError(null);
 
     try {
-      await createListing({
+      const listing = await createListing({
         developer_id: session?.user?.profileId ?? "00000000-0000-0000-0000-000000000000",
         name:         title.trim(),
-        description:  `${description.trim()}\n\nTimeline: ${timeline}\nRequired skills: ${skills.join(", ") || "flexible"}`,
+        description:  description.trim(),
         wasm_hash:    "pending-review",
         price_cents:  budgetEntry?.cents ?? 500000,
         category:     CATEGORY_MAP[category as JobCategory],
         seller_type:  "Freelancer",
       });
+      if (listing?.listing_id && selectedIds.size > 0) {
+        await fetch(`/api/listings/${listing.listing_id}/required-skills`, {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ tag_ids: Array.from(selectedIds) }),
+        }).catch(() => {}); // non-blocking — listing is already created
+      }
       setDone(true);
     } catch {
       setError("Could not post job — marketplace service may be offline. Your details are saved.");
@@ -262,45 +275,43 @@ export default function PostJobPage() {
 
           {/* Skills */}
           <div>
-            <Label>Required skills <span className="text-zinc-600 normal-case">(optional)</span></Label>
-            <div className="flex flex-wrap gap-1.5 mb-2">
-              {skills.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => removeSkill(s)}
-                  className="h-6 px-2 rounded-sm border border-amber-400/40 bg-amber-400/10
-                             text-amber-400 font-mono text-[11px] hover:bg-red-500/10 hover:border-red-500/40
-                             hover:text-red-400 transition-all"
-                >
-                  {s} ×
-                </button>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <input
-                value={skillInput}
-                onChange={(e) => setSkillInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addSkill(skillInput); } }}
-                placeholder="Type a skill and press Enter"
-                className="flex-1 h-8 px-3 rounded-sm border border-zinc-700 bg-zinc-900
-                           text-zinc-100 text-xs placeholder:text-zinc-600 font-mono
-                           focus:outline-none focus:border-amber-400/50 transition-colors"
-              />
-            </div>
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {SKILL_SUGGESTIONS.filter((s) => !skills.includes(s)).slice(0, 6).map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => addSkill(s)}
-                  className="h-5 px-2 rounded-sm border border-zinc-800 bg-zinc-900/60
-                             text-zinc-600 font-mono text-[10px] hover:border-zinc-700 hover:text-zinc-400 transition-all"
-                >
-                  + {s}
-                </button>
-              ))}
-            </div>
+            <Label>
+              Required skills{" "}
+              <span className="text-zinc-600 normal-case">
+                (optional — {selectedIds.size}/10 selected)
+              </span>
+            </Label>
+            {tagsLoading ? (
+              <div className="h-8 rounded-sm bg-zinc-800 animate-pulse" />
+            ) : (
+              Object.entries(
+                allTags.reduce<Record<string, SkillTag[]>>((acc, t) => {
+                  (acc[t.domain] ??= []).push(t);
+                  return acc;
+                }, {}),
+              ).map(([domain, tags]) => (
+                <div key={domain} className="mb-3">
+                  <p className="font-mono text-[10px] text-zinc-600 uppercase tracking-widest mb-1">
+                    {domain}
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {tags.map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => toggleTag(t.id)}
+                        className={`h-6 px-2 rounded-sm border font-mono text-[11px] transition-all
+                          ${selectedIds.has(t.id)
+                            ? "border-amber-400/60 bg-amber-400/10 text-amber-400"
+                            : "border-zinc-800 bg-zinc-900/60 text-zinc-500 hover:border-zinc-700 hover:text-zinc-400"}`}
+                      >
+                        {t.tag}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))
+            )}
           </div>
 
           {/* Submit */}
