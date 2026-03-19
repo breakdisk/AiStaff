@@ -224,9 +224,11 @@ export default function DashboardPage() {
   }> | null>(null);
 
   // Fetch ROI / reputation + public profile + skills once session is available
+  // Skip for talent users — TalentDashboardContent fetches its own data
   useEffect(() => {
     const profileId = session?.profileId;
     if (!profileId) return;
+    if (session?.roles?.[0] === "talent") return;
 
     fetchRoiReport(profileId)
       .then((roi) => {
@@ -258,8 +260,9 @@ export default function DashboardPage() {
       .catch(() => setMyEngagements([]));
   }, [session]);
 
-  // Fetch talent matches from matching service
+  // Fetch talent matches from matching service — operator only
   useEffect(() => {
+    if (session?.roles?.[0] === "talent") return;
     fetchMatches({
       request_id:      "req-dashboard-001",
       agent_id:        DEMO_MATCHES.agentId,
@@ -270,8 +273,9 @@ export default function DashboardPage() {
       .catch(() => {/* keep demo data */});
   }, []);
 
-  // Fetch agent health from telemetry service
+  // Fetch agent health from telemetry service — operator only
   useEffect(() => {
+    if (session?.roles?.[0] === "talent") return;
     const depId = DEMO_DEPLOYMENT.deploymentId;
     Promise.allSettled([
       fetchHeartbeats(depId),
@@ -286,8 +290,9 @@ export default function DashboardPage() {
     });
   }, []);
 
-  // Fetch DoD checklist from checklist service
+  // Fetch DoD checklist from checklist service — operator only
   useEffect(() => {
+    if (session?.roles?.[0] === "talent") return;
     fetchChecklistSteps(DEMO_DEPLOYMENT.deploymentId)
       .then((steps) => {
         if (steps.length > 0) {
