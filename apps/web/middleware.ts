@@ -23,6 +23,8 @@ export default auth((req) => {
     pathname.startsWith("/sign/") ||           // Public e-signature page (token-gated, no auth)
     pathname.startsWith("/api/sign/") ||       // Public e-signature API proxy
     pathname.startsWith("/api/generate-pdf") || // PDF generation — called from public sign page
+    pathname.startsWith("/talent/") ||           // Public talent profiles
+    pathname.startsWith("/api/talent/") ||       // Public talent API (profile + privacy GET/PATCH)
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico" ||
     /\.(?:png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|otf)$/i.test(pathname);
