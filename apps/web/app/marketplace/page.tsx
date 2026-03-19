@@ -776,8 +776,28 @@ function ListProductPanel({ onClose, onCreated, profileId }: {
   const [priceDollars, setPrice]      = useState("");
   const [category,    setCategory]    = useState<ListingCategory>("AiStaff");
   const [sellerType,  setSellerType]  = useState<SellerType>("Freelancer");
+  const [allTags,     setAllTags]     = useState<SkillTag[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [tagsLoading, setTagsLoading] = useState(true);
+  const [tagsError,   setTagsError]   = useState(false);
   const [submitting,  setSubmitting]  = useState(false);
   const [error,       setError]       = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/skill-tags")
+      .then((r) => r.json())
+      .then((d) => setAllTags(d.skill_tags ?? []))
+      .catch(() => setTagsError(true))
+      .finally(() => setTagsLoading(false));
+  }, []);
+
+  function toggleTag(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else if (next.size < 10) next.add(id);
+      return next;
+    });
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -789,8 +809,9 @@ function ListProductPanel({ onClose, onCreated, profileId }: {
     const wasm_hash   = Array.from(crypto.getRandomValues(new Uint8Array(32)))
       .map(b => b.toString(16).padStart(2, "0")).join("");
 
+    let apiListingId: string | null = null;
     try {
-      await createListing({
+      const result = await createListing({
         developer_id: profileId,
         name:         name.trim(),
         description:  description.trim(),
@@ -799,11 +820,19 @@ function ListProductPanel({ onClose, onCreated, profileId }: {
         category,
         seller_type:  sellerType,
       });
+      apiListingId = result?.listing_id ?? null;
+      if (apiListingId && selectedIds.size > 0) {
+        await fetch(`/api/listings/${apiListingId}/required-skills`, {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ tag_ids: Array.from(selectedIds) }),
+        }).catch(() => {}); // non-blocking — listing already created
+      }
     } catch {
       // API down — optimistic local insert
     }
 
-    const newId   = crypto.randomUUID();
+    const newId   = apiListingId ?? crypto.randomUUID();
     const newListing: AgentListing = {
       id:           newId,
       developer_id: profileId,
@@ -956,6 +985,56 @@ function ListProductPanel({ onClose, onCreated, profileId }: {
                            focus:outline-none focus:border-zinc-600 transition-colors"
               />
             </div>
+          </div>
+
+          {/* Installer skills */}
+          <div className="space-y-1.5">
+            <label className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest">
+              Installer skills{" "}
+              <span className="text-zinc-600 normal-case font-sans">
+                (optional — {selectedIds.size}/10)
+              </span>
+            </label>
+            <p className="font-mono text-[10px] text-zinc-600 leading-relaxed">
+              Tag the skills a freelancer needs to deploy this product.
+            </p>
+            {tagsLoading ? (
+              <div className="h-8 rounded-sm bg-zinc-800 animate-pulse" />
+            ) : tagsError ? (
+              <p className="font-mono text-xs text-zinc-500">
+                Skills unavailable — describe requirements in the description.
+              </p>
+            ) : (
+              Object.entries(
+                allTags.reduce<Record<string, SkillTag[]>>((acc, t) => {
+                  (acc[t.domain] ??= []).push(t);
+                  return acc;
+                }, {}),
+              ).map(([domain, tags]) => (
+                <div key={domain} className="mb-2">
+                  <p className="font-mono text-[10px] text-zinc-600 uppercase tracking-widest mb-1">
+                    {domain}
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {tags.map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => toggleTag(t.id)}
+                        aria-pressed={selectedIds.has(t.id)}
+                        className={`h-6 px-2 rounded-sm border font-mono text-[11px] transition-all ${
+                          selectedIds.has(t.id)
+                            ? "border-amber-400/60 bg-amber-400/10 text-amber-400"
+                            : "border-zinc-800 bg-zinc-900/60 text-zinc-500 hover:border-zinc-700 hover:text-zinc-400"
+                        }`}
+                      >
+                        {t.tag}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))
+            )}
           </div>
 
           {error && (
