@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { TrendingUp, ChevronDown, ChevronUp, ArrowUpRight } from "lucide-react";
+import { TrendingUp, ChevronDown, ChevronUp, ArrowUpRight, Loader2 } from "lucide-react";
 import { SubScoreBar } from "@/components/SubScoreBar";
 import { VettingBadge } from "@/components/VettingBadge";
+import { inviteToProject } from "@/lib/api";
 
 // ── Demo data ──────────────────────────────────────────────────────────────────
 
@@ -126,7 +127,9 @@ function valueColor(v: string) {
 // ── OutcomeCard ───────────────────────────────────────────────────────────────
 
 function OutcomeCard({ match, rank }: { match: OutcomeMatch; rank: number }) {
-  const [open, setOpen] = useState(false);
+  const [open,     setOpen]     = useState(false);
+  const [inviting, setInviting] = useState(false);
+  const [invited,  setInvited]  = useState(false);
 
   return (
     <div className="border border-zinc-800 rounded-sm bg-zinc-900/50 overflow-hidden">
@@ -207,9 +210,26 @@ function OutcomeCard({ match, rank }: { match: OutcomeMatch; rank: number }) {
             <SubScoreBar label="Trust Score"      score={match.trust_score}                   color={match.trust_score >= 70 ? "green" : "amber"} />
           </div>
 
-          <button className="w-full h-9 rounded-sm border border-amber-900 bg-amber-950 text-amber-400
-                             font-mono text-xs uppercase tracking-widest hover:border-amber-700 transition-colors">
-            Invite to Project
+          <button
+            disabled={inviting || invited}
+            onClick={async () => {
+              setInviting(true);
+              try {
+                await inviteToProject(match.id);
+                setInvited(true);
+              } catch {
+                // non-fatal — button state stays active for retry
+              } finally {
+                setInviting(false);
+              }
+            }}
+            className="w-full h-9 rounded-sm border font-mono text-xs uppercase tracking-widest
+                       transition-colors flex items-center justify-center gap-1.5
+                       disabled:opacity-60 disabled:cursor-not-allowed
+                       border-amber-900 bg-amber-950 text-amber-400 hover:border-amber-700"
+          >
+            {inviting && <Loader2 className="w-3 h-3 animate-spin" />}
+            {invited ? "Invited ✓" : "Invite to Project"}
           </button>
         </div>
       )}
