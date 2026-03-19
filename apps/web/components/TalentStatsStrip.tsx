@@ -1,8 +1,8 @@
 "use client";
 
 interface TalentStatsStripProps {
-  githubFollowers: number | undefined;
-  githubRepos:     number | undefined;
+  githubFollowers?: number;
+  githubRepos?:     number;
   totalDeployments: number;
   reputationScore:  number;
 }
