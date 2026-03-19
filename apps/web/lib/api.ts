@@ -7,6 +7,7 @@
 
 export interface RoiReport {
   talent_id:              string;
+  display_name:           string;
   total_deployments:      number;
   total_earned_cents:     number;
   avg_checklist_pass_pct: number;

@@ -8,11 +8,11 @@ import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
 // ── Demo fallback ──────────────────────────────────────────────────────────────
 
 const DEMO_LEADERBOARD: RoiReport[] = [
-  { talent_id: "tal-00000001-0000-0000-0000-aaaaaaaaaaaa", total_deployments: 18, total_earned_cents: 310500, avg_checklist_pass_pct: 0.94, drift_incidents: 0, reputation_score: 91.2 },
-  { talent_id: "tal-00000002-0000-0000-0000-bbbbbbbbbbbb", total_deployments: 12, total_earned_cents: 184500, avg_checklist_pass_pct: 0.87, drift_incidents: 1, reputation_score: 73.4 },
-  { talent_id: "tal-00000003-0000-0000-0000-cccccccccccc", total_deployments: 9,  total_earned_cents: 127000, avg_checklist_pass_pct: 0.78, drift_incidents: 2, reputation_score: 61.8 },
-  { talent_id: "tal-00000004-0000-0000-0000-dddddddddddd", total_deployments: 7,  total_earned_cents: 98000,  avg_checklist_pass_pct: 0.71, drift_incidents: 1, reputation_score: 55.0 },
-  { talent_id: "tal-00000005-0000-0000-0000-eeeeeeeeeeee", total_deployments: 4,  total_earned_cents: 54000,  avg_checklist_pass_pct: 0.60, drift_incidents: 3, reputation_score: 38.7 },
+  { talent_id: "tal-00000001-0000-0000-0000-aaaaaaaaaaaa", display_name: "Alex Chen",      total_deployments: 18, total_earned_cents: 310500, avg_checklist_pass_pct: 0.94, drift_incidents: 0, reputation_score: 91.2 },
+  { talent_id: "tal-00000002-0000-0000-0000-bbbbbbbbbbbb", display_name: "Jordan Rivera",  total_deployments: 12, total_earned_cents: 184500, avg_checklist_pass_pct: 0.87, drift_incidents: 1, reputation_score: 73.4 },
+  { talent_id: "tal-00000003-0000-0000-0000-cccccccccccc", display_name: "Sam Okafor",     total_deployments: 9,  total_earned_cents: 127000, avg_checklist_pass_pct: 0.78, drift_incidents: 2, reputation_score: 61.8 },
+  { talent_id: "tal-00000004-0000-0000-0000-dddddddddddd", display_name: "Taylor Novak",   total_deployments: 7,  total_earned_cents: 98000,  avg_checklist_pass_pct: 0.71, drift_incidents: 1, reputation_score: 55.0 },
+  { talent_id: "tal-00000005-0000-0000-0000-eeeeeeeeeeee", display_name: "Morgan Liu",     total_deployments: 4,  total_earned_cents: 54000,  avg_checklist_pass_pct: 0.60, drift_incidents: 3, reputation_score: 38.7 },
 ];
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -50,7 +50,11 @@ function TableRow({ entry, rank }: { entry: RoiReport; rank: number }) {
       <td className="px-3 py-2">
         <RankBadge rank={rank} />
       </td>
-      <td className="px-3 py-2 font-mono text-xs text-zinc-400">{shortId(entry.talent_id)}</td>
+      <td className="px-3 py-2">
+        <span className="text-xs text-zinc-200 font-medium">
+          {entry.display_name || shortId(entry.talent_id)}
+        </span>
+      </td>
       <td className="px-3 py-2">
         <span className={`font-mono text-sm font-medium tabular-nums ${scoreColor(entry.reputation_score)}`}>
           {entry.reputation_score.toFixed(1)}
@@ -86,7 +90,9 @@ function MobileCard({ entry, rank }: { entry: RoiReport; rank: number }) {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <RankBadge rank={rank} />
-          <span className="font-mono text-xs text-zinc-500">{shortId(entry.talent_id)}</span>
+          <span className="text-xs text-zinc-200 font-medium">
+            {entry.display_name || shortId(entry.talent_id)}
+          </span>
         </div>
         <span className={`font-mono text-lg font-medium tabular-nums ${scoreColor(entry.reputation_score)}`}>
           {entry.reputation_score.toFixed(1)}
@@ -155,7 +161,7 @@ export default function LeaderboardPage() {
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-zinc-800 bg-zinc-950">
-                {["#", "Talent ID", "Score", "Deploys", "Earned", "Drift", ""].map((h) => (
+                {["#", "Talent", "Score", "Deploys", "Earned", "Drift", ""].map((h) => (
                   <th key={h} className="px-3 py-2 font-mono text-xs text-zinc-500 uppercase tracking-widest font-medium">
                     {h}
                   </th>
