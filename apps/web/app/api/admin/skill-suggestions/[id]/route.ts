@@ -3,6 +3,7 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { Pool } from "pg";
 import { auth } from "@/auth";
+import { assertAdmin } from "@/lib/admin";
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -11,20 +12,6 @@ const pool = new Pool({
 });
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-async function assertAdmin(profileId: string): Promise<boolean> {
-  let client;
-  try {
-    client = await pool.connect();
-    const result = await client.query(
-      `SELECT is_admin FROM unified_profiles WHERE id = $1`,
-      [profileId],
-    );
-    return result.rows[0]?.is_admin === true;
-  } finally {
-    client?.release();
-  }
-}
 
 export async function POST(
   req: NextRequest,

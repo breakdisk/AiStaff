@@ -56,13 +56,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const result = await client.query(
-      `INSERT INTO skill_suggestions (tag, domain, suggested_by)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (tag) DO UPDATE SET tag = EXCLUDED.tag
-       RETURNING id, tag, domain, status`,
-      [tag, domain, profileId],
-    );
+    let result;
+    try {
+      result = await client.query(
+        `INSERT INTO skill_suggestions (tag, domain, suggested_by)
+         VALUES ($1, $2, $3)
+         RETURNING id, tag, domain, status`,
+        [tag, domain, profileId],
+      );
+    } catch (insertErr: unknown) {
+      const pgErr = insertErr as { code?: string };
+      if (pgErr.code === "23505") {
+        return NextResponse.json(
+          { error: "A suggestion for this skill is already pending" },
+          { status: 409 },
+        );
+      }
+      throw insertErr;
+    }
 
     return NextResponse.json(result.rows[0], { status: 201 });
   } catch (err) {

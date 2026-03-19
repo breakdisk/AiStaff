@@ -3,26 +3,13 @@ export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { Pool } from "pg";
 import { auth } from "@/auth";
+import { assertAdmin } from "@/lib/admin";
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   max: 3,
   idleTimeoutMillis: 30_000,
 });
-
-async function assertAdmin(profileId: string): Promise<boolean> {
-  let client;
-  try {
-    client = await pool.connect();
-    const result = await client.query(
-      `SELECT is_admin FROM unified_profiles WHERE id = $1`,
-      [profileId],
-    );
-    return result.rows[0]?.is_admin === true;
-  } finally {
-    client?.release();
-  }
-}
 
 export async function GET() {
   const session = await auth();
@@ -46,6 +33,9 @@ export async function GET() {
        ORDER BY ss.created_at ASC`,
     );
     return NextResponse.json({ suggestions: result.rows });
+  } catch (err) {
+    console.error("[admin/skill-suggestions GET]", err);
+    return NextResponse.json({ error: "Failed to load suggestions" }, { status: 500 });
   } finally {
     client?.release();
   }
