@@ -335,6 +335,32 @@ export function inviteToProject(
   });
 }
 
+export interface ReceivedInvitation {
+  id:             string;
+  client_id:      string;
+  client_name:    string;
+  listing_id:     string | null;
+  listing_title:  string;
+  message:        string | null;
+  status:         "PENDING" | "ACCEPTED" | "DECLINED";
+  created_at:     string;
+  responded_at:   string | null;
+}
+
+export function fetchReceivedInvitations(): Promise<{ invitations: ReceivedInvitation[] }> {
+  return apiFetch("/api/matching/invitations/received");
+}
+
+export function respondToInvitation(
+  invitationId: string,
+  action: "accept" | "decline",
+): Promise<{ ok: boolean; status: string }> {
+  return apiFetch(`/api/matching/invitations/${invitationId}`, {
+    method: "PATCH",
+    body:   JSON.stringify({ action }),
+  });
+}
+
 // ── Trial engagements ──────────────────────────────────────────────────────
 
 export interface TrialResponse {

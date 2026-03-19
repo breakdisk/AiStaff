@@ -394,12 +394,30 @@ function CandidateRow({
   candidate:      MatchCandidate;
   rank:           number;
   onSwitchHybrid: (id: string) => void;
-  onInvite:       (id: string) => void;
+  onInvite:       (id: string, message?: string) => void;
 }) {
-  const [open,     setOpen]     = useState(false);
-  const [inviting, setInviting] = useState(false);
-  const [invited,  setInvited]  = useState(false);
+  const [open,        setOpen]        = useState(false);
+  const [composing,   setComposing]   = useState(false);
+  const [message,     setMessage]     = useState("");
+  const [inviting,    setInviting]    = useState(false);
+  const [invited,     setInvited]     = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
   const avail = AVAIL_META[candidate.availability];
+
+  async function handleSend() {
+    setInviting(true);
+    setInviteError(null);
+    try {
+      await onInvite(candidate.id, message.trim() || undefined);
+      setInvited(true);
+      setComposing(false);
+      setMessage("");
+    } catch (err) {
+      setInviteError(err instanceof Error ? err.message : "Invite failed — try again");
+    } finally {
+      setInviting(false);
+    }
+  }
 
   return (
     <div className="border border-zinc-800 rounded-sm bg-zinc-900/50 overflow-hidden">
@@ -478,25 +496,55 @@ function CandidateRow({
           )}
 
           <div className="flex gap-2">
-            <button
-              disabled={inviting || invited}
-              onClick={async () => {
-                setInviting(true);
-                try {
-                  await onInvite(candidate.id);
-                  setInvited(true);
-                } finally {
-                  setInviting(false);
-                }
-              }}
-              className="flex-1 h-9 rounded-sm border font-mono text-xs uppercase tracking-widest
-                         transition-colors flex items-center justify-center gap-1.5
-                         disabled:opacity-60 disabled:cursor-not-allowed
-                         border-amber-900 bg-amber-950 text-amber-400 hover:border-amber-700"
-            >
-              {inviting && <Loader2 className="w-3 h-3 animate-spin" />}
-              {invited ? "Invited ✓" : "Invite to Project"}
-            </button>
+            {invited ? (
+              <div className="flex-1 flex items-center gap-2 h-9 px-3 border border-green-900 bg-green-950/10 rounded-sm">
+                <CheckCircle2 className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
+                <span className="font-mono text-xs text-green-400">Invitation sent</span>
+              </div>
+            ) : composing ? (
+              <div className="flex-1 space-y-2">
+                <textarea
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  placeholder="Optional message…"
+                  maxLength={500}
+                  rows={2}
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-sm px-2 py-1.5
+                             font-mono text-xs text-zinc-200 placeholder-zinc-600
+                             focus:outline-none focus:border-amber-700 resize-none"
+                />
+                {inviteError && (
+                  <p className="font-mono text-[10px] text-red-400">{inviteError}</p>
+                )}
+                <div className="flex gap-1.5">
+                  <button
+                    disabled={inviting}
+                    onClick={handleSend}
+                    className="flex-1 h-8 rounded-sm border border-amber-900 bg-amber-950 text-amber-400
+                               font-mono text-[10px] uppercase tracking-widest hover:border-amber-700 transition-colors
+                               flex items-center justify-center gap-1 disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {inviting && <Loader2 className="w-3 h-3 animate-spin" />}
+                    {inviting ? "Sending…" : "Send"}
+                  </button>
+                  <button
+                    onClick={() => { setComposing(false); setMessage(""); setInviteError(null); }}
+                    className="h-8 px-2 rounded-sm border border-zinc-700 text-zinc-500
+                               font-mono text-[10px] uppercase tracking-widest hover:border-zinc-600 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setComposing(true)}
+                className="flex-1 h-9 rounded-sm border border-amber-900 bg-amber-950 text-amber-400
+                           font-mono text-xs uppercase tracking-widest hover:border-amber-700 transition-colors"
+              >
+                Invite to Project
+              </button>
+            )}
             <button
               onClick={() => onSwitchHybrid(candidate.id)}
               className="h-9 px-3 rounded-sm border border-zinc-700 text-zinc-400 font-mono text-xs
@@ -519,7 +567,7 @@ function AiMatchMode({
 }: {
   candidates:     MatchCandidate[];
   onSwitchHybrid: (id: string) => void;
-  onInvite:       (id: string) => void;
+  onInvite:       (id: string, message?: string) => void;
 }) {
   const [minScore,   setMinScore]   = useState(0);
   const [tierFilter, setTierFilter] = useState<"all" | "0" | "1" | "2">("all");
@@ -1158,11 +1206,11 @@ export default function MatchingPage() {
     setMode("hybrid");
   }
 
-  async function handleInvite(candidateId: string) {
+  async function handleInvite(candidateId: string, message?: string) {
     try {
-      await inviteToProject(candidateId);
+      await inviteToProject(candidateId, undefined, message);
     } catch {
-      // non-fatal — button already shows "Invited ✓" optimistically on success
+      // error surfaced inline in CandidateRow
     }
   }
 

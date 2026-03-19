@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { TrendingUp, ChevronDown, ChevronUp, ArrowUpRight, Loader2 } from "lucide-react";
+import { TrendingUp, ChevronDown, ChevronUp, ArrowUpRight, Loader2, CheckCircle2 } from "lucide-react";
 import { SubScoreBar } from "@/components/SubScoreBar";
 import { VettingBadge } from "@/components/VettingBadge";
 import { inviteToProject } from "@/lib/api";
@@ -128,9 +128,26 @@ function valueColor(v: string) {
 
 function OutcomeCard({ match, rank }: { match: OutcomeMatch; rank: number }) {
   const [open,        setOpen]        = useState(false);
+  const [composing,   setComposing]   = useState(false);
+  const [message,     setMessage]     = useState("");
   const [inviting,    setInviting]    = useState(false);
   const [invited,     setInvited]     = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
+
+  async function handleSend() {
+    setInviting(true);
+    setInviteError(null);
+    try {
+      await inviteToProject(match.id, undefined, message.trim() || undefined);
+      setInvited(true);
+      setComposing(false);
+      setMessage("");
+    } catch (err) {
+      setInviteError(err instanceof Error ? err.message : "Invite failed — try again");
+    } finally {
+      setInviting(false);
+    }
+  }
 
   return (
     <div className="border border-zinc-800 rounded-sm bg-zinc-900/50 overflow-hidden">
@@ -211,30 +228,55 @@ function OutcomeCard({ match, rank }: { match: OutcomeMatch; rank: number }) {
             <SubScoreBar label="Trust Score"      score={match.trust_score}                   color={match.trust_score >= 70 ? "green" : "amber"} />
           </div>
 
-          <button
-            disabled={inviting || invited}
-            onClick={async () => {
-              setInviting(true);
-              setInviteError(null);
-              try {
-                await inviteToProject(match.id);
-                setInvited(true);
-              } catch (err) {
-                setInviteError(err instanceof Error ? err.message : "Invite failed — try again");
-              } finally {
-                setInviting(false);
-              }
-            }}
-            className="w-full h-9 rounded-sm border font-mono text-xs uppercase tracking-widest
-                       transition-colors flex items-center justify-center gap-1.5
-                       disabled:opacity-60 disabled:cursor-not-allowed
-                       border-amber-900 bg-amber-950 text-amber-400 hover:border-amber-700"
-          >
-            {inviting && <Loader2 className="w-3 h-3 animate-spin" />}
-            {invited ? "Invited ✓" : "Invite to Project"}
-          </button>
-          {inviteError && (
-            <p className="font-mono text-[10px] text-red-400">{inviteError}</p>
+          {/* Invite to Project — inline compose */}
+          {invited ? (
+            <div className="flex items-center gap-2 h-9 px-3 border border-green-900 bg-green-950/10 rounded-sm">
+              <CheckCircle2 className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
+              <span className="font-mono text-xs text-green-400">Invitation sent</span>
+            </div>
+          ) : composing ? (
+            <div className="space-y-2">
+              <textarea
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder="Optional message to the talent…"
+                maxLength={500}
+                rows={3}
+                className="w-full bg-zinc-900 border border-zinc-700 rounded-sm px-3 py-2
+                           font-mono text-xs text-zinc-200 placeholder-zinc-600
+                           focus:outline-none focus:border-amber-700 resize-none"
+              />
+              <div className="flex gap-2">
+                <button
+                  disabled={inviting}
+                  onClick={handleSend}
+                  className="flex-1 h-8 rounded-sm border border-amber-900 bg-amber-950 text-amber-400
+                             font-mono text-xs uppercase tracking-widest hover:border-amber-700 transition-colors
+                             flex items-center justify-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {inviting && <Loader2 className="w-3 h-3 animate-spin" />}
+                  {inviting ? "Sending…" : "Send Invite"}
+                </button>
+                <button
+                  onClick={() => { setComposing(false); setMessage(""); setInviteError(null); }}
+                  className="h-8 px-3 rounded-sm border border-zinc-700 text-zinc-500
+                             font-mono text-xs uppercase tracking-widest hover:border-zinc-600 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+              {inviteError && (
+                <p className="font-mono text-[10px] text-red-400">{inviteError}</p>
+              )}
+            </div>
+          ) : (
+            <button
+              onClick={() => setComposing(true)}
+              className="w-full h-9 rounded-sm border border-amber-900 bg-amber-950 text-amber-400
+                         font-mono text-xs uppercase tracking-widest hover:border-amber-700 transition-colors"
+            >
+              Invite to Project
+            </button>
           )}
         </div>
       )}
