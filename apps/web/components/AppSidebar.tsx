@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
-import { Inbox, Briefcase } from "lucide-react";
+import { Inbox, Briefcase, Mail } from "lucide-react";
 
 // ── Nav definitions ─────────────────────────────────────────────────────────
 
@@ -101,7 +101,8 @@ export function AppSidebar({ status }: AppSidebarProps) {
   const role        = (session?.user as { role?: string | null })?.role ?? null;
   const accountType = (session?.user as { accountType?: string })?.accountType ?? "";
   const showEnterprise = role === "agent-owner" || role === "client" || accountType === "agency";
-  const showInbox = role !== "talent";
+  const showInbox        = role !== "talent";
+  const showInvitations  = role === "talent" || role === null;
 
   const [unread, setUnread] = useState(0);
   useEffect(() => {
@@ -170,6 +171,19 @@ export function AppSidebar({ status }: AppSidebarProps) {
             Proposals Inbox
           </a>
         )}
+        {showInvitations && (
+          <a
+            href="/invitations"
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-sm font-mono text-xs transition-colors ${
+              pathname === "/invitations"
+                ? "text-zinc-100 bg-zinc-800"
+                : "text-zinc-600 hover:text-zinc-300 hover:bg-zinc-900"
+            }`}
+          >
+            <Mail size={12} />
+            Invitations
+          </a>
+        )}
         <a
           href="/engagements"
           className={`flex items-center gap-2 px-3 py-1.5 rounded-sm font-mono text-xs transition-colors ${
@@ -216,10 +230,18 @@ export function AppSidebar({ status }: AppSidebarProps) {
 
 export function AppMobileNav() {
   const pathname = usePathname();
+  const { data: session } = useSession();
+  const role = (session?.user as { role?: string | null })?.role ?? null;
+  const showInvitations = role === "talent" || role === null;
+
+  const mobileItems = [
+    ...MOBILE_NAV,
+    ...(showInvitations ? [{ label: "Inbox", href: "/invitations" }] : []),
+  ];
 
   return (
     <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 h-16 flex items-center border-t border-zinc-800 bg-zinc-950">
-      {MOBILE_NAV.map(({ label, href }) => {
+      {mobileItems.map(({ label, href }) => {
         const active = pathname === href || pathname.startsWith(href + "/");
         return (
           <a
