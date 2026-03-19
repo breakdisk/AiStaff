@@ -16,6 +16,7 @@ import AgentHealthWidget          from "@/components/AgentHealthWidget";
 import DodChecklistCard           from "@/components/DodChecklistCard";
 import ReputationBadge            from "@/components/ReputationBadge";
 import { roiToReputation }        from "@/lib/roi";
+import TalentDashboardContent     from "@/components/TalentDashboardContent";
 import {
   fetchRoiReport,
   fetchMatches,
@@ -466,6 +467,32 @@ export default function DashboardPage() {
       {/* Main content */}
       <main className="flex-1 p-4 pb-20 lg:pb-4 space-y-4 max-w-2xl mx-auto w-full">
 
+        {/* Role check — talent users see a different widget set */}
+        {(() => {
+          const role = session?.roles?.[0] ?? null;
+          if (role === "talent") {
+            return (
+              <div className="space-y-6">
+                <TalentDashboardContent
+                  session={{
+                    user: {
+                      profileId:    session?.profileId,
+                      name:         session?.name,
+                      identityTier: session?.identityTier,
+                      trustScore:   session?.trustScore,
+                      role:         role,
+                    },
+                  }}
+                />
+              </div>
+            );
+          }
+          return null;
+        })()}
+
+        {/* Operator widgets — only rendered for non-talent roles */}
+        {(session?.roles?.[0] ?? null) !== "talent" && (
+          <>
         {/* Header row */}
         <div className="flex items-center justify-between">
           <h1 className="font-mono text-sm font-medium text-zinc-300 uppercase tracking-widest">
@@ -632,6 +659,9 @@ export default function DashboardPage() {
             />
           </div>
         </section>
+
+          </>
+        )}
 
       </main>
 
