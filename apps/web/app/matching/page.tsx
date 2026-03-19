@@ -13,7 +13,8 @@ import { SubScoreBar } from "@/components/SubScoreBar";
 import { VettingBadge } from "@/components/VettingBadge";
 import {
   fetchMatches, fetchPublicProfile, fetchSkillTags,
-  type SkillTag,
+  inviteToProject, startTrial, updateTrial,
+  type SkillTag, type TrialResponse,
 } from "@/lib/api";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -384,12 +385,16 @@ function CandidateRow({
   candidate,
   rank,
   onSwitchHybrid,
+  onInvite,
 }: {
   candidate:      MatchCandidate;
   rank:           number;
   onSwitchHybrid: (id: string) => void;
+  onInvite:       (id: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open,     setOpen]     = useState(false);
+  const [inviting, setInviting] = useState(false);
+  const [invited,  setInvited]  = useState(false);
   const avail = AVAIL_META[candidate.availability];
 
   return (
@@ -469,9 +474,24 @@ function CandidateRow({
           )}
 
           <div className="flex gap-2">
-            <button className="flex-1 h-9 rounded-sm border border-amber-900 bg-amber-950 text-amber-400
-                               font-mono text-xs uppercase tracking-widest hover:border-amber-700 transition-colors">
-              Invite to Project
+            <button
+              disabled={inviting || invited}
+              onClick={async () => {
+                setInviting(true);
+                try {
+                  await onInvite(candidate.id);
+                  setInvited(true);
+                } finally {
+                  setInviting(false);
+                }
+              }}
+              className="flex-1 h-9 rounded-sm border font-mono text-xs uppercase tracking-widest
+                         transition-colors flex items-center justify-center gap-1.5
+                         disabled:opacity-60 disabled:cursor-not-allowed
+                         border-amber-900 bg-amber-950 text-amber-400 hover:border-amber-700"
+            >
+              {inviting && <Loader2 className="w-3 h-3 animate-spin" />}
+              {invited ? "Invited ✓" : "Invite to Project"}
             </button>
             <button
               onClick={() => onSwitchHybrid(candidate.id)}
@@ -491,9 +511,11 @@ function CandidateRow({
 function AiMatchMode({
   candidates,
   onSwitchHybrid,
+  onInvite,
 }: {
   candidates:     MatchCandidate[];
   onSwitchHybrid: (id: string) => void;
+  onInvite:       (id: string) => void;
 }) {
   const [minScore,   setMinScore]   = useState(0);
   const [tierFilter, setTierFilter] = useState<"all" | "0" | "1" | "2">("all");
@@ -557,7 +579,7 @@ function AiMatchMode({
           </div>
         ) : (
           filtered.map((c, i) => (
-            <CandidateRow key={c.id} candidate={c} rank={i + 1} onSwitchHybrid={onSwitchHybrid} />
+            <CandidateRow key={c.id} candidate={c} rank={i + 1} onSwitchHybrid={onSwitchHybrid} onInvite={onInvite} />
           ))
         )}
       </div>
@@ -569,7 +591,15 @@ function AiMatchMode({
 // HYBRID MODE — AI Shortlist + Human Recruiter + Active Trials
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function TrialCard({ candidate, onStartTrial }: { candidate: MatchCandidate; onStartTrial: (id: string) => void }) {
+function TrialCard({
+  candidate,
+  onStartTrial,
+  loading = false,
+}: {
+  candidate:    MatchCandidate;
+  onStartTrial: (id: string) => void;
+  loading?:     boolean;
+}) {
   const [expanded, setExpanded] = useState(false);
   const score = Math.round(candidate.match_score * 100);
 
@@ -641,13 +671,17 @@ function TrialCard({ candidate, onStartTrial }: { candidate: MatchCandidate; onS
           </div>
 
           <button
+            disabled={loading}
             onClick={() => onStartTrial(candidate.id)}
             className="w-full h-9 rounded-sm border border-sky-800 bg-sky-950/30 text-sky-400
                        font-mono text-xs uppercase tracking-widest hover:border-sky-600 transition-colors
-                       flex items-center justify-center gap-2"
+                       flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <Clock className="w-3.5 h-3.5" />
-            Start Discounted Trial
+            {loading
+              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              : <Clock   className="w-3.5 h-3.5" />
+            }
+            {loading ? "Starting…" : "Start Discounted Trial"}
           </button>
         </div>
       )}
@@ -711,7 +745,31 @@ function HybridMode({
 }) {
   const [tab,          setTab]          = useState<HybridTab>("shortlist");
   const [trialActive,  setTrialActive]  = useState<string | null>(initialCandidateId ?? null);
+  const [trialData,    setTrialData]    = useState<TrialResponse | null>(null);
+  const [trialLoading, setTrialLoading] = useState(false);
+  const [trialError,   setTrialError]   = useState<string | null>(null);
+  const [convertDone,  setConvertDone]  = useState(false);
+  const [starRating,   setStarRating]   = useState(0);
   const [recruiterMsg, setRecruiterMsg] = useState<string | null>(null);
+
+  async function handleStartTrial(candidateId: string) {
+    const c = candidates.find((x) => x.id === candidateId);
+    if (!c) return;
+    setTrialLoading(true);
+    setTrialError(null);
+    try {
+      const data = await startTrial(candidateId, c.trial_rate_cents);
+      setTrialData(data);
+      setTrialActive(candidateId);
+      setConvertDone(false);
+      setStarRating(0);
+      setTab("trials");
+    } catch (err) {
+      setTrialError(err instanceof Error ? err.message : "Failed to start trial");
+    } finally {
+      setTrialLoading(false);
+    }
+  }
 
   const shortlist = candidates.slice(0, 3);
 
@@ -772,8 +830,17 @@ function HybridMode({
           </div>
 
           {shortlist.map((c) => (
-            <TrialCard key={c.id} candidate={c} onStartTrial={(id) => { setTrialActive(id); setTab("trials"); }} />
+            <TrialCard
+              key={c.id}
+              candidate={c}
+              onStartTrial={handleStartTrial}
+              loading={trialLoading && trialActive === null}
+            />
           ))}
+
+          {trialError && (
+            <p className="font-mono text-xs text-red-400 px-1">{trialError}</p>
+          )}
 
           <div className="border border-zinc-800 rounded-sm p-3">
             <p className="font-mono text-[10px] text-zinc-600 uppercase tracking-widest mb-2">Trial Terms</p>
@@ -897,14 +964,34 @@ function HybridMode({
                     </div>
 
                     <div className="flex gap-2">
-                      <button className="flex-1 h-9 rounded-sm border border-green-800 bg-green-950/30 text-green-400
-                                         font-mono text-[10px] uppercase tracking-widest hover:border-green-600 transition-colors
-                                         flex items-center justify-center gap-1.5">
+                      <button
+                        disabled={convertDone || !trialData}
+                        onClick={async () => {
+                          if (!trialData) return;
+                          try {
+                            await updateTrial(trialData.trial_id, "convert");
+                            setConvertDone(true);
+                          } catch { /* non-fatal */ }
+                        }}
+                        className="flex-1 h-9 rounded-sm border font-mono text-[10px] uppercase tracking-widest
+                                   transition-colors flex items-center justify-center gap-1.5
+                                   disabled:opacity-50 disabled:cursor-not-allowed
+                                   border-green-800 bg-green-950/30 text-green-400 hover:border-green-600"
+                      >
                         <ArrowRight className="w-3.5 h-3.5" />
-                        Convert to Engagement
+                        {convertDone ? "Converted ✓" : "Convert to Engagement"}
                       </button>
                       <button
-                        onClick={() => { setTrialActive(null); setTab("shortlist"); }}
+                        onClick={async () => {
+                          if (trialData) {
+                            try { await updateTrial(trialData.trial_id, "end"); } catch { /* non-fatal */ }
+                          }
+                          setTrialActive(null);
+                          setTrialData(null);
+                          setConvertDone(false);
+                          setStarRating(0);
+                          setTab("shortlist");
+                        }}
                         className="h-9 px-3 rounded-sm border border-zinc-700 text-zinc-500
                                    font-mono text-[10px] uppercase tracking-widest hover:border-zinc-600 transition-colors"
                       >
@@ -918,10 +1005,25 @@ function HybridMode({
                   <p className="font-mono text-[10px] text-zinc-600 uppercase tracking-widest mb-2">Early Impressions</p>
                   <div className="flex gap-1">
                     {[1, 2, 3, 4, 5].map((star) => (
-                      <Star key={star} className="w-5 h-5 text-amber-500 fill-amber-500" />
+                      <button
+                        key={star}
+                        aria-label={`Rate ${star} star${star > 1 ? "s" : ""}`}
+                        onClick={async () => {
+                          setStarRating(star);
+                          if (trialData) {
+                            try { await updateTrial(trialData.trial_id, "rate", { rating: star }); } catch { /* non-fatal */ }
+                          }
+                        }}
+                      >
+                        <Star className={`w-5 h-5 transition-colors ${
+                          star <= starRating ? "text-amber-500 fill-amber-500" : "text-zinc-700"
+                        }`} />
+                      </button>
                     ))}
                   </div>
-                  <p className="font-mono text-[10px] text-zinc-600 mt-1">Rating saved — influences leaderboard score</p>
+                  {starRating > 0 && (
+                    <p className="font-mono text-[10px] text-zinc-600 mt-1">Rating saved — influences leaderboard score</p>
+                  )}
                 </div>
               </>
             );
@@ -1026,6 +1128,14 @@ export default function MatchingPage() {
     setMode("hybrid");
   }
 
+  async function handleInvite(candidateId: string) {
+    try {
+      await inviteToProject(candidateId);
+    } catch {
+      // non-fatal — button already shows "Invited ✓" optimistically on success
+    }
+  }
+
   // Use live results when available, fall back to demo candidates
   const activeCandidates = liveResults ?? CANDIDATES;
 
@@ -1089,7 +1199,7 @@ export default function MatchingPage() {
 
         {/* Mode content */}
         {mode === "ai"
-          ? <AiMatchMode candidates={activeCandidates} onSwitchHybrid={switchToHybrid} />
+          ? <AiMatchMode candidates={activeCandidates} onSwitchHybrid={switchToHybrid} onInvite={handleInvite} />
           : <HybridMode  candidates={activeCandidates} initialCandidateId={hybridEntryPoint} />
         }
       </main>

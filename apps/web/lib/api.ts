@@ -317,6 +317,59 @@ export function fetchMatches(req: MatchRequest): Promise<MatchResult> {
   });
 }
 
+// ── Matching invitations ───────────────────────────────────────────────────
+
+export interface InvitationResponse {
+  invitation_id: string;
+  created_at:    string;
+}
+
+export function inviteToProject(
+  talentId:   string,
+  listingId?: string,
+  message?:   string,
+): Promise<InvitationResponse> {
+  return apiFetch("/api/matching/invitations", {
+    method: "POST",
+    body:   JSON.stringify({ talent_id: talentId, listing_id: listingId, message }),
+  });
+}
+
+// ── Trial engagements ──────────────────────────────────────────────────────
+
+export interface TrialResponse {
+  trial_id:       string;
+  started_at:     string;
+  day3_deadline:  string;
+  day14_deadline: string;
+}
+
+export function startTrial(
+  talentId:       string,
+  trialRateCents: number,
+  listingId?:     string,
+): Promise<TrialResponse> {
+  return apiFetch("/api/matching/trials", {
+    method: "POST",
+    body:   JSON.stringify({
+      talent_id:        talentId,
+      trial_rate_cents: trialRateCents,
+      listing_id:       listingId,
+    }),
+  });
+}
+
+export function updateTrial(
+  trialId: string,
+  action:  "convert" | "end" | "rate",
+  opts?:   { end_reason?: string; rating?: number },
+): Promise<{ ok: boolean }> {
+  return apiFetch(`/api/matching/trials/${trialId}`, {
+    method: "PATCH",
+    body:   JSON.stringify({ action, ...opts }),
+  });
+}
+
 // ── Reputation service (:3009) ────────────────────────────────────────────
 
 export function getVc(talentId: string): Promise<string> {
