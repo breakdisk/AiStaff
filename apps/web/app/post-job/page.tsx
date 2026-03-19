@@ -61,6 +61,7 @@ export default function PostJobPage() {
   const [allTags,     setAllTags]     = useState<SkillTag[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [tagsLoading, setTagsLoading] = useState(true);
+  const [tagsError,   setTagsError]   = useState(false);
   const [submitting,  setSubmitting]  = useState(false);
   const [done,        setDone]        = useState(false);
   const [error,       setError]       = useState<string | null>(null);
@@ -69,7 +70,7 @@ export default function PostJobPage() {
     fetch("/api/skill-tags")
       .then((r) => r.json())
       .then((d) => setAllTags(d.skill_tags ?? []))
-      .catch(() => {})
+      .catch(() => setTagsError(true))
       .finally(() => setTagsLoading(false));
   }, []);
 
@@ -283,6 +284,10 @@ export default function PostJobPage() {
             </Label>
             {tagsLoading ? (
               <div className="h-8 rounded-sm bg-zinc-800 animate-pulse" />
+            ) : tagsError ? (
+              <p className="font-mono text-xs text-zinc-500">
+                Skills unavailable — you can specify requirements in the description.
+              </p>
             ) : (
               Object.entries(
                 allTags.reduce<Record<string, SkillTag[]>>((acc, t) => {
@@ -300,6 +305,7 @@ export default function PostJobPage() {
                         key={t.id}
                         type="button"
                         onClick={() => toggleTag(t.id)}
+                        aria-pressed={selectedIds.has(t.id)}
                         className={`h-6 px-2 rounded-sm border font-mono text-[11px] transition-all
                           ${selectedIds.has(t.id)
                             ? "border-amber-400/60 bg-amber-400/10 text-amber-400"
