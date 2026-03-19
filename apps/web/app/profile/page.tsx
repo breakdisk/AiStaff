@@ -401,6 +401,93 @@ function EditForm({
   );
 }
 
+// ── Privacy section ───────────────────────────────────────────────────────────
+
+type PrivacySettings = {
+  profile_public:    boolean;
+  show_bio:          boolean;
+  show_rate:         boolean;
+  show_skills:       boolean;
+  show_trust_score:  boolean;
+  show_availability: boolean;
+};
+
+function PrivacySection({
+  privacy,
+  saving,
+  msg,
+  onChange,
+  onSave,
+}: {
+  privacy:  PrivacySettings;
+  saving:   boolean;
+  msg:      string | null;
+  onChange: (field: keyof PrivacySettings, value: boolean) => void;
+  onSave:   () => void;
+}) {
+  const rows: Array<{ key: keyof PrivacySettings; label: string }> = [
+    { key: "profile_public",    label: "Public profile"         },
+    { key: "show_bio",          label: "Show bio"                },
+    { key: "show_rate",         label: "Show hourly rate"         },
+    { key: "show_skills",       label: "Show skills"              },
+    { key: "show_trust_score",  label: "Show trust score & tier"  },
+    { key: "show_availability", label: "Show availability"        },
+  ];
+
+  return (
+    <div className="border border-zinc-800 rounded-sm bg-zinc-900 p-4 space-y-3">
+      <p className="font-mono text-xs text-zinc-400 uppercase tracking-widest">Privacy</p>
+
+      {!privacy.profile_public && (
+        <div className="border border-amber-900 bg-amber-950/20 px-3 py-2 rounded-sm">
+          <p className="font-mono text-[10px] text-amber-400">
+            Your profile is hidden from public view. Only your name and role are visible.
+          </p>
+        </div>
+      )}
+
+      <div className="divide-y divide-zinc-800">
+        {rows.map(({ key, label }) => (
+          <div key={key} className="flex items-center justify-between py-2.5">
+            <span className="font-mono text-xs text-zinc-300">{label}</span>
+            <button
+              type="button"
+              onClick={() => onChange(key, !privacy[key])}
+              className={`relative w-10 h-5 rounded-sm border transition-all ${
+                privacy[key]
+                  ? "bg-amber-400/20 border-amber-400/60"
+                  : "bg-zinc-800 border-zinc-700"
+              }`}
+              aria-pressed={privacy[key]}
+              aria-label={label}
+            >
+              <span className={`absolute top-0.5 bottom-0.5 w-3.5 rounded-sm transition-all ${
+                privacy[key] ? "right-0.5 bg-amber-400" : "left-0.5 bg-zinc-600"
+              }`} />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {msg && (
+        <p className="font-mono text-[10px] text-amber-400 border border-amber-900 bg-amber-950/20 px-2 py-1.5 rounded-sm">
+          {msg}
+        </p>
+      )}
+
+      <button
+        onClick={onSave}
+        disabled={saving}
+        className="w-full h-9 flex items-center justify-center gap-2 rounded-sm border
+                   border-zinc-700 text-zinc-300 font-mono text-xs
+                   hover:border-zinc-500 hover:text-zinc-100 disabled:opacity-40 transition-all"
+      >
+        {saving ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving…</> : "Save privacy"}
+      </button>
+    </div>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 const DEMO_ACTIVITY = [
@@ -427,6 +514,16 @@ export default function ProfilePage() {
   const [attestMsg,       setAttestMsg]       = useState<string | null>(null);
   const [liveScore,       setLiveScore]       = useState<number | null>(null);
   const [liveTier,        setLiveTier]        = useState<string | null>(null);
+  const [privacy, setPrivacy] = useState({
+    profile_public:    true,
+    show_bio:          true,
+    show_rate:         true,
+    show_skills:       true,
+    show_trust_score:  true,
+    show_availability: true,
+  });
+  const [privacySaving, setPrivacySaving] = useState(false);
+  const [privacyMsg,    setPrivacyMsg]    = useState<string | null>(null);
 
   // BYOK — provider + key stored in localStorage
   const [aiProvider,      setAiProvider]      = useState<AiProvider>("anthropic");
@@ -462,6 +559,10 @@ export default function ProfilePage() {
     const savedKey      = localStorage.getItem("aistaff_ai_key") ?? "";
     if (savedProvider && AI_PROVIDERS.some((p) => p.id === savedProvider)) setAiProvider(savedProvider);
     if (savedKey) setApiKey(savedKey);
+    fetch("/api/talent/privacy")
+      .then((res) => res.ok ? res.json() : null)
+      .then((data: unknown) => { if (data && typeof data === "object") setPrivacy(data as typeof privacy); })
+      .catch(() => {});
   }, [profileId]);
 
   if (status === "loading") {
@@ -518,6 +619,29 @@ export default function ProfilePage() {
   function handleDisconnect(_provider: string, newScore: number, newTier: string) {
     setLiveScore(newScore);
     setLiveTier(newTier);
+  }
+
+  async function handleSavePrivacy() {
+    setPrivacySaving(true);
+    setPrivacyMsg(null);
+    try {
+      const res = await fetch("/api/talent/privacy", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(privacy),
+      });
+      if (res.ok) {
+        const updated = await res.json() as typeof privacy;
+        setPrivacy(updated);
+        setPrivacyMsg("Privacy settings saved.");
+      } else {
+        setPrivacyMsg("Failed to save — try again.");
+      }
+    } catch {
+      setPrivacyMsg("Backend offline — changes noted locally.");
+    } finally {
+      setPrivacySaving(false);
+    }
   }
 
   function handleSaveApiKey() {
@@ -670,6 +794,20 @@ export default function ProfilePage() {
           </div>
         </div>
 
+        {/* Public profile link (view mode) */}
+        {!editing && profileId && (
+          <div className="flex items-center gap-2">
+            <a
+              href={`/talent/${profileId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-mono text-[10px] text-zinc-500 hover:text-amber-400 transition-colors"
+            >
+              View public profile →
+            </a>
+          </div>
+        )}
+
         {/* Edit form */}
         {editing && profileId && (
           <div className="border border-amber-900/40 rounded-sm bg-zinc-900 p-4">
@@ -682,6 +820,17 @@ export default function ProfilePage() {
               onCancel={() => setEditing(false)}
             />
           </div>
+        )}
+
+        {/* Privacy section (edit mode only) */}
+        {editing && (
+          <PrivacySection
+            privacy={privacy}
+            saving={privacySaving}
+            msg={privacyMsg}
+            onChange={(field, value) => setPrivacy((p) => ({ ...p, [field]: value }))}
+            onSave={handleSavePrivacy}
+          />
         )}
 
         {/* Skills (view mode) */}
