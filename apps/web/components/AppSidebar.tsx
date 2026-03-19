@@ -81,6 +81,15 @@ const SECTION_NAV: { heading: string; items: { label: string; href: string }[] }
   },
 ];
 
+// Which section groups are shown per primary nav context
+const CONTEXT_SECTIONS: Record<string, string[]> = {
+  "/dashboard":   ["AI Tools", "Workspace", "Notifications"],
+  "/marketplace": ["Payments", "Legal"],
+  "/leaderboard": ["Trust", "Enterprise"],
+  "/matching":    ["AI Tools", "Workspace"],
+  "/profile":     ["Legal", "Trust", "Notifications"],
+};
+
 export const MOBILE_NAV = [
   { label: "Dash",    href: "/dashboard"   },
   { label: "Market",  href: "/marketplace" },
@@ -200,8 +209,14 @@ export function AppSidebar({ status }: AppSidebarProps) {
         </a>
       </div>
 
-      {/* Section groups */}
-      {SECTION_NAV.map(({ heading, items }) => {
+      {/* Section groups — filtered by active primary nav context */}
+      {(() => {
+        const activeRoot = PRIMARY_NAV.find(({ href }) =>
+          pathname === href || pathname.startsWith(href + "/")
+        )?.href ?? "/dashboard";
+        const allowed = CONTEXT_SECTIONS[activeRoot] ?? CONTEXT_SECTIONS["/dashboard"];
+        return SECTION_NAV.filter(({ heading }) => allowed.includes(heading));
+      })().map(({ heading, items }) => {
         if (heading === "Enterprise" && !showEnterprise) return null;
         return (
           <div key={heading} className="space-y-1">
