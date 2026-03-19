@@ -1,13 +1,7 @@
-import { Pool } from "pg";
+import { adminPool } from "@/lib/admin";
 import { SkillSuggestionActions } from "./SkillSuggestionActions";
 
 export const runtime = "nodejs";
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  max: 2,
-  idleTimeoutMillis: 30_000,
-});
 
 type Suggestion = {
   id: string;
@@ -36,7 +30,7 @@ export default async function AdminSkillSuggestions({
   let rows: Suggestion[] = [];
   let client;
   try {
-    client = await pool.connect();
+    client = await adminPool.connect();
     const result = await client.query(
       `SELECT ss.id, ss.tag, ss.domain, ss.status,
               ss.created_at, ss.reviewed_at,

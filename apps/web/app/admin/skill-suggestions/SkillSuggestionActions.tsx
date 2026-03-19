@@ -55,7 +55,7 @@ export function SkillSuggestionActions({ suggestion }: { suggestion: Suggestion 
         className="text-[11px] px-2 py-0.5 border border-red-900 text-red-400
                    hover:bg-red-900/30 disabled:opacity-50 transition-colors"
       >
-        Reject
+        {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : "Reject"}
       </button>
     </div>
   );

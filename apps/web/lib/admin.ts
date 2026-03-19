@@ -1,7 +1,7 @@
 import { Pool } from "pg";
 
 // Shared pool for admin checks — reused across admin routes.
-const adminPool = new Pool({
+export const adminPool = new Pool({
   connectionString: process.env.DATABASE_URL,
   max: 2,
   idleTimeoutMillis: 30_000,
