@@ -213,6 +213,97 @@ function SkillPicker({
   );
 }
 
+// ── Suggest skill form ────────────────────────────────────────────────────────
+
+const DOMAINS = ["systems", "web", "mobile", "ai", "data", "infra", "security", "web3", "general"];
+
+function SuggestSkillForm({ profileId }: { profileId: string }) {
+  const [tag,    setTag]    = useState("");
+  const [domain, setDomain] = useState("");
+  const [status, setStatus] = useState<"idle" | "submitting" | "done" | "error">("idle");
+  const [errMsg, setErrMsg] = useState("");
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!tag.trim() || !domain) return;
+    setStatus("submitting");
+    try {
+      const res = await fetch("/api/skill-suggestions", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ tag: tag.trim().toLowerCase(), domain }),
+      });
+      if (res.status === 409) {
+        setErrMsg("This skill is already pending review or already exists.");
+        setStatus("error");
+        return;
+      }
+      if (!res.ok) {
+        setErrMsg("Could not submit suggestion. Try again.");
+        setStatus("error");
+        return;
+      }
+      setStatus("done");
+      setTag("");
+      setDomain("");
+    } catch {
+      setErrMsg("Network error. Try again.");
+      setStatus("error");
+    }
+  }
+
+  if (status === "done") {
+    return (
+      <p className="font-mono text-xs text-emerald-500 flex items-center gap-1.5">
+        <CheckCircle2 className="w-3.5 h-3.5" /> Suggestion submitted — we&apos;ll review it shortly.
+      </p>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-2 pt-2 border-t border-zinc-800">
+      <p className="font-mono text-[10px] text-zinc-600 uppercase tracking-widest">
+        Suggest a missing skill
+      </p>
+      <div className="flex gap-2">
+        <input
+          value={tag}
+          onChange={(e) => setTag(e.target.value)}
+          placeholder="e.g. solidity"
+          maxLength={40}
+          className="flex-1 h-8 px-3 rounded-sm border border-zinc-700 bg-zinc-900
+                     text-zinc-100 text-xs placeholder:text-zinc-600 font-mono
+                     focus:outline-none focus:border-amber-400/50 transition-colors"
+        />
+        <select
+          value={domain}
+          onChange={(e) => setDomain(e.target.value)}
+          className="h-8 px-2 rounded-sm border border-zinc-700 bg-zinc-900
+                     text-zinc-400 text-xs font-mono focus:outline-none focus:border-amber-400/50
+                     transition-colors"
+        >
+          <option value="">domain…</option>
+          {DOMAINS.map((d) => (
+            <option key={d} value={d}>{d}</option>
+          ))}
+        </select>
+        <button
+          type="submit"
+          disabled={!tag.trim() || !domain || status === "submitting"}
+          className="h-8 px-3 rounded-sm border border-zinc-700 bg-zinc-900
+                     text-zinc-400 font-mono text-xs hover:border-zinc-600
+                     disabled:opacity-40 transition-all"
+        >
+          {status === "submitting" ? <Loader2 className="w-3 h-3 animate-spin" /> : "Suggest"}
+        </button>
+      </div>
+      {status === "error" && (
+        <p className="font-mono text-[10px] text-red-400">{errMsg}</p>
+      )}
+    </form>
+  );
+}
+
 // ── Edit form ─────────────────────────────────────────────────────────────────
 
 function EditForm({
@@ -369,6 +460,7 @@ function EditForm({
         <p className="font-mono text-[10px] text-zinc-600">
           {skills.size} skill{skills.size !== 1 ? "s" : ""} selected — click a tag to toggle, then set proficiency
         </p>
+        <SuggestSkillForm profileId={profileId} />
       </div>
 
       {error && (
