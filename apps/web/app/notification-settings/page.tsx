@@ -311,6 +311,10 @@ export default function NotificationSettingsPage() {
   const [integrations, setIntegrations] = useState<IntegrationStatus[]>([]);
   const [qrPending,   setQrPending]   = useState<Record<string, string>>({});  // provider → qr_url
 
+  const fetchIntegrationStatuses = useCallback(() => {
+    fetchIntegrationsStatus(DEMO_USER_ID).then(setIntegrations).catch(() => {});
+  }, []);
+
   // ── Load preferences on mount ──────────────────────────────────────────────
   useEffect(() => {
     fetchNotificationPreferences(DEMO_USER_ID).then((p) => {
@@ -329,7 +333,7 @@ export default function NotificationSettingsPage() {
     }).catch(() => { /* backend offline — use defaults */ });
 
     fetchIntegrationStatuses();
-  }, []);
+  }, [fetchIntegrationStatuses]);
 
   // ── Poll integrations every 5s (while any pending) ─────────────────────────
   useEffect(() => {
@@ -337,11 +341,7 @@ export default function NotificationSettingsPage() {
     if (!hasPending) return;
     const id = setInterval(fetchIntegrationStatuses, 5000);
     return () => clearInterval(id);
-  }, [integrations]);
-
-  const fetchIntegrationStatuses = useCallback(() => {
-    fetchIntegrationsStatus(DEMO_USER_ID).then(setIntegrations).catch(() => {});
-  }, []);
+  }, [integrations, fetchIntegrationStatuses]);
 
   // ── Channel toggle ─────────────────────────────────────────────────────────
   function toggleChannel(ch: Channel, val: boolean) {

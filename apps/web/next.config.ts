@@ -22,6 +22,13 @@ const nextConfig: NextConfig = {
   // bundled by webpack or it loses access to its own node_modules assets.
   serverExternalPackages: ["pdfkit"],
 
+  images: {
+    remotePatterns: [
+      // QR code generator used in notification-settings integrations panel
+      { protocol: "https", hostname: "api.qrserver.com" },
+    ],
+  },
+
   // ── Prevent Cloudflare (and any CDN) from caching auth API responses ────────
   // Cloudflare strips Set-Cookie headers from cached responses. If /api/auth/csrf
   // is cached, the CSRF cookie is never set → double-submit validation fails →
