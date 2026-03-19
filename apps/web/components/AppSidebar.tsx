@@ -138,7 +138,7 @@ export function AppSidebar({ status }: AppSidebarProps) {
         <div className="flex items-center gap-2">
           {session?.user && (
             <a href="/notifications" className="relative p-0.5" aria-label="Notifications">
-              <Bell size={13} className={notifCount > 0 ? "text-amber-400" : "text-zinc-600"} />
+              <Bell size={15} className={notifCount > 0 ? "text-amber-400" : "text-zinc-400"} />
               {notifCount > 0 && (
                 <span className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-0.5 rounded-sm bg-amber-400 text-zinc-950 font-mono text-[8px] font-bold flex items-center justify-center">
                   {notifCount > 99 ? "99+" : notifCount}
