@@ -217,7 +217,7 @@ function SkillPicker({
 
 const DOMAINS = ["systems", "web", "mobile", "ai", "data", "infra", "security", "web3", "general"];
 
-function SuggestSkillForm({ profileId }: { profileId: string }) {
+function SuggestSkillForm() {
   const [tag,    setTag]    = useState("");
   const [domain, setDomain] = useState("");
   const [status, setStatus] = useState<"idle" | "submitting" | "done" | "error">("idle");
@@ -267,6 +267,7 @@ function SuggestSkillForm({ profileId }: { profileId: string }) {
       </p>
       <div className="flex gap-2">
         <input
+          aria-label="Skill name"
           value={tag}
           onChange={(e) => setTag(e.target.value)}
           placeholder="e.g. solidity"
@@ -276,6 +277,7 @@ function SuggestSkillForm({ profileId }: { profileId: string }) {
                      focus:outline-none focus:border-amber-400/50 transition-colors"
         />
         <select
+          aria-label="Domain"
           value={domain}
           onChange={(e) => setDomain(e.target.value)}
           className="h-8 px-2 rounded-sm border border-zinc-700 bg-zinc-900
@@ -460,7 +462,7 @@ function EditForm({
         <p className="font-mono text-[10px] text-zinc-600">
           {skills.size} skill{skills.size !== 1 ? "s" : ""} selected — click a tag to toggle, then set proficiency
         </p>
-        <SuggestSkillForm profileId={profileId} />
+        <SuggestSkillForm />
       </div>
 
       {error && (
