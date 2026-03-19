@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
-import { Inbox, Briefcase, Mail } from "lucide-react";
+import { Inbox, Briefcase, Mail, Bell } from "lucide-react";
 
 // ── Nav definitions ─────────────────────────────────────────────────────────
 
@@ -113,6 +113,19 @@ export function AppSidebar({ status }: AppSidebarProps) {
   const showInbox        = role !== "talent";
   const showInvitations  = !!session?.user;
 
+  const [notifCount, setNotifCount] = useState(0);
+  useEffect(() => {
+    if (!session?.user) return;
+    const poll = () =>
+      fetch("/api/notifications/count")
+        .then(r => r.ok ? r.json() : { count: 0 })
+        .then((d: { count?: number }) => setNotifCount(d.count ?? 0))
+        .catch(() => {});
+    poll();
+    const id = setInterval(poll, 30_000);
+    return () => clearInterval(id);
+  }, [session]);
+
   const [unread, setUnread] = useState(0);
   useEffect(() => {
     if (!session?.user) return;
@@ -133,6 +146,16 @@ export function AppSidebar({ status }: AppSidebarProps) {
       <div className="flex items-center justify-between">
         <span className="font-mono text-xs text-zinc-500 uppercase tracking-widest">AiStaffApp</span>
         <div className="flex items-center gap-2">
+          {session?.user && (
+            <a href="/notifications" className="relative p-0.5" aria-label="Notifications">
+              <Bell size={15} className={notifCount > 0 ? "text-amber-400" : "text-zinc-400"} />
+              {notifCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-0.5 rounded-sm bg-amber-400 text-zinc-950 font-mono text-[8px] font-bold flex items-center justify-center">
+                  {notifCount > 99 ? "99+" : notifCount}
+                </span>
+              )}
+            </a>
+          )}
           {status && (
             <span className={`font-mono text-[9px] px-1.5 py-0.5 rounded-sm border ${
               status === "live"
