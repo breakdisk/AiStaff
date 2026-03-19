@@ -192,6 +192,10 @@ const AVAIL_META = {
 
 function fmtRate(c: number) { return `$${(c / 100).toFixed(0)}/hr`; }
 
+function fmtDate(iso: string) {
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
 function overallColor(s: number) {
   if (s >= 0.8) return "text-green-400";
   if (s >= 0.6) return "text-amber-400";
@@ -936,20 +940,46 @@ function HybridMode({
                         </p>
                       </div>
                       <div className="border border-zinc-800 rounded-sm p-2">
-                        <p className="font-mono text-[9px] text-zinc-600 uppercase">Guarantee</p>
-                        <p className="font-mono text-sm font-medium text-green-400">Day 3+</p>
+                        <p className="font-mono text-[9px] text-zinc-600 uppercase">Guarantee until</p>
+                        <p className="font-mono text-sm font-medium text-green-400">
+                          {trialData ? fmtDate(trialData.day3_deadline) : "Day 3+"}
+                        </p>
                       </div>
                     </div>
 
                     <div>
                       <p className="font-mono text-[10px] text-zinc-600 uppercase tracking-widest mb-2">Trial Milestones</p>
                       <div className="space-y-2">
-                        {[
-                          { day: "Day 1",  label: "Kickoff call + env setup",          done: true  },
-                          { day: "Day 3",  label: "Money-back guarantee window closes", done: false },
-                          { day: "Day 7",  label: "Mid-trial review checkpoint",        done: false },
-                          { day: "Day 14", label: "Trial ends — convert or exit",       done: false },
-                        ].map(({ day, label, done }) => (
+                        {(() => {
+                          const now      = new Date();
+                          const started  = trialData ? new Date(trialData.started_at)     : null;
+                          const day3     = trialData ? new Date(trialData.day3_deadline)  : null;
+                          const day14    = trialData ? new Date(trialData.day14_deadline) : null;
+                          const day7     = started   ? new Date(started.getTime() + 7 * 24 * 60 * 60 * 1000) : null;
+
+                          return [
+                            {
+                              day:   "Day 1",
+                              label: started ? `Kickoff — ${fmtDate(started.toISOString())}` : "Kickoff call + env setup",
+                              done:  true,
+                            },
+                            {
+                              day:   "Day 3",
+                              label: day3 ? `Money-back guarantee closes ${fmtDate(day3.toISOString())}` : "Money-back guarantee window closes",
+                              done:  day3 ? now > day3 : false,
+                            },
+                            {
+                              day:   "Day 7",
+                              label: day7 ? `Mid-trial review — ${fmtDate(day7.toISOString())}` : "Mid-trial review checkpoint",
+                              done:  day7 ? now > day7 : false,
+                            },
+                            {
+                              day:   "Day 14",
+                              label: day14 ? `Trial ends ${fmtDate(day14.toISOString())} — convert or exit` : "Trial ends — convert or exit",
+                              done:  day14 ? now > day14 : false,
+                            },
+                          ];
+                        })().map(({ day, label, done }) => (
                           <div key={day} className="flex items-center gap-2.5">
                             <div className={`w-4 h-4 rounded-sm flex items-center justify-center flex-shrink-0 border ${
                               done ? "border-green-700 bg-green-950/40" : "border-zinc-700 bg-zinc-800"
