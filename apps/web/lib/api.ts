@@ -240,12 +240,26 @@ export interface PublicProfile {
   hourly_rate_cents:  number | null;
   availability:       string | null;  // "available" | "busy" | "not-available"
   role:               string | null;  // "talent" | "client" | "agent-owner"
+  github_followers?:  number;
+  github_stars?:      number;
 }
 
 export function fetchPublicProfile(profileId: string): Promise<PublicProfile> {
   // Proxy: /api/identity/* → http://localhost:3001/*
   // Identity service route: /identity/public-profile/{id}
   return apiFetch(`/api/identity/public-profile/${profileId}`);
+}
+
+export interface TalentPayout {
+  id:           string;
+  released_at:  string;   // ISO timestamp from escrow_payouts.created_at
+  agent_name:   string;   // COALESCE(agent_listings.name, 'Deleted Listing')
+  amount_cents: number;
+  status:       "RELEASED";
+}
+
+export function fetchTalentPayouts(): Promise<TalentPayout[]> {
+  return apiFetch("/api/talent/payouts");
 }
 
 export function requestNonce(
