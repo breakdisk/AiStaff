@@ -18,6 +18,8 @@ interface OAuthCallbackPayload {
   display_name: string;
   github_repos?: number;
   github_created_at?: string;
+  github_followers?: number;
+  github_stars?: number;
   email_verified?: boolean;
   existing_profile_id?: string;
 }

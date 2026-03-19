@@ -91,6 +91,10 @@ pub struct OAuthCallbackPayload {
     pub github_repos: Option<u32>,
     /// GitHub account creation ISO-8601 timestamp — present only for GitHub provider.
     pub github_created_at: Option<DateTime<Utc>>,
+    /// GitHub follower count — present only for GitHub provider.
+    pub github_followers: Option<u32>,
+    /// GitHub public repos count (used as star-count proxy) — present only for GitHub provider.
+    pub github_stars: Option<u32>,
     /// Whether the provider verified the email address.
     pub email_verified: Option<bool>,
     /// For connect-provider flow: existing profile to update.
