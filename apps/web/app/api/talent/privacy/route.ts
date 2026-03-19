@@ -46,6 +46,9 @@ export async function GET() {
       [profileId],
     );
     return NextResponse.json(result.rows[0] ?? DEFAULTS);
+  } catch (err) {
+    console.error("[api/talent/privacy GET]", err);
+    return NextResponse.json({ error: "Failed to load privacy settings" }, { status: 500 });
   } finally {
     client?.release();
   }
@@ -100,6 +103,9 @@ export async function PATCH(req: NextRequest) {
       ],
     );
     return NextResponse.json(result.rows[0]);
+  } catch (err) {
+    console.error("[api/talent/privacy PATCH]", err);
+    return NextResponse.json({ error: "Failed to save privacy settings" }, { status: 500 });
   } finally {
     client?.release();
   }

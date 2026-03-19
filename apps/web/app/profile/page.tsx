@@ -559,10 +559,12 @@ export default function ProfilePage() {
     const savedKey      = localStorage.getItem("aistaff_ai_key") ?? "";
     if (savedProvider && AI_PROVIDERS.some((p) => p.id === savedProvider)) setAiProvider(savedProvider);
     if (savedKey) setApiKey(savedKey);
-    fetch("/api/talent/privacy")
-      .then((res) => res.ok ? res.json() : null)
-      .then((data: unknown) => { if (data && typeof data === "object") setPrivacy(data as typeof privacy); })
-      .catch(() => {});
+    if (profileId) {
+      fetch("/api/talent/privacy")
+        .then((res) => res.ok ? res.json() : null)
+        .then((data: unknown) => { if (data && typeof data === "object") setPrivacy(data as typeof privacy); })
+        .catch(() => {});
+    }
   }, [profileId]);
 
   if (status === "loading") {

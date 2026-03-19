@@ -46,6 +46,9 @@ export async function GET(
     }
 
     return NextResponse.json({ follower_count, following });
+  } catch (err) {
+    console.error("[api/talent/[id]/follow GET]", err);
+    return NextResponse.json({ error: "Failed to load follow state" }, { status: 500 });
   } finally {
     client?.release();
   }
