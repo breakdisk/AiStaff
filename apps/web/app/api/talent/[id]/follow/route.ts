@@ -74,9 +74,10 @@ export async function POST(
   let client;
   try {
     client = await pool.connect();
+    await client.query("BEGIN");
 
     const existingCheck = await client.query(
-      `SELECT 1 FROM talent_follows WHERE follower_id = $1 AND following_id = $2`,
+      `SELECT 1 FROM talent_follows WHERE follower_id = $1 AND following_id = $2 FOR UPDATE`,
       [followerId, id],
     );
     const wasFollowing = existingCheck.rows.length > 0;
@@ -100,7 +101,12 @@ export async function POST(
     );
     const follower_count = parseInt(countResult.rows[0]?.count ?? "0", 10);
 
+    await client.query("COMMIT");
     return NextResponse.json({ following: !wasFollowing, follower_count });
+  } catch (err) {
+    await client?.query("ROLLBACK").catch(() => {});
+    console.error("[api/talent/[id]/follow POST]", err);
+    return NextResponse.json({ error: "Failed to update follow" }, { status: 500 });
   } finally {
     client?.release();
   }
