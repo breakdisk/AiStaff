@@ -185,7 +185,9 @@ export interface TalentSkill {
 }
 
 export function fetchSkillTags(): Promise<{ skill_tags: SkillTag[] }> {
-  return apiFetch("/api/marketplace/skill-tags");
+  // Served from Next.js directly (pg Pool → skill_tags table).
+  // No dependency on marketplace_service being up.
+  return apiFetch("/api/skill-tags");
 }
 
 export function fetchTalentSkills(profileId: string): Promise<{ skills: TalentSkill[] }> {
