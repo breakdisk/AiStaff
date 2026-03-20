@@ -700,6 +700,17 @@ export interface CarbonFootprint {
   updated_at:       string;
 }
 
+export interface ReminderRow {
+  id:            string;
+  user_id:       string;
+  deployment_id: string | null;
+  title:         string;
+  remind_at:     string; // ISO timestamp
+  source:        "user" | "system";
+  fired:         boolean;
+  created_at:    string;
+}
+
 // Hubs
 export function fetchHubs(category?: string): Promise<{ hubs: Hub[] }> {
   const qs = category ? `?category=${category}` : "";
@@ -1040,4 +1051,29 @@ export async function approveMilestone(
     },
   )
   if (!res.ok) throw new Error(await res.text())
+}
+
+// ── Reminders ──────────────────────────────────────────────────────────────
+
+export async function fetchReminders(): Promise<ReminderRow[]> {
+  const data = await apiFetch<{ reminders: ReminderRow[] }>("/api/reminders");
+  return data.reminders;
+}
+
+export async function createReminder(
+  title: string,
+  date: string,
+  hours: number,
+  minutes: number,
+): Promise<ReminderRow> {
+  const data = await apiFetch<{ reminder: ReminderRow }>("/api/reminders", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title, date, hours, minutes }),
+  });
+  return data.reminder;
+}
+
+export async function deleteReminder(id: string): Promise<void> {
+  await fetch(`/api/reminders/${id}`, { method: "DELETE" });
 }
