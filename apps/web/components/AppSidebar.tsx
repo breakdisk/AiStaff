@@ -110,7 +110,8 @@ export function AppSidebar({ status }: AppSidebarProps) {
   const { data: session } = useSession();
   const role        = (session?.user as { role?: string | null })?.role ?? null;
   const accountType = (session?.user as { accountType?: string })?.accountType ?? "";
-  const showEnterprise = role === "agent-owner" || role === "client" || accountType === "agency";
+  const isAdmin     = (session?.user as { isAdmin?: boolean })?.isAdmin ?? false;
+  const showEnterprise = isAdmin || role === "agent-owner" || role === "client" || accountType === "agency";
   const showInbox        = role !== "talent";
   const showInvitations  = !!session?.user;
 
