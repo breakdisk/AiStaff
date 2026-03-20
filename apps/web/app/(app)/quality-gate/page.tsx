@@ -13,7 +13,6 @@ import {
   Code, FileSearch, Lock, Zap, RotateCcw, Play, Eye,
   Bug, Copy, ChevronRight, Info, Upload,
 } from "lucide-react";
-import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type ScanStatus    = "pending" | "scanning" | "passed" | "flagged" | "skipped";
@@ -368,9 +367,6 @@ function QualityGatePageInner() {
   }
 
   return (
-    <div className="flex min-h-screen bg-zinc-950 text-zinc-100">
-      <AppSidebar />
-
       <main className="flex-1 min-w-0 px-4 sm:px-6 py-6 pb-24 sm:pb-6">
         {/* Header */}
         <div className="flex items-start justify-between mb-6">
@@ -520,10 +516,7 @@ function QualityGatePageInner() {
           </div>
         </div>
       </main>
-
-      <AppMobileNav />
-    </div>
-  );
+      );
 }
 
 export default function QualityGatePage() {

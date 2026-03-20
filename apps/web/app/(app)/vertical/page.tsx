@@ -5,7 +5,6 @@ import {
   Landmark, Heart, Scale, Cog, Bot, GraduationCap,
   CheckCircle, ChevronRight, ChevronDown, ExternalLink, Star, Users, FileText,
 } from "lucide-react";
-import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -360,9 +359,6 @@ export default function VerticalPage() {
   }
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen">
-      <AppSidebar />
-
       <main className="flex-1 p-4 pb-20 lg:pb-4 space-y-4 max-w-5xl mx-auto w-full">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -413,8 +409,5 @@ export default function VerticalPage() {
         {/* Request custom */}
         <RequestCustomAccordion />
       </main>
-
-      <AppMobileNav />
-    </div>
-  );
+      );
 }

@@ -3,7 +3,6 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import { Calculator, ChevronRight, CheckCircle2, Info } from "lucide-react";
-import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -14,7 +13,6 @@ const PLAN_FEES: Record<string, { subscription: number; escrow_pct: number; payo
 };
 
 const PREMIUM_SUPPORT_CENTS = 9900; // $99/mo
-
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -127,8 +125,6 @@ export default function PricingCalculatorPage() {
 
   return (
     <div className="flex flex-col lg:flex-row min-h-screen">
-      <AppSidebar />
-
       {/* Main */}
       <main className="flex-1 p-4 pb-20 lg:pb-4 max-w-4xl mx-auto w-full space-y-4">
         {/* Header */}
@@ -363,8 +359,6 @@ export default function PricingCalculatorPage() {
           </div>
         </div>
       </main>
-
-      <AppMobileNav />
     </div>
   );
 }

@@ -12,7 +12,7 @@ import {
   fetchListingRequiredSkills, fetchTalentSkills,
   type AgentListing, type ListingCategory, type SellerType, type SkillTag,
 } from "@/lib/api";
-import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
+
 import { VettingBadge }  from "@/components/VettingBadge";
 import { ShareButton }   from "@/components/ShareSheet";
 import type { VettingTier } from "@/components/VettingBadge";
@@ -1247,11 +1247,7 @@ export default function MarketplacePage() {
   };
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen">
-      {/* Shared sidebar — active state driven by usePathname() */}
-      <AppSidebar status={status} />
-
-      {/* Main */}
+    <>
       <main className="flex-1 p-4 pb-20 lg:pb-4 space-y-4 max-w-5xl mx-auto w-full">
 
         {/* Header */}
@@ -1423,9 +1419,6 @@ export default function MarketplacePage() {
           profileId={profileId}
         />
       )}
-
-      {/* Mobile bottom nav — shared, active state from usePathname() */}
-      <AppMobileNav />
-    </div>
+    </>
   );
 }

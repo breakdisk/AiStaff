@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Filter, X, CheckCircle2, AlertTriangle, Star } from "lucide-react";
-import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
+
 import { SubScoreBar } from "@/components/SubScoreBar";
 import { VettingBadge } from "@/components/VettingBadge";
 
@@ -140,7 +140,6 @@ const DEMO_PROPOSALS: Proposal[] = [
     portfolio_link: "#",
   },
 ];
-
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -320,9 +319,7 @@ export default function ProposalsPage() {
   const spamCount  = DEMO_PROPOSALS.filter((p) => p.ai_generated_likely).length;
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen">
-      <AppSidebar />
-
+    <>
       <main className="flex-1 pb-20 lg:pb-0 max-w-2xl mx-auto w-full">
         {/* Header */}
         <div className="p-4 border-b border-zinc-800 flex items-start gap-3">
@@ -404,8 +401,6 @@ export default function ProposalsPage() {
 
       {/* Detail panel */}
       {selected && <DetailPanel p={selected} onClose={() => setSelected(null)} />}
-
-      <AppMobileNav />
-    </div>
+    </>
   );
 }

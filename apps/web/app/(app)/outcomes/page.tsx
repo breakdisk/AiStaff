@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { TrendingUp, ChevronDown, ChevronUp, ArrowUpRight, Loader2, CheckCircle2 } from "lucide-react";
-import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
+
 import { SubScoreBar } from "@/components/SubScoreBar";
 import { VettingBadge } from "@/components/VettingBadge";
 import { inviteToProject } from "@/lib/api";
@@ -97,7 +97,6 @@ const DEMO_OUTCOMES: OutcomeMatch[] = [
     ],
   },
 ];
-
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -275,10 +274,6 @@ export default function OutcomesPage() {
   const sorted = [...DEMO_OUTCOMES].sort((a, b) => b.roi_score - a.roi_score);
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen">
-      <AppSidebar />
-
-      {/* Main */}
       <main className="flex-1 p-4 pb-20 lg:pb-4 max-w-3xl mx-auto w-full space-y-4">
         <div className="flex items-center justify-between">
           <div>
@@ -308,8 +303,5 @@ export default function OutcomesPage() {
           ))}
         </div>
       </main>
-
-      <AppMobileNav />
-    </div>
-  );
+      );
 }

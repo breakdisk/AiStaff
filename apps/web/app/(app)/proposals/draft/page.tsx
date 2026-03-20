@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
+
 import {
   Bot, User, ArrowRight, Loader2, FileText, CheckCircle2,
   AlertCircle, Edit3, Send, ChevronDown, ChevronUp,
@@ -44,7 +44,6 @@ interface SubmitResult {
     client:     { sent: boolean; email: string };
   };
 }
-
 
 // ── BriefPanel ─────────────────────────────────────────────────────────────
 
@@ -424,8 +423,6 @@ export default function ProposalDraftPage() {
 
   return (
     <div className="flex min-h-screen bg-zinc-950 text-zinc-100">
-      <AppSidebar />
-
       {/* Main */}
       <main className="flex-1 flex flex-col lg:flex-row min-w-0 pb-20 lg:pb-0">
 
@@ -554,8 +551,6 @@ export default function ProposalDraftPage() {
           )}
         </div>
       </main>
-
-      <AppMobileNav />
     </div>
   );
 }

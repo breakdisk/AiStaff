@@ -4,7 +4,6 @@ import { useState } from "react";
 import {
   Users, Plus, ChevronDown, Check, X, Trash2, CheckCheck,
 } from "lucide-react";
-import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -284,9 +283,6 @@ export default function TalentPoolsPage() {
   ];
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen">
-      <AppSidebar />
-
       <main className="flex-1 p-4 pb-20 lg:pb-4 space-y-4 max-w-3xl mx-auto w-full">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -357,7 +353,5 @@ export default function TalentPoolsPage() {
           Approved talent can be assigned to any deployment in your org. Pending candidates require manual review before activation.
         </p>
       </main>
-      <AppMobileNav />
-    </div>
-  );
+      );
 }

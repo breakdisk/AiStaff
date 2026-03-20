@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { CheckCircle2, Zap, Building2, User, CreditCard } from "lucide-react";
-import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
 
 // ── Plan data ─────────────────────────────────────────────────────────────────
 
@@ -97,7 +96,6 @@ const PLANS: Plan[] = [
 ];
 
 // ── Sidebar nav ───────────────────────────────────────────────────────────────
-
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -222,10 +220,6 @@ export default function BillingPage() {
   }
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen">
-      <AppSidebar />
-
-      {/* Main */}
       <main className="flex-1 p-4 pb-20 lg:pb-4 max-w-4xl mx-auto w-full space-y-5">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -302,8 +296,5 @@ export default function BillingPage() {
           ))}
         </div>
       </main>
-
-      <AppMobileNav />
-    </div>
-  );
+      );
 }

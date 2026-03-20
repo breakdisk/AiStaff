@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Banknote, CheckCircle2, Clock, Plus, ArrowDownLeft, Globe } from "lucide-react";
-import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
 
 // ── Types & demo data ─────────────────────────────────────────────────────────
 
@@ -75,7 +74,6 @@ const PAYOUT_HISTORY: PayoutRecord[] = [
 
 const PENDING_CENTS  = 42500;
 const BALANCE_CENTS  = 97000;
-
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -168,10 +166,6 @@ export default function PayoutsPage() {
   const [connected, setConnected] = useState<Set<string>>(new Set(["stripe", "wise"]));
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen">
-      <AppSidebar />
-
-      {/* Main */}
       <main className="flex-1 p-4 pb-20 lg:pb-4 max-w-3xl mx-auto w-full space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -262,8 +256,5 @@ export default function PayoutsPage() {
           </div>
         )}
       </main>
-
-      <AppMobileNav />
-    </div>
-  );
+      );
 }

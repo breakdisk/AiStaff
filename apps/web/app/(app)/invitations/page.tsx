@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Mail, CheckCircle2, XCircle, Clock, Loader2 } from "lucide-react";
-import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
+
 import {
   fetchReceivedInvitations, respondToInvitation,
   type ReceivedInvitation,
@@ -136,9 +136,6 @@ export default function InvitationsPage() {
   const resolved = invitations.filter((i) => i.status !== "PENDING");
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen">
-      <AppSidebar />
-
       <main className="flex-1 p-4 pb-20 lg:pb-4 space-y-4 max-w-2xl mx-auto w-full">
         <div className="flex items-center gap-3">
           <Mail className="w-4 h-4 text-amber-400" />
@@ -190,8 +187,5 @@ export default function InvitationsPage() {
           </div>
         )}
       </main>
-
-      <AppMobileNav />
-    </div>
-  );
+      );
 }

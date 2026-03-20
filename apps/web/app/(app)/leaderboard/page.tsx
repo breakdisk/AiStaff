@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { Trophy, AlertTriangle, TrendingUp } from "lucide-react";
 import { fetchLeaderboard, type RoiReport } from "@/lib/api";
-import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
 
 // ── Demo fallback ──────────────────────────────────────────────────────────────
 
@@ -139,11 +138,6 @@ export default function LeaderboardPage() {
   }, []);
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen">
-      {/* Shared sidebar — active state driven by usePathname() */}
-      <AppSidebar status={serviceStatus} />
-
-      {/* Main */}
       <main className="flex-1 p-4 pb-20 lg:pb-4 space-y-4 max-w-3xl mx-auto w-full">
         {/* Header */}
         <div className="flex items-center gap-3">
@@ -207,8 +201,5 @@ export default function LeaderboardPage() {
         </div>
       </main>
 
-      {/* Mobile bottom nav — shared, active state from usePathname() */}
-      <AppMobileNav />
-    </div>
-  );
+      );
 }

@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { useState } from "react";
-import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
+
 import {
   Clock, CheckCircle, AlertTriangle, Plus, ChevronDown,
   Calendar, Flame, Minus, Bell,
@@ -302,10 +302,6 @@ export default function RemindersPage() {
   const slaBreaches = milestones.filter((m) => m.slaBreached && !m.done);
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen">
-      <AppSidebar />
-
-      {/* Main */}
       <main className="flex-1 p-4 pb-20 lg:pb-4 space-y-5 max-w-2xl mx-auto w-full">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -395,7 +391,5 @@ export default function RemindersPage() {
           </Section>
         )}
       </main>
-      <AppMobileNav />
-    </div>
-  );
+      );
 }

@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { SubScoreBar } from "@/components/SubScoreBar";
 import { VettingBadge } from "@/components/VettingBadge";
-import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
+
 import {
   fetchMatches, fetchPublicProfile, fetchSkillTags,
   inviteToProject, startTrial, updateTrial,
@@ -160,7 +160,6 @@ const RECRUITERS: HumanRecruiter[] = [
   { id: "rec-002", name: "James W.",  speciality: "DevOps · Cloud · Kubernetes",  placements: 93,  avg_days: 12, fee_pct: 7, available: true  },
   { id: "rec-003", name: "Amara O.",  speciality: "Robotics · Embedded · ROS2",   placements: 61,  avg_days: 11, fee_pct: 9, available: false },
 ];
-
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -1203,10 +1202,6 @@ export default function MatchingPage() {
   const activeCandidates = liveResults ?? CANDIDATES;
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen">
-      <AppSidebar />
-
-      {/* Main */}
       <main className="flex-1 p-4 pb-20 lg:pb-4 max-w-3xl mx-auto w-full space-y-4">
         {/* Header */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -1246,8 +1241,5 @@ export default function MatchingPage() {
           : <HybridMode  candidates={activeCandidates} initialCandidateId={hybridEntryPoint} />
         }
       </main>
-
-      <AppMobileNav />
-    </div>
-  );
+      );
 }

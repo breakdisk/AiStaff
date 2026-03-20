@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useState, useEffect, useCallback } from "react";
-import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
+
 import {
   Bell, Mail, MessageSquare, Smartphone, Check, Settings,
   Clock, Shield, AlertTriangle, FileText, Zap, ChevronDown,
@@ -426,10 +426,6 @@ export default function NotificationSettingsPage() {
   const TIMEZONES = ["UTC", "America/New_York", "America/Los_Angeles", "Europe/London", "Asia/Tokyo"];
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen">
-      <AppSidebar />
-
-      {/* Main */}
       <main className="flex-1 p-4 pb-20 lg:pb-4 space-y-6 max-w-2xl mx-auto w-full">
         {/* Header */}
         <div className="flex items-center gap-2.5">
@@ -641,7 +637,5 @@ export default function NotificationSettingsPage() {
           )}
         </div>
       </main>
-      <AppMobileNav />
-    </div>
-  );
+      );
 }

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Target, ChevronDown, ChevronUp, CheckCircle2, TrendingUp, Shield, Clock } from "lucide-react";
-import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
+
 import { SubScoreBar } from "@/components/SubScoreBar";
 
 // ── Types & demo data ─────────────────────────────────────────────────────────
@@ -128,7 +128,6 @@ const DEMO_LISTINGS: OutcomeListing[] = [
 ];
 
 // ── Sidebar ───────────────────────────────────────────────────────────────────
-
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -294,10 +293,6 @@ export default function OutcomeListingsPage() {
     .filter(l => !slaOnly || l.sla === "guaranteed");
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen">
-      <AppSidebar />
-
-      {/* Main */}
       <main className="flex-1 p-4 pb-20 lg:pb-4 max-w-3xl mx-auto w-full space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -350,8 +345,5 @@ export default function OutcomeListingsPage() {
           )}
         </div>
       </main>
-
-      <AppMobileNav />
-    </div>
-  );
+      );
 }

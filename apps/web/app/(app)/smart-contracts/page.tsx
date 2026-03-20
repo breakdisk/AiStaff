@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { FileCode2, CheckCircle2, AlertTriangle, Clock, ExternalLink, Copy, ChevronDown, ChevronUp } from "lucide-react";
-import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
 
 // ── Types & demo data ─────────────────────────────────────────────────────────
 
@@ -118,7 +117,6 @@ const DEMO_CONTRACTS: SmartContract[] = [
     ],
   },
 ];
-
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -285,10 +283,6 @@ export default function SmartContractsPage() {
   const shown     = tab === "active" ? active : completed;
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen">
-      <AppSidebar />
-
-      {/* Main */}
       <main className="flex-1 p-4 pb-20 lg:pb-4 max-w-3xl mx-auto w-full space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -342,8 +336,5 @@ export default function SmartContractsPage() {
           {shown.map(c => <ContractCard key={c.id} contract={c} />)}
         </div>
       </main>
-
-      <AppMobileNav />
-    </div>
-  );
+      );
 }

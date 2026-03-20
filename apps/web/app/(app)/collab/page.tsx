@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { MessageSquare, Paperclip, GitBranch, Send, File, Image, Archive, ExternalLink, Clock, X, Plus, Loader } from "lucide-react";
-import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
 
 // ── Types & demo data ─────────────────────────────────────────────────────────
 
@@ -69,8 +68,6 @@ const DEMO_FILES: SharedFile[] = [
   { id: "f5", name: "deployment_runbook.md",  type: "doc",     size: "22 KB",  uploaded: "Mar 05", uploader: "Marcus T.", version: 3 },
   { id: "f6", name: "env_config.toml",        type: "code",    size: "3 KB",   uploaded: "Feb 20", uploader: "Marcus T.", version: 4 },
 ];
-
-
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -281,8 +278,6 @@ function CollabInner() {
 
   return (
     <div className="flex flex-col lg:flex-row min-h-screen">
-      <AppSidebar />
-
       {/* Main */}
       <main className="flex-1 flex flex-col pb-16 lg:pb-0 max-w-3xl mx-auto w-full">
         {/* Header */}
@@ -553,8 +548,6 @@ function CollabInner() {
           </div>
         )}
       </main>
-
-      <AppMobileNav />
     </div>
   );
 }

@@ -15,8 +15,6 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { exportVc, type VcExportResponse } from "@/lib/api";
-import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
-
 
 // ── Demo work records (individual project data not yet in API) ─────────────────
 const DEMO_WORK_RECORDS = [
@@ -137,8 +135,6 @@ export default function ReputationExportPage() {
 
   return (
     <div className="flex min-h-screen bg-zinc-950 text-zinc-100">
-      <AppSidebar />
-
       {/* Main */}
       <main className="flex-1 min-w-0 px-4 sm:px-6 py-6 pb-24 sm:pb-6">
         {/* Header */}
@@ -414,8 +410,6 @@ export default function ReputationExportPage() {
           </div>
         )}
       </main>
-
-      <AppMobileNav />
     </div>
   );
 }

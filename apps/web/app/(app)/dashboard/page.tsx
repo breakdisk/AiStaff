@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { MessageSquare, ExternalLink } from "lucide-react";
-import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
+
 import type { Session } from "@/lib/session";
 import { StitchingDashboard }    from "@/components/StitchingDashboard";
 import { VetoCard }               from "@/components/VetoCard";
@@ -312,10 +312,6 @@ export default function DashboardPage() {
   }, [reputation.talentId]);
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen">
-      <AppSidebar />
-
-      {/* Main content */}
       <main className="flex-1 p-4 pb-20 lg:pb-4 space-y-4 max-w-2xl mx-auto w-full">
 
         {/* Role check — talent users see a different widget set */}
@@ -515,10 +511,7 @@ export default function DashboardPage() {
         )}
 
       </main>
-
-      <AppMobileNav />
-    </div>
-  );
+      );
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {

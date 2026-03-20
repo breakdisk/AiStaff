@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
+
 import {
   Bell, BellOff, Check, CheckCheck, ChevronDown, ChevronRight,
   Zap, Clock, AlertTriangle, Info, Users, ExternalLink,
@@ -12,7 +12,7 @@ import {
   markNotificationRead,
   markAllNotificationsRead,
   type InAppNotification,
-} from "../../lib/api";
+} from "@/lib/api";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -420,10 +420,6 @@ export default function NotificationsPage() {
   ];
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen">
-      <AppSidebar />
-
-      {/* Main */}
       <main className="flex-1 pb-20 lg:pb-0 max-w-2xl mx-auto w-full">
         {/* Page header */}
         <div className="flex items-center justify-between px-4 py-4 border-b border-zinc-800">
@@ -505,7 +501,5 @@ export default function NotificationsPage() {
           </div>
         )}
       </main>
-      <AppMobileNav />
-    </div>
-  );
+      );
 }

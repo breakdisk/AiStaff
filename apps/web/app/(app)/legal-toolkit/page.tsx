@@ -23,8 +23,6 @@ import {
   type WarrantyClaim,
 } from "@/lib/api";
 import { downloadContractPdf } from "@/lib/download-pdf";
-import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
-
 
 // ── Template definitions ──────────────────────────────────────────────────────
 type TemplateKind = "nda" | "ip_assignment" | "sow" | "service_agreement" | "data_processing";
@@ -925,10 +923,7 @@ export default function LegalToolkitPage() {
   };
 
   return (
-    <div className="flex min-h-screen bg-zinc-950 text-zinc-100">
-      <AppSidebar />
-
-      {/* Main */}
+    <>
       <main className="flex-1 min-w-0 px-4 sm:px-6 py-6 pb-24 sm:pb-6">
         {/* Header */}
         <div className="flex items-start justify-between mb-6">
@@ -1081,8 +1076,6 @@ export default function LegalToolkitPage() {
           }}
         />
       )}
-
-      <AppMobileNav />
-    </div>
+    </>
   );
 }

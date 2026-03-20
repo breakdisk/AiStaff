@@ -51,7 +51,6 @@ export default function EnterpriseSetup() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex items-center justify-center px-4">
       <div className="w-full max-w-2xl space-y-6">
         <div className="flex items-center gap-3">
           <Building2 className="text-amber-400" size={20} />
@@ -132,6 +131,5 @@ export default function EnterpriseSetup() {
           </div>
         )}
       </div>
-    </div>
-  );
+      );
 }

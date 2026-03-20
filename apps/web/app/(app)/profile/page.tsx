@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { VettingBadge }    from "@/components/VettingBadge";
 import { TrustScoreBadge } from "@/components/TrustScoreBadge";
-import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
+
 import {
   updateProfile, fetchPublicProfile, fetchSkillTags, fetchTalentSkills, updateTalentSkills,
   requestNonce, attestSkills, disconnectProvider,
@@ -812,8 +812,6 @@ export default function ProfilePage() {
     <div className="flex flex-col lg:flex-row min-h-screen bg-zinc-950">
 
       {/* Shared sidebar — handles active-state via usePathname() */}
-      <AppSidebar />
-
       {/* Content column */}
       <div className="flex-1 flex flex-col min-h-screen">
 
@@ -1180,7 +1178,6 @@ export default function ProfilePage() {
       </div> {/* end content column */}
 
       {/* Mobile bottom nav */}
-      <AppMobileNav />
     </div>
   );
 }

@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Star, CheckCircle2, Circle, ArrowRight, User, Repeat2, ClipboardCheck, Zap } from "lucide-react";
-import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
 
 // ── Types & demo data ─────────────────────────────────────────────────────────
 
@@ -161,10 +160,6 @@ export default function SuccessLayerPage() {
   const isHighValue  = projectValue >= 300000;
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen">
-      <AppSidebar />
-
-      {/* Main */}
       <main className="flex-1 p-4 pb-20 lg:pb-4 max-w-3xl mx-auto w-full space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -336,8 +331,5 @@ export default function SuccessLayerPage() {
           </div>
         )}
       </main>
-
-      <AppMobileNav />
-    </div>
-  );
+      );
 }

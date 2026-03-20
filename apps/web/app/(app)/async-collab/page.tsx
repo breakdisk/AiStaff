@@ -11,7 +11,6 @@ import {
   CheckCircle2, ChevronDown, ChevronUp, X, MicOff, Mic,
   Upload, Play,
 } from "lucide-react";
-import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -546,10 +545,6 @@ function AsyncCollabPageInner() {
       {watchingId && (
         <VideoModal id={watchingId} onClose={() => setWatchingId(null)} />
       )}
-
-      <div className="flex flex-col lg:flex-row min-h-screen">
-        <AppSidebar />
-
         <main className="flex-1 p-4 pb-20 lg:pb-4 max-w-3xl mx-auto w-full space-y-4">
           {/* Header */}
           <div className="flex items-center justify-between">
@@ -648,10 +643,7 @@ function AsyncCollabPageInner() {
             />
           )}
         </main>
-
-        <AppMobileNav />
-      </div>
-    </>
+          </>
   );
 }
 

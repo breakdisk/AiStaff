@@ -8,7 +8,6 @@ import {
 } from "lucide-react";
 import { VettingBadge } from "@/components/VettingBadge";
 import type { PMAgentResponse, MatchCandidate, Sow } from "@/lib/pm-agent/types";
-import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -16,7 +15,6 @@ interface Message {
   role:    "user" | "ai";
   content: string;
 }
-
 
 // ── FreelancerRow ──────────────────────────────────────────────────────────
 
@@ -144,8 +142,6 @@ export default function ScopingPage() {
 
   return (
     <div className="flex flex-col lg:flex-row min-h-screen">
-      <AppSidebar />
-
       {/* Main */}
       <main className="flex-1 flex flex-col pb-20 lg:pb-0 max-w-2xl mx-auto w-full">
         {/* Header */}
@@ -347,8 +343,6 @@ export default function ScopingPage() {
           </div>
         )}
       </main>
-
-      <AppMobileNav />
     </div>
   );
 }

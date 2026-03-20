@@ -7,7 +7,6 @@ import {
   ChevronDown, ChevronUp, CheckCircle, XCircle, AlertTriangle,
   Info, DollarSign, Percent, FileCheck
 } from "lucide-react";
-import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type ClassificationResult = "employee" | "contractor" | "borderline";
@@ -152,8 +151,6 @@ export default function TaxEnginePage() {
 
   return (
     <div className="flex min-h-screen bg-zinc-950 text-zinc-100">
-      <AppSidebar />
-
       {/* Main */}
       <main className="flex-1 min-w-0 px-4 sm:px-6 py-6 pb-24 sm:pb-6">
         {/* Header */}
@@ -312,8 +309,6 @@ export default function TaxEnginePage() {
           </div>
         )}
       </main>
-
-      <AppMobileNav />
     </div>
   );
 }

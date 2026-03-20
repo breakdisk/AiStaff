@@ -6,7 +6,6 @@ import {
   Coffee, ChevronDown, ChevronUp, Zap, Plus, X, Check,
   Terminal,
 } from "lucide-react";
-import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -405,9 +404,6 @@ export default function WorkDiariesPage() {
   const daysLogged    = days.filter(d => d.entry).length;
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen">
-      <AppSidebar />
-
       <main className="flex-1 p-4 pb-20 lg:pb-4 max-w-3xl mx-auto w-full space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -484,8 +480,5 @@ export default function WorkDiariesPage() {
           )}
         </div>
       </main>
-
-      <AppMobileNav />
-    </div>
-  );
+      );
 }

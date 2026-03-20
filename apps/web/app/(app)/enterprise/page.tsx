@@ -73,15 +73,12 @@ export default function EnterpriseDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
         <Loader2 className="animate-spin text-amber-400" size={20} />
-      </div>
-    );
+          );
   }
 
   if (noOrg || !org) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center px-4">
         <div className="text-center space-y-4">
           <Building2 className="mx-auto text-zinc-600" size={32} />
           <p className="text-sm text-zinc-400">You don&apos;t have an organisation yet.</p>
@@ -92,8 +89,7 @@ export default function EnterpriseDashboard() {
             Create organisation
           </button>
         </div>
-      </div>
-    );
+          );
   }
 
   const kpis: KpiData[] = [
