@@ -43,21 +43,25 @@ pub async fn init_whatsapp_connect(
 ) -> Result<InitWhatsAppResponse> {
     let nonce = Uuid::now_v7().to_string();
 
+    let number_digits = wa_business_number.trim_start_matches('+');
+    let qr_url = format!("https://wa.me/{}?text=connect:{}", number_digits, nonce);
+
+    // Store qr_url as display_name so the polling loop can return it without
+    // the frontend needing to re-derive it from the nonce.
     sqlx::query(
-        "INSERT INTO connected_integrations (user_id, provider, status, nonce)
-         VALUES ($1, 'whatsapp', 'pending', $2)
+        "INSERT INTO connected_integrations (user_id, provider, status, nonce, display_name)
+         VALUES ($1, 'whatsapp', 'pending', $2, $3)
          ON CONFLICT (user_id, provider) DO UPDATE
-             SET nonce       = $2,
-                 status      = 'pending',
+             SET nonce        = $2,
+                 display_name = $3,
+                 status       = 'pending',
                  connected_at = NULL",
     )
     .bind(user_id)
     .bind(&nonce)
+    .bind(&qr_url)
     .execute(pool)
     .await?;
-
-    let number_digits = wa_business_number.trim_start_matches('+');
-    let qr_url = format!("https://wa.me/{}?text=connect:{}", number_digits, nonce);
 
     Ok(InitWhatsAppResponse { qr_url, nonce })
 }
@@ -94,20 +98,22 @@ pub async fn init_messenger_connect(
 ) -> Result<InitMessengerResponse> {
     let nonce = Uuid::now_v7().to_string();
 
+    let link = format!("https://m.me/{}?ref={}", page_username, nonce);
+
     sqlx::query(
-        "INSERT INTO connected_integrations (user_id, provider, status, nonce)
-         VALUES ($1, 'messenger', 'pending', $2)
+        "INSERT INTO connected_integrations (user_id, provider, status, nonce, display_name)
+         VALUES ($1, 'messenger', 'pending', $2, $3)
          ON CONFLICT (user_id, provider) DO UPDATE
              SET nonce        = $2,
+                 display_name = $3,
                  status       = 'pending',
                  connected_at = NULL",
     )
     .bind(user_id)
     .bind(&nonce)
+    .bind(&link)
     .execute(pool)
     .await?;
-
-    let link = format!("https://m.me/{}?ref={}", page_username, nonce);
 
     Ok(InitMessengerResponse { link, nonce })
 }

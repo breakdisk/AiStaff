@@ -317,7 +317,8 @@ export default function NotificationSettingsPage() {
   const [saving,      setSaving]      = useState(false);
   const [saved,       setSaved]       = useState(false);
   const [saveErr,     setSaveErr]     = useState<string | null>(null);
-  const [integrations, setIntegrations] = useState<IntegrationStatus[]>([]);
+  const [integrations,  setIntegrations]  = useState<IntegrationStatus[]>([]);
+  const [connectErr,    setConnectErr]    = useState<string | null>(null);
 
   const fetchIntegrationStatuses = useCallback(() => {
     fetchIntegrationsStatus(DEMO_USER_ID)
@@ -402,25 +403,27 @@ export default function NotificationSettingsPage() {
 
   // ── Integration connect/disconnect ─────────────────────────────────────────
   async function handleConnect(providerKey: string) {
+    setConnectErr(null);
     if (providerKey === "whatsapp") {
       try {
         const res = await initWhatsAppConnect(DEMO_USER_ID);
-        // Optimistically add pending status
         setIntegrations((prev) => [
           ...prev.filter((i) => i.provider !== "whatsapp"),
           { provider: "whatsapp", status: "pending", display_name: res.qr_url, connected_at: null },
         ]);
-      } catch { /* backend offline */ }
+      } catch {
+        setConnectErr("Could not connect WhatsApp — service may be offline.");
+      }
     } else if (providerKey === "messenger") {
       try {
         const res = await initMessengerConnect(DEMO_USER_ID);
-        // setQrPending intentionally omitted: IntegrationRow reads display_name
-        // directly from integrations state (not qrPending) for QR rendering.
         setIntegrations((prev) => [
           ...prev.filter((i) => i.provider !== "messenger"),
           { provider: "messenger", status: "pending", display_name: res.link, connected_at: null },
         ]);
-      } catch { /* backend offline */ }
+      } catch {
+        setConnectErr("Could not connect Messenger — service may be offline.");
+      }
     } else {
       // Slack / Google Meet — redirect to OAuth via QR
       const provider = INTEGRATION_PROVIDERS.find((p) => p.key === providerKey);
@@ -622,6 +625,11 @@ export default function NotificationSettingsPage() {
               );
             })}
           </div>
+          {connectErr && (
+            <p className="font-mono text-[10px] text-red-400 flex items-center gap-1">
+              <XCircle className="w-3 h-3 flex-shrink-0" /> {connectErr}
+            </p>
+          )}
           <p className="font-mono text-[10px] text-zinc-600">
             Connected integrations receive HIGH priority alerts regardless of quiet hours.
           </p>
