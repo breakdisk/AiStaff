@@ -860,6 +860,11 @@ export interface InitWhatsAppResponse {
   nonce:  string;
 }
 
+export interface InitMessengerResponse {
+  link:  string;
+  nonce: string;
+}
+
 export function fetchInAppNotifications(unreadOnly = false, userId = "demo-user"): Promise<InAppNotification[]> {
   return apiFetch(`/api/notifications?user_id=${userId}${unreadOnly ? "&unread=true" : ""}`);
 }
@@ -905,6 +910,13 @@ export function fetchIntegrationsStatus(userId = "demo-user"): Promise<Integrati
 
 export function initWhatsAppConnect(userId = "demo-user"): Promise<InitWhatsAppResponse> {
   return apiFetch("/api/integrations/whatsapp/init", {
+    method: "POST",
+    body:   JSON.stringify({ user_id: userId }),
+  });
+}
+
+export function initMessengerConnect(userId = "demo-user"): Promise<InitMessengerResponse> {
+  return apiFetch("/api/integrations/messenger/init", {
     method: "POST",
     body:   JSON.stringify({ user_id: userId }),
   });
