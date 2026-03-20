@@ -1,283 +1,231 @@
-﻿"use client";
+"use client";
 
-import { useState } from "react";
-
+import { useState, useEffect, useCallback } from "react";
 import {
-  Clock, CheckCircle, AlertTriangle, Plus, ChevronDown,
-  Calendar, Flame, Minus, Bell,
+  Clock, CheckCircle, AlertTriangle, Plus, Bell,
+  Calendar, Flame, Trash2, Loader2,
 } from "lucide-react";
-
-// ── Types ────────────────────────────────────────────────────────────────────
-
-type MilestoneStatus = "overdue" | "today" | "soon" | "later" | "done";
-type NotifChannel    = "email" | "in-app" | "sms";
-
-interface Milestone {
-  id:           string;
-  project:      string;
-  milestone:    string;
-  dueDate:      string;          // ISO date string
-  daysRemaining:number;          // negative = overdue
-  completionPct:number;
-  deploymentId: string;
-  status:       MilestoneStatus;
-  slaBreached:  boolean;
-  done:         boolean;
-}
-
-// ── Demo data ─────────────────────────────────────────────────────────────────
-
-const DEMO_MILESTONES: Milestone[] = [
-  {
-    id: "m-001", project: "CRM Connector v3", milestone: "API Integration Review",
-    dueDate: "2026-03-08", daysRemaining: 0, completionPct: 85,
-    deploymentId: "dep-01J9X2Z3", status: "today", slaBreached: false, done: false,
-  },
-  {
-    id: "m-002", project: "DataSync Agent v2.1", milestone: "Smoke Test Sign-Off",
-    dueDate: "2026-03-06", daysRemaining: -2, completionPct: 60,
-    deploymentId: "dep-02A3B4C5", status: "overdue", slaBreached: true, done: false,
-  },
-  {
-    id: "m-003", project: "ML Pipeline Agent", milestone: "Dataset Validation",
-    dueDate: "2026-03-10", daysRemaining: 2, completionPct: 40,
-    deploymentId: "dep-03C5D6E7", status: "soon", slaBreached: false, done: false,
-  },
-  {
-    id: "m-004", project: "ML Pipeline Agent", milestone: "Model Endpoint Deployment",
-    dueDate: "2026-03-13", daysRemaining: 5, completionPct: 10,
-    deploymentId: "dep-03C5D6E7", status: "soon", slaBreached: false, done: false,
-  },
-  {
-    id: "m-005", project: "RoboArm Controller", milestone: "Kinematic Calibration",
-    dueDate: "2026-03-20", daysRemaining: 12, completionPct: 0,
-    deploymentId: "dep-04E7F8G9", status: "later", slaBreached: false, done: false,
-  },
-  {
-    id: "m-006", project: "RoboArm Controller", milestone: "Safety Protocol Audit",
-    dueDate: "2026-03-25", daysRemaining: 17, completionPct: 0,
-    deploymentId: "dep-04E7F8G9", status: "later", slaBreached: false, done: false,
-  },
-  {
-    id: "m-007", project: "CRM Connector v2", milestone: "Final QA Handoff",
-    dueDate: "2026-02-28", daysRemaining: -8, completionPct: 100,
-    deploymentId: "dep-00X1Y2Z3", status: "done", slaBreached: false, done: true,
-  },
-];
+import {
+  fetchReminders,
+  createReminder,
+  deleteReminder,
+  type ReminderRow,
+} from "@/lib/api";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function urgencyStyle(m: Milestone): { border: string; text: string; bg: string; icon: React.ReactNode } {
-  if (m.done)             return { border: "border-zinc-700", text: "text-zinc-500", bg: "", icon: <CheckCircle className="w-3.5 h-3.5 text-green-500" /> };
-  if (m.status === "overdue") return { border: "border-red-900", text: "text-red-400", bg: "bg-red-950/30", icon: <Flame className="w-3.5 h-3.5 text-red-400" /> };
-  if (m.status === "today")   return { border: "border-amber-900", text: "text-amber-400", bg: "bg-amber-950/20", icon: <Clock className="w-3.5 h-3.5 text-amber-400" /> };
-  if (m.status === "soon")    return { border: "border-amber-900/60", text: "text-amber-500", bg: "", icon: <Clock className="w-3.5 h-3.5 text-amber-500" /> };
-  return { border: "border-zinc-800", text: "text-zinc-400", bg: "", icon: <Calendar className="w-3.5 h-3.5 text-zinc-500" /> };
+function relativeTime(isoString: string): string {
+  const diff = new Date(isoString).getTime() - Date.now();
+  const abs = Math.abs(diff);
+  const mins = Math.floor(abs / 60_000);
+  const hrs  = Math.floor(abs / 3_600_000);
+  const days = Math.floor(abs / 86_400_000);
+
+  if (diff < -60_000)  return `${days > 0 ? `${days}d ` : ""}${hrs % 24}h overdue`;
+  if (diff < 60_000)   return "Due now";
+  if (hrs < 1)         return `in ${mins}m`;
+  if (hrs < 24)        return `in ${hrs}h`;
+  if (days === 1)      return `tomorrow ${new Date(isoString).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+  return `in ${days} days`;
 }
 
-function daysLabel(days: number, done: boolean): string {
-  if (done)       return "Completed";
-  if (days === 0) return "Due today";
-  if (days < 0)   return `${Math.abs(days)} day${Math.abs(days) === 1 ? "" : "s"} overdue`;
-  return `${days} day${days === 1 ? "" : "s"} remaining`;
-}
-
-function ProgressBar({ pct, overdue }: { pct: number; overdue: boolean }) {
-  const color = overdue ? "bg-red-600" : pct >= 75 ? "bg-green-600" : pct >= 40 ? "bg-amber-500" : "bg-zinc-600";
-  return (
-    <div className="flex items-center gap-2">
-      <div className="flex-1 h-1 bg-zinc-800 rounded-full overflow-hidden">
-        <div className={`h-full ${color} transition-all`} style={{ width: `${pct}%` }} />
-      </div>
-      <span className="font-mono text-[10px] text-zinc-500 tabular-nums w-6 text-right">{pct}%</span>
-    </div>
-  );
-}
-
-function MilestoneRow({
-  milestone,
-  onComplete,
-}: {
-  milestone: Milestone;
-  onComplete: (id: string) => void;
-}) {
-  const u = urgencyStyle(milestone);
-
-  return (
-    <div className={`border rounded-sm p-3 space-y-2 transition-all ${u.border} ${u.bg} ${milestone.done ? "opacity-50" : ""}`}>
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex items-start gap-2 min-w-0">
-          <span className="mt-0.5 flex-shrink-0">{u.icon}</span>
-          <div className="min-w-0">
-            <p className={`font-mono text-xs font-medium truncate ${milestone.done ? "line-through text-zinc-600" : u.text}`}>
-              {milestone.milestone}
-            </p>
-            <p className="font-mono text-[10px] text-zinc-500 truncate">{milestone.project}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {milestone.slaBreached && (
-            <span className="font-mono text-[9px] px-1 py-0.5 rounded-sm border border-red-900 text-red-400">SLA BREACH</span>
-          )}
-          <span className={`font-mono text-[10px] tabular-nums ${u.text}`}>
-            {daysLabel(milestone.daysRemaining, milestone.done)}
-          </span>
-        </div>
-      </div>
-
-      <ProgressBar pct={milestone.completionPct} overdue={milestone.status === "overdue"} />
-
-      <div className="flex items-center justify-between">
-        <span className="font-mono text-[10px] text-zinc-600">
-          Due {milestone.dueDate} · {milestone.deploymentId}
-        </span>
-        {!milestone.done && (
-          <button
-            onClick={() => onComplete(milestone.id)}
-            className="flex items-center gap-1 font-mono text-[10px] px-2 py-0.5 rounded-sm
-                       border border-zinc-700 text-zinc-500 hover:border-green-800 hover:text-green-400
-                       transition-colors"
-          >
-            <CheckCircle className="w-3 h-3" /> Mark done
-          </button>
-        )}
-      </div>
-    </div>
-  );
+function isDueSoon(isoString: string): boolean {
+  const diff = new Date(isoString).getTime() - Date.now();
+  return diff > 0 && diff < 3_600_000; // within 1 hour
 }
 
 // ── Add Reminder Form ─────────────────────────────────────────────────────────
 
-function AddReminderAccordion() {
-  const [open, setOpen] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [form, setForm] = useState({
-    project:   "",
-    milestone: "",
-    dueDate:   "",
-    channels:  { "email": true, "in-app": true, "sms": false } as Record<NotifChannel, boolean>,
-  });
+function AddReminderForm({ onCreated }: { onCreated: (r: ReminderRow) => void }) {
+  const [title,   setTitle]   = useState("");
+  const [date,    setDate]    = useState("");
+  const [hours,   setHours]   = useState(9);
+  const [minutes, setMinutes] = useState(0);
+  const [saving,  setSaving]  = useState(false);
+  const [error,   setError]   = useState<string | null>(null);
 
-  function handleSave() {
-    if (!form.project || !form.milestone || !form.dueDate) return;
-    setSaved(true);
-    setTimeout(() => { setSaved(false); setOpen(false); }, 1800);
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!title.trim() || !date) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const reminder = await createReminder(title.trim(), date, hours, minutes);
+      onCreated(reminder);
+      setTitle("");
+      setDate("");
+      setHours(9);
+      setMinutes(0);
+    } catch {
+      setError("Failed to save reminder. Try again.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
-    <div className="border border-zinc-800 rounded-sm overflow-hidden">
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={() => setOpen((v) => !v)}
-        onKeyDown={(e) => e.key === "Enter" && setOpen((v) => !v)}
-        className="flex items-center justify-between px-3 py-2.5 cursor-pointer hover:bg-zinc-900 transition-colors"
-      >
-        <div className="flex items-center gap-2">
-          <Plus className="w-3.5 h-3.5 text-amber-400" />
-          <span className="font-mono text-xs text-zinc-300">Add Reminder</span>
-        </div>
-        <ChevronDown className={`w-3.5 h-3.5 text-zinc-600 transition-transform ${open ? "rotate-180" : ""}`} />
+    <form onSubmit={handleSubmit} className="border border-zinc-800 rounded-[2px] p-3 space-y-3">
+      <div className="flex items-center gap-2 mb-1">
+        <Plus className="w-3.5 h-3.5 text-amber-400" />
+        <span className="font-mono text-xs text-zinc-300">Add Reminder</span>
       </div>
 
-      {open && (
-        <div className="border-t border-zinc-800 p-3 space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest block mb-1">Project</label>
-              <input
-                className="w-full bg-zinc-900 border border-zinc-700 rounded-sm px-2.5 py-1.5 font-mono text-xs text-zinc-200 focus:outline-none focus:border-amber-700 placeholder-zinc-700"
-                placeholder="e.g. CRM Connector v3"
-                value={form.project}
-                onChange={(e) => setForm((f) => ({ ...f, project: e.target.value }))}
-              />
-            </div>
-            <div>
-              <label className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest block mb-1">Milestone</label>
-              <input
-                className="w-full bg-zinc-900 border border-zinc-700 rounded-sm px-2.5 py-1.5 font-mono text-xs text-zinc-200 focus:outline-none focus:border-amber-700 placeholder-zinc-700"
-                placeholder="e.g. API Review"
-                value={form.milestone}
-                onChange={(e) => setForm((f) => ({ ...f, milestone: e.target.value }))}
-              />
-            </div>
-          </div>
+      <div>
+        <label className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest block mb-1">
+          Title
+        </label>
+        <input
+          className="w-full bg-zinc-900 border border-zinc-700 rounded-[2px] px-2.5 py-1.5
+                     font-mono text-xs text-zinc-200 focus:outline-none focus:border-amber-700
+                     placeholder-zinc-700"
+          placeholder="e.g. Follow up with client"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          required
+        />
+      </div>
 
-          <div>
-            <label className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest block mb-1">Due Date</label>
-            <input
-              type="date"
-              className="bg-zinc-900 border border-zinc-700 rounded-sm px-2.5 py-1.5 font-mono text-xs text-zinc-200 focus:outline-none focus:border-amber-700"
-              value={form.dueDate}
-              onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))}
-            />
-          </div>
+      <div>
+        <label className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest block mb-1">
+          Date
+        </label>
+        <input
+          type="date"
+          className="w-full bg-zinc-900 border border-zinc-700 rounded-[2px] px-2.5 py-1.5
+                     font-mono text-xs text-zinc-200 focus:outline-none focus:border-amber-700"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          required
+        />
+      </div>
 
-          <div>
-            <label className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest block mb-1">Notify via</label>
-            <div className="flex gap-2 flex-wrap">
-              {(["in-app", "email", "sms"] as NotifChannel[]).map((ch) => (
-                <button
-                  key={ch}
-                  onClick={() => setForm((f) => ({
-                    ...f, channels: { ...f.channels, [ch]: !f.channels[ch] }
-                  }))}
-                  className={`font-mono text-[10px] px-2 py-1 rounded-sm border transition-colors ${
-                    form.channels[ch]
-                      ? "border-amber-800 text-amber-400 bg-amber-950/30"
-                      : "border-zinc-700 text-zinc-500"
-                  }`}
-                >
-                  {ch}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex gap-2">
-            <button
-              onClick={handleSave}
-              disabled={saved}
-              className="flex-1 h-8 rounded-sm bg-amber-950 border border-amber-800 text-amber-400 font-mono text-xs hover:bg-amber-900 transition-colors disabled:opacity-60"
-            >
-              {saved ? "✓ Saved" : "Save Reminder"}
-            </button>
-            <button
-              onClick={() => setOpen(false)}
-              className="h-8 px-3 rounded-sm border border-zinc-700 text-zinc-500 font-mono text-xs hover:border-zinc-500 transition-colors"
-            >
-              Cancel
-            </button>
-          </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest block mb-1">
+            Hour (UTC)
+          </label>
+          <select
+            className="w-full bg-zinc-900 border border-zinc-700 rounded-[2px] px-2.5 py-1.5
+                       font-mono text-xs text-zinc-200 focus:outline-none focus:border-amber-700"
+            value={hours}
+            onChange={(e) => setHours(Number(e.target.value))}
+          >
+            {Array.from({ length: 24 }, (_, i) => (
+              <option key={i} value={i}>{String(i).padStart(2, "0")}</option>
+            ))}
+          </select>
         </div>
+        <div>
+          <label className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest block mb-1">
+            Minute
+          </label>
+          <select
+            className="w-full bg-zinc-900 border border-zinc-700 rounded-[2px] px-2.5 py-1.5
+                       font-mono text-xs text-zinc-200 focus:outline-none focus:border-amber-700"
+            value={minutes}
+            onChange={(e) => setMinutes(Number(e.target.value))}
+          >
+            {[0, 15, 30, 45].map((m) => (
+              <option key={m} value={m}>{String(m).padStart(2, "0")}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {error && (
+        <p className="font-mono text-[10px] text-red-400">{error}</p>
       )}
-    </div>
+
+      <button
+        type="submit"
+        disabled={saving || !title.trim() || !date}
+        className="w-full h-8 rounded-[2px] bg-amber-950 border border-amber-800 text-amber-400
+                   font-mono text-xs hover:bg-amber-900 transition-colors disabled:opacity-50"
+      >
+        {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin mx-auto" /> : "Add Reminder"}
+      </button>
+    </form>
   );
 }
 
-// ── Section ───────────────────────────────────────────────────────────────────
+// ── Reminder List Item ────────────────────────────────────────────────────────
 
-function Section({
-  label,
-  icon,
-  children,
-  count,
+function ReminderItem({
+  reminder,
+  onDelete,
 }: {
-  label: string;
-  icon: React.ReactNode;
-  children: React.ReactNode;
-  count?: number;
+  reminder: ReminderRow;
+  onDelete: (id: string) => void;
 }) {
+  const [deleting, setDeleting] = useState(false);
+  const soon    = isDueSoon(reminder.remind_at);
+  const overdue = !reminder.fired && new Date(reminder.remind_at) < new Date();
+
+  async function handleDelete() {
+    setDeleting(true);
+    try {
+      await deleteReminder(reminder.id);
+      onDelete(reminder.id);
+    } catch {
+      setDeleting(false);
+    }
+  }
+
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2 px-1">
-        {icon}
-        <span className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest">{label}</span>
-        {count !== undefined && (
-          <span className="font-mono text-[10px] text-zinc-700">({count})</span>
-        )}
+    <div
+      className={`flex items-start justify-between gap-2 border rounded-[2px] p-3
+        ${reminder.fired
+          ? "border-zinc-800 opacity-60"
+          : overdue
+          ? "border-red-900 bg-red-950/20"
+          : soon
+          ? "border-amber-900 bg-amber-950/10"
+          : "border-zinc-800"}`}
+    >
+      <div className="flex items-start gap-2 min-w-0">
+        <span className="mt-0.5 flex-shrink-0">
+          {reminder.fired
+            ? <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
+            : overdue
+            ? <Flame className="w-3.5 h-3.5 text-red-400" />
+            : soon
+            ? <Bell className="w-3.5 h-3.5 text-amber-400" />
+            : <Clock className="w-3.5 h-3.5 text-zinc-500" />}
+        </span>
+        <div className="min-w-0">
+          <p className={`font-mono text-xs truncate ${reminder.fired ? "line-through text-zinc-600" : "text-zinc-200"}`}>
+            {reminder.title}
+          </p>
+          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+            <span className={`font-mono text-[10px] ${
+              reminder.fired ? "text-zinc-600" : overdue ? "text-red-400" : soon ? "text-amber-400" : "text-zinc-500"
+            }`}>
+              {reminder.fired ? "Fired" : relativeTime(reminder.remind_at)}
+            </span>
+            {reminder.source === "system" && (
+              <span className="font-mono text-[9px] px-1 py-0.5 bg-zinc-700 text-zinc-400 rounded-[2px]">
+                Deployment
+              </span>
+            )}
+            {!reminder.fired && soon && (
+              <span className="font-mono text-[9px] px-1 py-0.5 bg-amber-950 text-amber-400 border border-amber-900 rounded-[2px]">
+                Due soon
+              </span>
+            )}
+          </div>
+        </div>
       </div>
-      <div className="space-y-2">{children}</div>
+
+      {reminder.source === "user" && !reminder.fired && (
+        <button
+          onClick={handleDelete}
+          disabled={deleting}
+          aria-label="Delete reminder"
+          className="flex-shrink-0 p-1 text-zinc-700 hover:text-red-400 transition-colors disabled:opacity-40"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      )}
     </div>
   );
 }
@@ -285,111 +233,118 @@ function Section({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function RemindersPage() {
-  const [milestones, setMilestones] = useState<Milestone[]>(DEMO_MILESTONES);
+  const [reminders, setReminders] = useState<ReminderRow[]>([]);
+  const [loading,   setLoading]   = useState(true);
+  const [error,     setError]     = useState<string | null>(null);
 
-  function markDone(id: string) {
-    setMilestones((prev) =>
-      prev.map((m) => m.id === id ? { ...m, done: true, status: "done", completionPct: 100 } : m)
-    );
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await fetchReminders();
+      setReminders(data);
+    } catch {
+      setError("Could not load reminders.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  function handleCreated(r: ReminderRow) {
+    setReminders((prev) => [r, ...prev]);
   }
 
-  const overdue = milestones.filter((m) => m.status === "overdue" && !m.done);
-  const today   = milestones.filter((m) => m.status === "today"   && !m.done);
-  const soon    = milestones.filter((m) => m.status === "soon"    && !m.done);
-  const later   = milestones.filter((m) => m.status === "later"   && !m.done);
-  const done    = milestones.filter((m) => m.done);
+  function handleDeleted(id: string) {
+    setReminders((prev) => prev.filter((r) => r.id !== id));
+  }
 
-  const slaBreaches = milestones.filter((m) => m.slaBreached && !m.done);
+  const active  = reminders.filter((r) => !r.fired);
+  const fired   = reminders.filter((r) => r.fired);
+  const slaAlerts = reminders.filter((r) => !r.fired && new Date(r.remind_at) < new Date());
 
   return (
-      <main className="flex-1 p-4 pb-20 lg:pb-4 space-y-5 max-w-2xl mx-auto w-full">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <Clock className="w-4 h-4 text-amber-400" />
-            <h1 className="font-mono text-sm font-medium text-zinc-300 uppercase tracking-widest">
-              Reminders
-            </h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-[10px] text-zinc-500">
-              {milestones.filter((m) => !m.done).length} active
-            </span>
+    <main className="flex-1 p-4 pb-20 lg:pb-4 space-y-5 max-w-2xl mx-auto w-full">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <Clock className="w-4 h-4 text-amber-400" />
+          <h1 className="font-mono text-sm font-medium text-zinc-300 uppercase tracking-widest">
+            Reminders
+          </h1>
+        </div>
+        <span className="font-mono text-[10px] text-zinc-500">{active.length} active</span>
+      </div>
+
+      {/* Overdue banner */}
+      {slaAlerts.length > 0 && (
+        <div className="border border-red-900 bg-red-950/40 rounded-[2px] px-3 py-2.5 flex items-start gap-2.5">
+          <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="font-mono text-xs text-red-300 font-medium">
+              {slaAlerts.length} overdue reminder{slaAlerts.length > 1 ? "s" : ""}
+            </p>
+            <p className="font-mono text-[10px] text-red-500 mt-0.5">
+              Past due — escalation may be required
+            </p>
           </div>
         </div>
+      )}
 
-        {/* SLA Breach Banner */}
-        {slaBreaches.length > 0 && (
-          <div className="border border-red-900 bg-red-950/40 rounded-sm px-3 py-2.5 flex items-start gap-2.5">
-            <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="font-mono text-xs text-red-300 font-medium">
-                {slaBreaches.length} SLA breach{slaBreaches.length > 1 ? "es" : ""} detected
-              </p>
-              <p className="font-mono text-[10px] text-red-500 mt-0.5">
-                {slaBreaches.map((m) => m.project).join(", ")} — escalation may be required
-              </p>
-            </div>
+      {/* Add form */}
+      <AddReminderForm onCreated={handleCreated} />
+
+      {/* Loading skeleton */}
+      {loading && (
+        <div className="space-y-2">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-14 rounded-[2px] bg-zinc-800 animate-pulse" />
+          ))}
+        </div>
+      )}
+
+      {/* Error */}
+      {error && !loading && (
+        <p className="font-mono text-xs text-red-400">{error}</p>
+      )}
+
+      {/* Active reminders */}
+      {!loading && !error && active.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 px-1">
+            <Bell className="w-3.5 h-3.5 text-amber-400" />
+            <span className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest">
+              Upcoming
+            </span>
+            <span className="font-mono text-[10px] text-zinc-700">({active.length})</span>
           </div>
-        )}
+          {active.map((r) => (
+            <ReminderItem key={r.id} reminder={r} onDelete={handleDeleted} />
+          ))}
+        </div>
+      )}
 
-        {/* Add Reminder */}
-        <AddReminderAccordion />
+      {/* Fired reminders */}
+      {!loading && !error && fired.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 px-1">
+            <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+            <span className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest">
+              Completed
+            </span>
+            <span className="font-mono text-[10px] text-zinc-700">({fired.length})</span>
+          </div>
+          {fired.map((r) => (
+            <ReminderItem key={r.id} reminder={r} onDelete={handleDeleted} />
+          ))}
+        </div>
+      )}
 
-        {/* Overdue */}
-        {overdue.length > 0 && (
-          <Section
-            label="Overdue"
-            icon={<Flame className="w-3.5 h-3.5 text-red-400" />}
-            count={overdue.length}
-          >
-            {overdue.map((m) => <MilestoneRow key={m.id} milestone={m} onComplete={markDone} />)}
-          </Section>
-        )}
-
-        {/* Today */}
-        {today.length > 0 && (
-          <Section
-            label="Due Today"
-            icon={<Bell className="w-3.5 h-3.5 text-amber-400" />}
-            count={today.length}
-          >
-            {today.map((m) => <MilestoneRow key={m.id} milestone={m} onComplete={markDone} />)}
-          </Section>
-        )}
-
-        {/* This Week */}
-        {soon.length > 0 && (
-          <Section
-            label="This Week"
-            icon={<Clock className="w-3.5 h-3.5 text-amber-500" />}
-            count={soon.length}
-          >
-            {soon.map((m) => <MilestoneRow key={m.id} milestone={m} onComplete={markDone} />)}
-          </Section>
-        )}
-
-        {/* Later */}
-        {later.length > 0 && (
-          <Section
-            label="Later"
-            icon={<Calendar className="w-3.5 h-3.5 text-zinc-500" />}
-            count={later.length}
-          >
-            {later.map((m) => <MilestoneRow key={m.id} milestone={m} onComplete={markDone} />)}
-          </Section>
-        )}
-
-        {/* Done */}
-        {done.length > 0 && (
-          <Section
-            label="Completed"
-            icon={<CheckCircle className="w-3.5 h-3.5 text-green-600" />}
-            count={done.length}
-          >
-            {done.map((m) => <MilestoneRow key={m.id} milestone={m} onComplete={markDone} />)}
-          </Section>
-        )}
-      </main>
-      );
+      {/* Empty state */}
+      {!loading && !error && reminders.length === 0 && (
+        <p className="font-mono text-xs text-zinc-400 px-1">No reminders. Add one above.</p>
+      )}
+    </main>
+  );
 }
