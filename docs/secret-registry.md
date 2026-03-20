@@ -39,6 +39,7 @@
 | `TWILIO_AUTH_TOKEN` | notification_service | Twilio auth token | 90 days |
 | `TWILIO_FROM_NUMBER` | notification_service | Twilio SMS sender number (E.164) | On number change |
 | `TWILIO_WHATSAPP_NUMBER` | notification_service | Twilio WhatsApp sender number (E.164) | On number change |
+| `MESSENGER_PAGE_USERNAME` | notification_service | Facebook Page username for m.me deep-link (e.g. aistaffglobal). Defaults to "aistaffglobal" if unset. | On Page change |
 | `FCM_SERVER_KEY` | notification_service | Firebase Cloud Messaging server key for push notifications | 90 days |
 | `SLACK_CLIENT_ID` | notification_service | Slack OAuth app client ID for workspace integration | On app rotation |
 | `SLACK_CLIENT_SECRET` | notification_service | Slack OAuth app client secret | 90 days |
