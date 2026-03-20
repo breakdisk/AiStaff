@@ -26,6 +26,12 @@ pub struct InitWhatsAppResponse {
     pub nonce: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InitMessengerResponse {
+    pub link:  String,
+    pub nonce: String,
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // WhatsApp
 // ─────────────────────────────────────────────────────────────────────────────
@@ -69,6 +75,56 @@ pub async fn verify_whatsapp_webhook(pool: &PgPool, from_body: &str) -> Result<(
         "UPDATE connected_integrations
          SET status = 'verified', connected_at = NOW()
          WHERE nonce = $1 AND provider = 'whatsapp'",
+    )
+    .bind(&nonce)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Facebook Messenger
+// ─────────────────────────────────────────────────────────────────────────────
+
+pub async fn init_messenger_connect(
+    pool: &PgPool,
+    user_id: Uuid,
+    page_username: &str,
+) -> Result<InitMessengerResponse> {
+    let nonce = Uuid::now_v7().to_string();
+
+    sqlx::query(
+        "INSERT INTO connected_integrations (user_id, provider, status, nonce)
+         VALUES ($1, 'messenger', 'pending', $2)
+         ON CONFLICT (user_id, provider) DO UPDATE
+             SET nonce        = $2,
+                 status       = 'pending',
+                 connected_at = NULL",
+    )
+    .bind(user_id)
+    .bind(&nonce)
+    .execute(pool)
+    .await?;
+
+    let link = format!("https://m.me/{}?ref={}", page_username, nonce);
+
+    Ok(InitMessengerResponse { link, nonce })
+}
+
+pub async fn verify_messenger_webhook(pool: &PgPool, from_body: &str) -> Result<()> {
+    // Expect body containing "ref={nonce}" (Messenger sends this in the m.me ref parameter).
+    let nonce = from_body
+        .split("ref=")
+        .nth(1)
+        .and_then(|s| s.split('&').next())
+        .map(|s| s.trim().to_string())
+        .ok_or_else(|| anyhow!("Messenger webhook body missing ref nonce"))?;
+
+    sqlx::query(
+        "UPDATE connected_integrations
+         SET status = 'verified', connected_at = NOW()
+         WHERE nonce = $1 AND provider = 'messenger'",
     )
     .bind(&nonce)
     .execute(pool)

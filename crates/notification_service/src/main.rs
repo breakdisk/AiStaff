@@ -127,6 +127,8 @@ async fn main() -> Result<()> {
             "/integrations/whatsapp/webhook",
             post(handlers::whatsapp_webhook),
         )
+        .route("/integrations/messenger/init",    post(handlers::init_messenger))
+        .route("/integrations/messenger/webhook", post(handlers::messenger_webhook))
         .route("/integrations/slack/oauth", get(handlers::slack_oauth_init))
         .route(
             "/integrations/slack/callback",

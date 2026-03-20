@@ -20,6 +20,7 @@ pub struct AppConfig {
     pub google_client_secret: String,
     pub encryption_key_b64: String,
     pub base_url: String,
+    pub messenger_page_username: String,
 }
 
 impl AppConfig {
@@ -39,6 +40,8 @@ impl AppConfig {
             encryption_key_b64: std::env::var("INTEGRATION_TOKEN_ENCRYPTION_KEY")
                 .expect("INTEGRATION_TOKEN_ENCRYPTION_KEY"),
             base_url: std::env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:3012".into()),
+            messenger_page_username: std::env::var("MESSENGER_PAGE_USERNAME")
+                .unwrap_or_else(|_| "aistaffglobal".into()),
         }
     }
 }

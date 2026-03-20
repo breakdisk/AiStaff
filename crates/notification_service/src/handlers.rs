@@ -330,6 +330,45 @@ pub async fn whatsapp_webhook(State(s): State<AppState>, body: String) -> impl I
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Messenger integration
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// POST /integrations/messenger/init  body: { user_id }
+pub async fn init_messenger(
+    State(s): State<AppState>,
+    Json(b): Json<UserBody>,
+) -> impl IntoResponse {
+    match integrations::init_messenger_connect(
+        &s.db,
+        b.user_id,
+        &s.config.messenger_page_username,
+    )
+    .await
+    {
+        Ok(r) => (StatusCode::OK, Json(json!(r))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+/// POST /integrations/messenger/webhook  body: plain text containing ref={nonce}
+pub async fn messenger_webhook(
+    State(s): State<AppState>,
+    body: String,
+) -> impl IntoResponse {
+    match integrations::verify_messenger_webhook(&s.db, &body).await {
+        Ok(()) => (StatusCode::OK, Json(json!({ "ok": true }))).into_response(),
+        Err(e) => {
+            tracing::warn!(error=%e, "Messenger webhook verification failed");
+            (StatusCode::OK, Json(json!({ "ok": true }))).into_response()
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Slack OAuth
 // ─────────────────────────────────────────────────────────────────────────────
 
