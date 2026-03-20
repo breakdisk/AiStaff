@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { LogOut, MessageSquare, ExternalLink } from "lucide-react";
+import { MessageSquare, ExternalLink } from "lucide-react";
 import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
 import type { Session } from "@/lib/session";
 import { StitchingDashboard }    from "@/components/StitchingDashboard";
@@ -199,12 +199,6 @@ export default function DashboardPage() {
       })
       .catch(() => null);
   }, [router]);
-
-  async function handleLogout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
-    router.refresh();
-  }
 
   const [reputation, setReputation]   = useState(DEMO_REPUTATION);
   const [matchData,  setMatchData]    = useState(DEMO_MATCHES);

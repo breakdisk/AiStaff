@@ -3,7 +3,8 @@
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
-import { Inbox, Briefcase, Mail, Bell } from "lucide-react";
+import { Inbox, Briefcase, Mail, Bell, LogOut } from "lucide-react";
+import { signOut } from "next-auth/react";
 
 // ── Nav definitions ─────────────────────────────────────────────────────────
 
@@ -83,8 +84,8 @@ const SECTION_NAV: { heading: string; items: { label: string; href: string }[] }
 
 // Which section groups are shown per primary nav context
 const CONTEXT_SECTIONS: Record<string, string[]> = {
-  "/dashboard":   ["AI Tools", "Workspace", "Notifications"],
-  "/marketplace": ["Payments", "Legal"],
+  "/dashboard":   ["AI Tools", "Workspace", "Notifications", "Enterprise"],
+  "/marketplace": ["Payments", "Legal", "Enterprise"],
   "/leaderboard": ["Trust", "Enterprise"],
   "/matching":    ["AI Tools", "Workspace"],
   "/profile":     ["Legal", "Trust", "Notifications"],
@@ -263,6 +264,18 @@ export function AppSidebar({ status }: AppSidebarProps) {
           </div>
         );
       })}
+      {/* Logout */}
+      {session?.user && (
+        <div className="mt-auto pt-3 border-t border-zinc-800">
+          <button
+            onClick={() => signOut({ callbackUrl: "/login" })}
+            className="flex items-center gap-2 w-full px-3 py-2 rounded-sm font-mono text-xs text-zinc-500 hover:text-red-400 hover:bg-zinc-900 transition-colors"
+          >
+            <LogOut size={12} />
+            Sign out
+          </button>
+        </div>
+      )}
     </aside>
   );
 }
