@@ -30,7 +30,7 @@ export async function GET(): Promise<NextResponse> {
          mi.created_at,
          mi.responded_at,
          COALESCE(up.display_name, '') AS client_name,
-         COALESCE(al.title,         '') AS listing_title
+         COALESCE(al.name,          '') AS listing_title
          FROM match_invitations mi
          LEFT JOIN unified_profiles up ON up.id = mi.client_id
          LEFT JOIN agent_listings   al ON al.id = mi.listing_id
