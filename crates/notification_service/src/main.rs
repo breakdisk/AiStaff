@@ -90,6 +90,7 @@ async fn main() -> Result<()> {
             common::events::TOPIC_WARRANTY_EVENTS,
             common::events::TOPIC_COMMUNITY_EVENTS,
             common::events::TOPIC_MESSAGE_SENT,
+            common::events::TOPIC_DEPLOYMENT_STARTED,
         ],
     )?;
 
@@ -155,6 +156,7 @@ async fn main() -> Result<()> {
     // ─────────────────────────────────────────────────────────────────────────
     // Spawn tasks and wait for shutdown signal
     // ─────────────────────────────────────────────────────────────────────────
+    let poll_fanout = fanout.clone(); // Arc clone — needed for polling loop
     let nc = NotificationConsumer::new(consumer, fanout);
 
     tokio::spawn(async move {
@@ -166,6 +168,65 @@ async fn main() -> Result<()> {
     tokio::spawn(async move {
         if let Err(e) = nc.run().await {
             tracing::error!(error=%e, "Kafka consumer exited");
+        }
+    });
+
+    tokio::spawn(async move {
+        use std::time::Duration;
+        use sqlx::Row;
+        let mut ticker = tokio::time::interval(Duration::from_secs(60));
+        loop {
+            ticker.tick().await;
+
+            // Atomically claim all due reminders — UPDATE ... RETURNING prevents double-fire.
+            let due = match sqlx::query(
+                "UPDATE reminders SET fired = true
+                 WHERE fired = false AND remind_at <= NOW()
+                 RETURNING id, user_id, title",
+            )
+            .fetch_all(&poll_fanout.db)
+            .await
+            {
+                Ok(rows) => rows,
+                Err(e) => {
+                    tracing::error!("reminders poll error: {e}");
+                    continue;
+                }
+            };
+
+            for r in &due {
+                let Ok(user_id) = r.try_get::<uuid::Uuid, _>("user_id") else { continue };
+                let Ok(title) = r.try_get::<String, _>("title") else { continue };
+
+                // Look up email — best-effort; skip email if not found.
+                let email: Option<String> = sqlx::query(
+                    "SELECT email FROM unified_profiles WHERE id = $1",
+                )
+                .bind(user_id)
+                .fetch_optional(&poll_fanout.db)
+                .await
+                .ok()
+                .flatten()
+                .and_then(|row| row.try_get::<String, _>("email").ok());
+
+                poll_fanout
+                    .dispatch_in_app(user_id, &title, "Your reminder is due.", "reminder", "normal")
+                    .await
+                    .unwrap_or_else(|e| tracing::error!("in_app dispatch error: {e}"));
+
+                if let Some(addr) = email {
+                    if !addr.is_empty() {
+                        poll_fanout
+                            .dispatch_email(user_id, &addr, &title, "Your reminder is due.")
+                            .await
+                            .unwrap_or_else(|e| tracing::error!("email dispatch error: {e}"));
+                    }
+                }
+            }
+
+            if !due.is_empty() {
+                tracing::info!(count = due.len(), "reminders fired");
+            }
         }
     });
 
