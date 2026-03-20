@@ -21,7 +21,7 @@ function relativeTime(isoString: string): string {
   const hrs  = Math.floor(abs / 3_600_000);
   const days = Math.floor(abs / 86_400_000);
 
-  if (diff < -60_000)  return `${days > 0 ? `${days}d ` : ""}${hrs % 24}h overdue`;
+  if (diff < -60_000)  return hrs > 0 ? `${days > 0 ? `${days}d ` : ""}${hrs % 24}h overdue` : `${mins}m overdue`;
   if (diff < 60_000)   return "Due now";
   if (hrs < 1)         return `in ${mins}m`;
   if (hrs < 24)        return `in ${hrs}h`;
