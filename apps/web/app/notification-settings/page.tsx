@@ -312,7 +312,9 @@ export default function NotificationSettingsPage() {
   const [qrPending,   setQrPending]   = useState<Record<string, string>>({});  // provider → qr_url
 
   const fetchIntegrationStatuses = useCallback(() => {
-    fetchIntegrationsStatus(DEMO_USER_ID).then(setIntegrations).catch(() => {});
+    fetchIntegrationsStatus(DEMO_USER_ID)
+      .then((data) => { if (Array.isArray(data)) setIntegrations(data); })
+      .catch(() => {});
   }, []);
 
   // ── Load preferences on mount ──────────────────────────────────────────────
@@ -337,7 +339,7 @@ export default function NotificationSettingsPage() {
 
   // ── Poll integrations every 5s (while any pending) ─────────────────────────
   useEffect(() => {
-    const hasPending = integrations.some((i) => i.status === "pending");
+    const hasPending = Array.isArray(integrations) && integrations.some((i) => i.status === "pending");
     if (!hasPending) return;
     const id = setInterval(fetchIntegrationStatuses, 5000);
     return () => clearInterval(id);
@@ -594,7 +596,7 @@ export default function NotificationSettingsPage() {
           </div>
           <div className="space-y-2">
             {INTEGRATION_PROVIDERS.map((provider) => {
-              const status = integrations.find((i) => i.provider === provider.key);
+              const status = Array.isArray(integrations) ? integrations.find((i) => i.provider === provider.key) : undefined;
               return (
                 <IntegrationRow
                   key={provider.key}
