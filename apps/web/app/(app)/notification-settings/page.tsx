@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import {
   fetchNotificationPreferences, saveNotificationPreferences,
-  fetchIntegrationsStatus, initWhatsAppConnect,
+  fetchIntegrationsStatus, initWhatsAppConnect, initMessengerConnect,
   saveTeamsWebhook, disconnectIntegration,
   type NotifPrefs, type IntegrationStatus,
 } from "@/lib/api";
@@ -67,6 +67,15 @@ const INTEGRATION_PROVIDERS = [
     border:   "border-emerald-900",
     note:     "Scan QR with your phone to link your WhatsApp",
     qrBased:  true,
+  },
+  {
+    key:     "messenger",
+    label:   "Facebook Messenger",
+    icon:    MessageSquare,
+    color:   "text-blue-400",
+    border:  "border-blue-900",
+    note:    "Open the link or scan QR code on your phone to connect Messenger",
+    qrBased: true,
   },
   {
     key:      "slack",
@@ -403,6 +412,16 @@ export default function NotificationSettingsPage() {
           { provider: "whatsapp", status: "pending", display_name: res.qr_url, connected_at: null },
         ]);
       } catch { /* backend offline */ }
+    } else if (providerKey === "messenger") {
+      try {
+        const res = await initMessengerConnect(DEMO_USER_ID);
+        // setQrPending intentionally omitted: IntegrationRow reads display_name
+        // directly from integrations state (not qrPending) for QR rendering.
+        setIntegrations((prev) => [
+          ...prev.filter((i) => i.provider !== "messenger"),
+          { provider: "messenger", status: "pending", display_name: res.link, connected_at: null },
+        ]);
+      } catch { /* backend offline */ }
     } else {
       // Slack / Google Meet — redirect to OAuth via QR
       const provider = INTEGRATION_PROVIDERS.find((p) => p.key === providerKey);
@@ -587,7 +606,7 @@ export default function NotificationSettingsPage() {
           <div className="border-b border-zinc-800 pb-1">
             <p className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest">Connected Integrations</p>
             <p className="font-mono text-[10px] text-zinc-600 mt-0.5">
-              Receive notifications via WhatsApp, Slack, Teams, and Google Meet
+              Receive notifications via WhatsApp, Messenger, Slack, Teams, and Google Meet
             </p>
           </div>
           <div className="space-y-2">
