@@ -676,6 +676,50 @@ impl NotificationConsumer {
                     }
                 }
 
+                "DeploymentStarted" => {
+                    let deployment_id_str = envelope
+                        .payload
+                        .get("deployment_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    let freelancer_id_str = envelope
+                        .payload
+                        .get("freelancer_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+
+                    let Ok(freelancer_id) = uuid::Uuid::parse_str(freelancer_id_str) else {
+                        tracing::warn!(freelancer_id_str, "DeploymentStarted: invalid freelancer_id");
+                        continue;
+                    };
+
+                    let steps = sqlx::query(
+                        "SELECT step_label FROM dod_checklist_steps WHERE deployment_id = $1::uuid",
+                    )
+                    .bind(deployment_id_str)
+                    .fetch_all(&self.fanout.db)
+                    .await
+                    .unwrap_or_default();
+
+                    let count = steps.len();
+                    for step in &steps {
+                        let Ok(step_label) = step.try_get::<String, _>("step_label") else { continue };
+                        if let Err(e) = sqlx::query(
+                            "INSERT INTO reminders (user_id, deployment_id, title, remind_at, source)
+                             VALUES ($1, $2::uuid, $3, NOW() + INTERVAL '24 hours', 'system')",
+                        )
+                        .bind(freelancer_id)
+                        .bind(deployment_id_str)
+                        .bind(format!("DoD: {step_label}"))
+                        .execute(&self.fanout.db)
+                        .await
+                        {
+                            tracing::error!("reminder insert error: {e}");
+                        }
+                    }
+                    tracing::info!(deployment_id = deployment_id_str, count, "system reminders seeded");
+                }
+
                 _ => {}
             }
         }
