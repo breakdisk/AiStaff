@@ -693,13 +693,24 @@ impl NotificationConsumer {
                         continue;
                     };
 
-                    let steps = sqlx::query(
+                    if deployment_id_str.is_empty() {
+                        tracing::warn!("DeploymentStarted: missing deployment_id in payload");
+                        continue;
+                    }
+
+                    let steps = match sqlx::query(
                         "SELECT step_label FROM dod_checklist_steps WHERE deployment_id = $1::uuid",
                     )
                     .bind(deployment_id_str)
                     .fetch_all(&self.fanout.db)
                     .await
-                    .unwrap_or_default();
+                    {
+                        Ok(rows) => rows,
+                        Err(e) => {
+                            tracing::error!(deployment_id = deployment_id_str, "failed to fetch checklist steps: {e}");
+                            continue;
+                        }
+                    };
 
                     let count = steps.len();
                     for step in &steps {
