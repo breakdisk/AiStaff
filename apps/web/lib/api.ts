@@ -842,6 +842,7 @@ export interface NotifPrefs {
   whatsapp_enabled:  boolean;
   slack_enabled:     boolean;
   teams_enabled:     boolean;
+  messenger_enabled: boolean;
   quiet_hours_start: string | null;
   quiet_hours_end:   string | null;
   quiet_hours_tz:    string;

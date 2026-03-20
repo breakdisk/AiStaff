@@ -72,8 +72,8 @@ const INTEGRATION_PROVIDERS = [
     key:     "messenger",
     label:   "Facebook Messenger",
     icon:    MessageSquare,
-    color:   "text-blue-400",
-    border:  "border-blue-900",
+    color:   "text-indigo-400",
+    border:  "border-indigo-900",
     note:    "Open the link or scan QR code on your phone to connect Messenger",
     qrBased: true,
   },
@@ -318,7 +318,6 @@ export default function NotificationSettingsPage() {
   const [saved,       setSaved]       = useState(false);
   const [saveErr,     setSaveErr]     = useState<string | null>(null);
   const [integrations, setIntegrations] = useState<IntegrationStatus[]>([]);
-  const [qrPending,   setQrPending]   = useState<Record<string, string>>({});  // provider → qr_url
 
   const fetchIntegrationStatuses = useCallback(() => {
     fetchIntegrationsStatus(DEMO_USER_ID)
@@ -384,6 +383,7 @@ export default function NotificationSettingsPage() {
       whatsapp_enabled:  false,
       slack_enabled:     false,
       teams_enabled:     false,
+      messenger_enabled: false,
       quiet_hours_start: quietHours.start || null,
       quiet_hours_end:   quietHours.end   || null,
       quiet_hours_tz:    quietHours.timezone,
@@ -405,7 +405,6 @@ export default function NotificationSettingsPage() {
     if (providerKey === "whatsapp") {
       try {
         const res = await initWhatsAppConnect(DEMO_USER_ID);
-        setQrPending((prev) => ({ ...prev, whatsapp: res.qr_url }));
         // Optimistically add pending status
         setIntegrations((prev) => [
           ...prev.filter((i) => i.provider !== "whatsapp"),

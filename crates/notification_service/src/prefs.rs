@@ -12,6 +12,7 @@ pub struct NotifPrefs {
     pub whatsapp_enabled: bool,
     pub slack_enabled: bool,
     pub teams_enabled: bool,
+    pub messenger_enabled: bool,
     pub quiet_hours_start: Option<String>, // "HH:MM"
     pub quiet_hours_end: Option<String>,
     pub quiet_hours_tz: String,
@@ -21,7 +22,7 @@ pub struct NotifPrefs {
 pub async fn get_prefs(pool: &PgPool, user_id: Uuid) -> Result<NotifPrefs> {
     let row = sqlx::query(
         "SELECT email_enabled, sms_enabled, push_enabled, in_app_enabled,
-                whatsapp_enabled, slack_enabled, teams_enabled,
+                whatsapp_enabled, slack_enabled, teams_enabled, messenger_enabled,
                 quiet_hours_start::TEXT, quiet_hours_end::TEXT,
                 quiet_hours_tz, digest_mode
          FROM notification_preferences WHERE user_id = $1",
@@ -40,6 +41,7 @@ pub async fn get_prefs(pool: &PgPool, user_id: Uuid) -> Result<NotifPrefs> {
             whatsapp_enabled: r.try_get("whatsapp_enabled").unwrap_or(false),
             slack_enabled: r.try_get("slack_enabled").unwrap_or(false),
             teams_enabled: r.try_get("teams_enabled").unwrap_or(false),
+            messenger_enabled: r.try_get("messenger_enabled").unwrap_or(false),
             quiet_hours_start: r.try_get("quiet_hours_start").ok().flatten(),
             quiet_hours_end: r.try_get("quiet_hours_end").ok().flatten(),
             quiet_hours_tz: r.try_get("quiet_hours_tz").unwrap_or_else(|_| "UTC".into()),
@@ -62,10 +64,10 @@ pub async fn upsert_prefs(pool: &PgPool, user_id: Uuid, p: &NotifPrefs) -> Resul
     sqlx::query(
         "INSERT INTO notification_preferences
              (user_id, email_enabled, sms_enabled, push_enabled, in_app_enabled,
-              whatsapp_enabled, slack_enabled, teams_enabled,
+              whatsapp_enabled, slack_enabled, teams_enabled, messenger_enabled,
               quiet_hours_start, quiet_hours_end, quiet_hours_tz, digest_mode, updated_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,
-                 $9::TIME, $10::TIME, $11, $12, NOW())
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,
+                 $10::TIME, $11::TIME, $12, $13, NOW())
          ON CONFLICT (user_id) DO UPDATE SET
              email_enabled     = EXCLUDED.email_enabled,
              sms_enabled       = EXCLUDED.sms_enabled,
@@ -74,6 +76,7 @@ pub async fn upsert_prefs(pool: &PgPool, user_id: Uuid, p: &NotifPrefs) -> Resul
              whatsapp_enabled  = EXCLUDED.whatsapp_enabled,
              slack_enabled     = EXCLUDED.slack_enabled,
              teams_enabled     = EXCLUDED.teams_enabled,
+             messenger_enabled = EXCLUDED.messenger_enabled,
              quiet_hours_start = EXCLUDED.quiet_hours_start,
              quiet_hours_end   = EXCLUDED.quiet_hours_end,
              quiet_hours_tz    = EXCLUDED.quiet_hours_tz,
@@ -88,6 +91,7 @@ pub async fn upsert_prefs(pool: &PgPool, user_id: Uuid, p: &NotifPrefs) -> Resul
     .bind(p.whatsapp_enabled)
     .bind(p.slack_enabled)
     .bind(p.teams_enabled)
+    .bind(p.messenger_enabled)
     .bind(p.quiet_hours_start.as_deref())
     .bind(p.quiet_hours_end.as_deref())
     .bind(&p.quiet_hours_tz)
