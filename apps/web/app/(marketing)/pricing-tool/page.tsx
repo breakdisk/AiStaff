@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { DollarSign, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp, Zap } from "lucide-react";
-import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
 
 // ── Demo data ───────────────────────────────────────────────────────────────
 
@@ -289,11 +288,7 @@ export default function PricingToolPage() {
     : SKILL_DATA.filter((s) => s.category === filterCategory);
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen">
-      <AppSidebar />
-
-      {/* Main */}
-      <main className="flex-1 p-4 pb-20 lg:pb-4 max-w-3xl mx-auto w-full space-y-4">
+    <main className="p-4 max-w-3xl mx-auto w-full space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -339,8 +334,5 @@ export default function PricingToolPage() {
           ))}
         </div>
       </main>
-
-      <AppMobileNav />
-    </div>
   );
 }

@@ -61,15 +61,13 @@ Tool calls logged append-only to tool_call_audit table.
 - GET  /api/marketplace/skill-tags         — All available skill categories
 - POST /api/marketplace/express-interest   — Freelancer applies to a job
 
-## Pages (public, crawlable)
+## Pages (public, crawlable — no authentication required)
 - /                    — Homepage
-- /marketplace         — All listings (SSR)
-- /leaderboard         — Talent reputation leaderboard
-- /pricing-tool        — Pricing reference
-- /pricing-calculator  — ROI / cost estimation tool
-- /proof-of-human      — Human verification report and methodology
-- /transparency        — Platform trust and audit transparency page
-- /legal-toolkit       — Contract and compliance reference
+- /listings/:id        — Individual agent or talent listing (SSR, JSON-LD)
+- /talent/:id          — Public talent profile with ZK trust score
+- /pricing-tool        — Live pricing reference for AI skills and agent categories
+- /transparency        — Platform audit trail and algorithmic transparency report
+- /proof-of-human      — Human verification methodology and PoH score breakdown
 - /login               — OAuth login (GitHub, Google, LinkedIn)
 
 ## Optional

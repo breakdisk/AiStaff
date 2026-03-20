@@ -3,16 +3,15 @@ import type { MetadataRoute } from "next";
 const BASE = "https://aistaffglobal.com";
 
 // Static public pages — always included
+// Only include pages that are genuinely crawlable without authentication.
+// Authenticated pages (/marketplace, /leaderboard, /scoping, etc.) redirect
+// crawlers to /login — listing them here wastes crawl budget and signals
+// thin content to search engines and LLM indexers.
 const STATIC_ROUTES: { url: string; priority: number; changeFrequency: MetadataRoute.Sitemap[number]["changeFrequency"] }[] = [
-  { url: "/",                  priority: 1.0,  changeFrequency: "daily"   },
-  { url: "/marketplace",       priority: 0.95, changeFrequency: "hourly"  },
-  { url: "/leaderboard",       priority: 0.8,  changeFrequency: "daily"   },
-  { url: "/proof-of-human",    priority: 0.7,  changeFrequency: "monthly" },
-  { url: "/transparency",      priority: 0.7,  changeFrequency: "monthly" },
-  { url: "/pricing-tool",      priority: 0.75, changeFrequency: "weekly"  },
-  { url: "/pricing-calculator",priority: 0.75, changeFrequency: "weekly"  },
-  { url: "/legal-toolkit",     priority: 0.6,  changeFrequency: "monthly" },
-  { url: "/scoping",           priority: 0.65, changeFrequency: "weekly"  },
+  { url: "/",               priority: 1.0,  changeFrequency: "daily"   },
+  { url: "/pricing-tool",   priority: 0.75, changeFrequency: "weekly"  },
+  { url: "/transparency",   priority: 0.7,  changeFrequency: "monthly" },
+  { url: "/proof-of-human", priority: 0.7,  changeFrequency: "monthly" },
 ];
 
 async function fetchListingIds(): Promise<string[]> {

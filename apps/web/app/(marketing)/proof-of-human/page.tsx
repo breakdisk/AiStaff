@@ -6,7 +6,6 @@ import {
   Shield, Info, ChevronRight, AlertTriangle, CheckCircle,
   Clock, User, Cpu, BookOpen, Save, Filter,
 } from "lucide-react";
-import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
 
 /* ─── Demo data ─────────────────────────────────────── */
 const POH_SCORE = 88;
@@ -531,11 +530,7 @@ export default function ProofOfHumanPage() {
   const displayScore = simLow ? 25 : POH_SCORE;
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex">
-      <AppSidebar />
-
-      {/* ── Main ────────────────────────────────────────── */}
-      <main className="flex-1 min-w-0 p-4 md:p-6 space-y-4">
+    <main className="min-w-0 p-4 md:p-6 space-y-4">
 
         {/* page header */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
@@ -591,8 +586,6 @@ export default function ProofOfHumanPage() {
         {/* section 7 — defense box */}
         <DefenseBox />
 
-        <AppMobileNav />
       </main>
-    </div>
   );
 }

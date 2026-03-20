@@ -25,6 +25,9 @@ export default auth((req) => {
     pathname.startsWith("/api/generate-pdf") || // PDF generation — called from public sign page
     pathname.startsWith("/talent/") ||           // Public talent profiles
     pathname.startsWith("/api/talent/") ||       // Public talent API (profile + privacy GET/PATCH)
+    pathname === "/transparency" ||              // (marketing) — public trust page
+    pathname === "/pricing-tool" ||              // (marketing) — public pricing reference
+    pathname === "/proof-of-human" ||            // (marketing) — public PoH methodology
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico" ||
     /\.(?:png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|otf)$/i.test(pathname);

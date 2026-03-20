@@ -8,7 +8,6 @@ import {
   DollarSign, Briefcase, Star, Zap, BarChart2,
   CheckCircle, XCircle, ArrowUp, ArrowDown, Minus
 } from "lucide-react";
-import { AppSidebar, AppMobileNav } from "@/components/AppSidebar";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type GapDirection = "above" | "below" | "match";
@@ -215,11 +214,7 @@ export default function TransparencyPage() {
   const topGap      = displayJobs.flatMap(j => j.factors).find(f => f.status === "fail" && f.category === "Trust");
 
   return (
-    <div className="flex min-h-screen bg-zinc-950 text-zinc-100">
-      <AppSidebar />
-
-      {/* Main */}
-      <main className="flex-1 min-w-0 px-4 sm:px-6 py-6 pb-24 sm:pb-6">
+    <main className="min-w-0 px-4 sm:px-6 py-6">
         {/* Header */}
         <div className="flex items-start justify-between mb-6">
           <div>
@@ -412,8 +407,5 @@ export default function TransparencyPage() {
           </div>
         )}
       </main>
-
-      <AppMobileNav />
-    </div>
   );
 }
