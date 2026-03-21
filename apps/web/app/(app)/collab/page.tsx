@@ -1,24 +1,34 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback, Suspense } from "react";
-import Link from "next/link";
+import { useState, useRef, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { MessageSquare, Paperclip, GitBranch, Send, File, Image, Archive, ExternalLink, Clock, X, Plus, Loader } from "lucide-react";
+import { MessageSquare, Paperclip, GitBranch, Send, File, Image, Archive, ExternalLink, Clock, X, Plus, Loader2, Loader } from "lucide-react";
 
 // ── Types & demo data ─────────────────────────────────────────────────────────
 
+interface ReactionGroup {
+  emoji:       string;
+  count:       number;
+  profile_ids: string[];
+}
+
 interface ChatMessage {
-  id:          string;
-  author:      string;
-  role:        "talent" | "client" | "system";
-  body:        string;
-  ts:          string;
-  file?:       string;
-  // fields present in API response (used during mapping)
-  sender_id?:   string;
-  sender_name?: string;
-  file_name?:   string | null;
+  id:             string;
+  author:         string;
+  role:           "talent" | "client" | "system";
+  body:           string;
+  ts:             string;
+  file?:          string;
+  file_path?:     string | null;
+  edited_at?:     string | null;
+  deleted_at?:    string | null;
+  parent_msg_id?: string | null;
+  reply_count?:   number;
+  reactions?:     ReactionGroup[];
+  sender_id?:     string;
+  sender_name?:   string;
+  file_name?:     string | null;
 }
 
 interface SharedFile {
@@ -49,6 +59,19 @@ interface Integration {
   connected_at:  string;
   events:        IntegrationEvent[];
 }
+
+function mergeDedupe(prev: ChatMessage[], batch: ChatMessage[]): ChatMessage[] {
+  const map = new Map(prev.map(m => [m.id, m]));
+  for (const m of batch) map.set(m.id, m);
+  return [...map.values()];
+}
+
+const ALLOWED_EMOJI = [
+  "👍","👎","❤️","🔥","🎉","😂","😮","😢","🙏","✅",
+  "❌","⚠️","🚀","💡","🐛","🔒","📎","📋","⏳","✏️",
+  "💬","🔄","📌","🏆","💪","👀","🤔","😅","🎯","🛡️",
+  "💰","📊","🔗","🧪","⚡","🌍","🤝","📢","🔔","💎",
+];
 
 const DEMO_MESSAGES: ChatMessage[] = [
   { id: "m1", author: "System",    role: "system",  body: "Project started — DataSync Pipeline Automation", ts: "Feb 14 09:00" },
@@ -104,7 +127,6 @@ function CollabInner() {
   const [tab,           setTab]          = useState<"chat" | "files" | "integrations">("chat");
   const [input,         setInput]        = useState("");
   const [messages,      setMessages]     = useState<ChatMessage[]>([]);
-  const [attached,      setAttached]     = useState<string | null>(null);
   const [files,         setFiles]        = useState<SharedFile[]>(DEMO_FILES);
   const [sending,       setSending]      = useState(false);
   const [integrations,   setIntegrations]  = useState<Integration[]>([]);
@@ -116,37 +138,63 @@ function CollabInner() {
   }>>([]);
   const [engagementsLoading, setEngagementsLoading] = useState(false);
 
+  // Task 11: edit/delete state
+  const [editingId,   setEditingId]   = useState<string | null>(null);
+  const [editBody,    setEditBody]    = useState("");
+  const [deleteAskId, setDeleteAskId] = useState<string | null>(null);
+
+  // Task 12: emoji picker state
+  const [emojiPickerMsgId, setEmojiPickerMsgId] = useState<string | null>(null);
+
+  // Task 13: thread panel state
+  const [threadMsgId,    setThreadMsgId]    = useState<string | null>(null);
+  const [threadMessages, setThreadMessages] = useState<ChatMessage[]>([]);
+  const [threadLoading,  setThreadLoading]  = useState(false);
+  const [threadInput,    setThreadInput]    = useState("");
+  const [threadSending,  setThreadSending]  = useState(false);
+
+  // Task 14: attachment state (replaces old `attached` string)
+  const [attachment, setAttachment] = useState<{
+    file_name: string;
+    file_path: string | null;
+    error:     string | null;
+    progress:  boolean;
+  } | null>(null);
+
   const chatFileRef   = useRef<HTMLInputElement>(null);
   const uploadFileRef = useRef<HTMLInputElement>(null);
   const bottomRef     = useRef<HTMLDivElement>(null);
 
-  // ── Poll for messages every 3 seconds ────────────────────────────────────
-  const fetchMessages = useCallback(async () => {
-    if (!deploymentId) return;
-    try {
-      const r = await fetch(`/api/collab/messages?deployment_id=${deploymentId}`);
-      if (!r.ok) return;
-      const data: ChatMessage[] = await r.json();
-      setMessages(data.map(m => ({
-        id:     m.id,
-        author: m.sender_name,
-        role:   m.sender_id === profileId ? "talent" : "client",
-        body:   m.body,
-        ts:     m.ts,
-        file:   m.file_name,
-      } as ChatMessage)));
-    } catch { /* network error — keep last state */ }
-  }, [deploymentId, profileId]);
-
+  // ── Task 11: SSE replaces polling ───────────────────────────────────────────
   useEffect(() => {
     if (!deploymentId) {
-      setMessages(DEMO_MESSAGES); // show demo when no deployment selected
+      setMessages(DEMO_MESSAGES);
       return;
     }
-    fetchMessages();
-    const id = setInterval(fetchMessages, 3000);
-    return () => clearInterval(id);
-  }, [deploymentId, fetchMessages]);
+    const es = new EventSource(`/api/collab/stream?deployment_id=${deploymentId}`);
+    es.onmessage = (e: MessageEvent) => {
+      try {
+        const batch = (JSON.parse(e.data as string) as ChatMessage[]).map(m => ({
+          id:            m.id,
+          author:        m.sender_name ?? "Unknown",
+          role:          (m.sender_id === profileId ? "talent" : "client") as ChatMessage["role"],
+          body:          m.body,
+          ts:            m.ts,
+          file:          m.file_name ?? undefined,
+          file_path:     m.file_path ?? undefined,
+          edited_at:     m.edited_at,
+          deleted_at:    m.deleted_at,
+          parent_msg_id: m.parent_msg_id,
+          reply_count:   m.reply_count ?? 0,
+          reactions:     m.reactions ?? [],
+          sender_id:     m.sender_id,
+        }));
+        setMessages(prev => mergeDedupe(prev, batch));
+      } catch { /* malformed event */ }
+    };
+    es.onerror = () => { /* EventSource auto-reconnects */ };
+    return () => es.close();
+  }, [deploymentId, profileId]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -169,26 +217,33 @@ function CollabInner() {
     setEngagementsLoading(true);
     fetch("/api/marketplace/my-deployments")
       .then(r => r.ok ? r.json() : [])
-      .then(data => setMyEngagements(data))
+      .then(data => setMyEngagements(data as Array<{ id: string; agent_name: string; state: string }>))
       .catch(() => setMyEngagements([]))
       .finally(() => setEngagementsLoading(false));
   }, [tab, deploymentIdFromUrl]);
 
   // Fetch integrations — scoped to deployment if known, else workspace-level
-  const fetchIntegrations = useCallback(async () => {
+  const fetchIntegrations = useRef(async () => {
     try {
       const qs = deploymentId ? `deployment_id=${deploymentId}` : "";
       const r = await fetch(`/api/integrations${qs ? `?${qs}` : ""}`);
-      if (r.ok) setIntegrations(await r.json());
+      if (r.ok) setIntegrations(await r.json() as Integration[]);
     } catch { /* keep last state */ }
-  }, [deploymentId]);
+  });
+  fetchIntegrations.current = async () => {
+    try {
+      const qs = deploymentId ? `deployment_id=${deploymentId}` : "";
+      const r = await fetch(`/api/integrations${qs ? `?${qs}` : ""}`);
+      if (r.ok) setIntegrations(await r.json() as Integration[]);
+    } catch { /* keep last state */ }
+  };
 
   useEffect(() => {
     if (tab !== "integrations") return;
-    fetchIntegrations();
-    const id = setInterval(fetchIntegrations, 10_000);
+    void fetchIntegrations.current();
+    const id = setInterval(() => void fetchIntegrations.current(), 10_000);
     return () => clearInterval(id);
-  }, [tab, fetchIntegrations]);
+  }, [tab, deploymentId]);
 
   async function connectGitHub() {
     if (!repoInput.trim() || connecting) return;
@@ -202,7 +257,7 @@ function CollabInner() {
       });
       if (r.ok) {
         setRepoInput("");
-        await fetchIntegrations();
+        await fetchIntegrations.current();
       } else {
         const data = await r.json().catch(() => ({})) as { error?: string };
         setConnectError(data.error ?? "Failed to connect repository");
@@ -213,47 +268,185 @@ function CollabInner() {
     setConnecting(false);
   }
 
-  function handleChatFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    if (f) setAttached(f.name);
-    e.target.value = "";
+  // ── Task 11: edit/delete handlers ──────────────────────────────────────────
+  async function saveEdit(msgId: string) {
+    if (!editBody.trim()) return;
+    await fetch(`/api/collab/messages/${msgId}`, {
+      method:  "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ body: editBody }),
+    });
+    setMessages(prev => prev.map(m =>
+      m.id === msgId ? { ...m, body: editBody, edited_at: new Date().toISOString() } : m
+    ));
+    setEditingId(null);
   }
 
-  function handleUploadFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    const ext = f.name.split(".").pop()?.toLowerCase() ?? "";
-    const type: SharedFile["type"] =
-      ["png","jpg","jpeg","gif","webp","svg"].includes(ext) ? "image" :
-      ["zip","tar","gz","wasm","dmg"].includes(ext)         ? "archive" :
-      ["ts","js","rs","toml","json","py","sh","md"].includes(ext) ? "code" : "doc";
-    const size = f.size > 1_048_576
-      ? `${(f.size / 1_048_576).toFixed(1)} MB`
-      : `${Math.round(f.size / 1024)} KB`;
-    setFiles(prev => [...prev, {
-      id:       `f${Date.now()}`,
-      name:     f.name,
-      type,
-      size,
-      uploaded: "Just now",
-      uploader: "You",
-      version:  1,
-    }]);
-    e.target.value = "";
+  async function confirmDelete(msgId: string) {
+    await fetch(`/api/collab/messages/${msgId}`, { method: "DELETE" });
+    setMessages(prev => prev.map(m =>
+      m.id === msgId ? { ...m, body: "[deleted]", deleted_at: new Date().toISOString() } : m
+    ));
+    setDeleteAskId(null);
   }
 
+  // ── Task 12: reaction handler ──────────────────────────────────────────────
+  async function toggleReaction(msgId: string, emoji: string) {
+    const myId = profileId ?? "";
+    setMessages(prev => prev.map(m => {
+      if (m.id !== msgId) return m;
+      const reactions = m.reactions ?? [];
+      const group = reactions.find(r => r.emoji === emoji);
+      if (group) {
+        const alreadyReacted = group.profile_ids.includes(myId);
+        return {
+          ...m,
+          reactions: alreadyReacted
+            ? reactions.map(r => r.emoji !== emoji ? r : {
+                ...r, count: r.count - 1,
+                profile_ids: r.profile_ids.filter(id => id !== myId),
+              }).filter(r => r.count > 0)
+            : reactions.map(r => r.emoji !== emoji ? r : {
+                ...r, count: r.count + 1,
+                profile_ids: [...r.profile_ids, myId],
+              }),
+        };
+      }
+      return { ...m, reactions: [...reactions, { emoji, count: 1, profile_ids: [myId] }] };
+    }));
+    await fetch("/api/collab/reactions", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ message_id: msgId, emoji }),
+    });
+    setEmojiPickerMsgId(null);
+  }
+
+  // ── Task 13: thread handlers ───────────────────────────────────────────────
+  async function openThread(msgId: string) {
+    setThreadMsgId(msgId);
+    setThreadMessages([]);
+    setThreadLoading(true);
+    try {
+      const r = await fetch(`/api/collab/messages/${msgId}/thread`);
+      if (r.ok) {
+        const data: ChatMessage[] = await r.json() as ChatMessage[];
+        setThreadMessages(data.map(m => ({
+          id:          m.id,
+          author:      (m.sender_name ?? "Unknown") as string,
+          role:        (m.sender_id === profileId ? "talent" : "client") as ChatMessage["role"],
+          body:        m.body,
+          ts:          m.ts,
+          file:        (m.file_name ?? undefined) as string | undefined,
+          file_path:   m.file_path ?? undefined,
+          edited_at:   m.edited_at,
+          deleted_at:  m.deleted_at,
+          reactions:   m.reactions ?? [],
+          sender_id:   m.sender_id,
+        })));
+      }
+    } catch { /* keep empty */ }
+    setThreadLoading(false);
+  }
+
+  async function sendThreadReply() {
+    if (!threadInput.trim() || threadSending || !threadMsgId || !deploymentId || !profileId) return;
+    setThreadSending(true);
+    const body = threadInput.trim();
+    setThreadInput("");
+    try {
+      await fetch("/api/collab/messages", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({
+          deployment_id: deploymentId,
+          sender_id:     profileId,
+          sender_name:   displayName,
+          body,
+          parent_msg_id: threadMsgId,
+        }),
+      });
+      await openThread(threadMsgId);
+    } catch { /* silent */ }
+    setThreadSending(false);
+  }
+
+  // ── Task 14: real file upload handler (chat attachment) ────────────────────
+  async function handleChatFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    if (!f || !deploymentId) return;
+    e.target.value = "";
+
+    setAttachment({ file_name: f.name, file_path: null, error: null, progress: true });
+
+    const form = new FormData();
+    form.append("file", f);
+
+    try {
+      const r = await fetch(`/api/collab/upload?deployment_id=${deploymentId}`, {
+        method: "POST",
+        body:   form,
+      });
+      if (r.ok) {
+        const data = await r.json() as { file_name: string; file_path: string; url: string };
+        setAttachment({ file_name: data.file_name, file_path: data.file_path, error: null, progress: false });
+      } else if (r.status === 413) {
+        setAttachment(prev => prev ? { ...prev, error: "File exceeds 25 MB", progress: false } : null);
+      } else {
+        setAttachment(prev => prev ? { ...prev, error: "Upload failed", progress: false } : null);
+      }
+    } catch {
+      setAttachment(prev => prev ? { ...prev, error: "Network error", progress: false } : null);
+    }
+  }
+
+  // ── Task 14: real file upload handler (Files tab) ──────────────────────────
+  async function handleUploadFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    if (!f || !deploymentId) return;
+    e.target.value = "";
+
+    const form = new FormData();
+    form.append("file", f);
+
+    const r = await fetch(`/api/collab/upload?deployment_id=${deploymentId}`, {
+      method: "POST",
+      body:   form,
+    }).catch(() => null);
+
+    if (r?.ok) {
+      const data = await r.json() as { file_name: string; file_path: string };
+      const ext  = data.file_name.split(".").pop()?.toLowerCase() ?? "";
+      const type: SharedFile["type"] =
+        ["png","jpg","jpeg","gif","webp","svg"].includes(ext) ? "image" :
+        ["zip","tar","gz","wasm","dmg"].includes(ext)         ? "archive" :
+        ["ts","js","rs","toml","json","py","sh","md"].includes(ext) ? "code" : "doc";
+      setFiles(prev => [...prev, {
+        id:       data.file_path,
+        name:     data.file_name,
+        type,
+        size:     `${(f.size / 1024).toFixed(0)} KB`,
+        uploaded: "Just now",
+        uploader: "You",
+        version:  1,
+      }]);
+    }
+  }
+
+  // ── Send message (updated for Task 14 attachment) ──────────────────────────
   async function sendMessage() {
-    if ((!input.trim() && !attached) || sending) return;
+    if ((!input.trim() && !attachment?.file_path) || sending || !!attachment?.progress) return;
     setSending(true);
     const body = input.trim() || "(file attached)";
     setInput("");
-    setAttached(null);
+    const currentAttachment = attachment;
+    setAttachment(null);
 
     if (!deploymentId || !profileId) {
       // No deployment — optimistic local only (demo mode)
       setMessages(prev => [...prev, {
         id: `m${Date.now()}`, author: "You", role: "talent",
-        body, ts: "Just now", file: attached ?? undefined,
+        body, ts: "Just now", file: currentAttachment?.file_name ?? undefined,
       }]);
       setSending(false);
       return;
@@ -268,11 +461,11 @@ function CollabInner() {
           sender_id:     profileId,
           sender_name:   displayName,
           body,
-          file_name:     attached ?? null,
+          file_name:     currentAttachment?.file_name ?? null,
+          file_path:     currentAttachment?.file_path ?? null,
         }),
       });
-      await fetchMessages(); // refresh immediately after send
-    } catch { /* silent — poll will catch up */ }
+    } catch { /* silent — SSE will catch up */ }
     setSending(false);
   }
 
@@ -316,7 +509,7 @@ function CollabInner() {
                   </span>
                 </div>
               )}
-              {messages.map((msg) => {
+              {messages.filter(m => !m.parent_msg_id).map((msg) => {
                 if (msg.role === "system") {
                   return (
                     <div key={msg.id} className="text-center">
@@ -328,7 +521,7 @@ function CollabInner() {
                 }
                 const isMe = msg.role === "talent";
                 return (
-                  <div key={msg.id} className={`flex gap-2.5 ${isMe ? "flex-row-reverse" : ""}`}>
+                  <div key={msg.id} className={`group flex gap-2.5 ${isMe ? "flex-row-reverse" : ""}`}>
                     <div className={`w-6 h-6 rounded-sm flex-shrink-0 flex items-center justify-center font-mono text-[9px] font-medium ${
                       isMe ? "bg-sky-950 text-sky-400 border border-sky-800" : "bg-purple-950 text-purple-400 border border-purple-800"
                     }`}>
@@ -338,15 +531,103 @@ function CollabInner() {
                       <div className={`flex items-center gap-2 ${isMe ? "flex-row-reverse" : ""}`}>
                         <span className="font-mono text-[9px] text-zinc-500">{msg.author}</span>
                         <span className="font-mono text-[9px] text-zinc-700">{msg.ts}</span>
+                        {msg.edited_at && !msg.deleted_at && (
+                          <span className="font-mono text-[8px] text-zinc-600">(edited)</span>
+                        )}
                       </div>
-                      <div className={`border rounded-sm px-2.5 py-2 font-mono text-xs leading-relaxed ${
-                        isMe
-                          ? "border-sky-900/50 bg-sky-950/20 text-zinc-300"
-                          : "border-zinc-800 bg-zinc-900 text-zinc-400"
-                      }`}>
-                        {msg.body}
-                      </div>
-                      {msg.file && (
+
+                      {/* Message bubble — edit mode or display */}
+                      {editingId === msg.id ? (
+                        <div className="w-full space-y-1">
+                          <textarea
+                            value={editBody}
+                            onChange={e => setEditBody(e.target.value)}
+                            className="w-full min-h-[60px] px-2.5 py-2 bg-zinc-900 border border-zinc-700 rounded-sm font-mono text-xs text-zinc-100 focus:outline-none focus:border-zinc-500 resize-none"
+                          />
+                          <div className="flex gap-1">
+                            <button onClick={() => void saveEdit(msg.id)}
+                              className="font-mono text-[9px] text-amber-400 hover:text-amber-300 px-1.5 py-0.5 border border-amber-900 rounded-sm">Save</button>
+                            <button onClick={() => setEditingId(null)}
+                              className="font-mono text-[9px] text-zinc-500 hover:text-zinc-300 px-1.5 py-0.5 border border-zinc-700 rounded-sm">Cancel</button>
+                          </div>
+                        </div>
+                      ) : msg.deleted_at ? (
+                        <div className={`border rounded-sm px-2.5 py-2 font-mono text-xs leading-relaxed border-zinc-800 bg-zinc-900`}>
+                          <span className="italic text-zinc-600">Message deleted</span>
+                        </div>
+                      ) : (
+                        <div className={`border rounded-sm px-2.5 py-2 font-mono text-xs leading-relaxed ${
+                          isMe
+                            ? "border-sky-900/50 bg-sky-950/20 text-zinc-300"
+                            : "border-zinc-800 bg-zinc-900 text-zinc-400"
+                        }`}>
+                          {msg.body}
+                        </div>
+                      )}
+
+                      {/* Hover toolbar */}
+                      {!msg.deleted_at && editingId !== msg.id && (
+                        <div className={`opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5 mt-0.5 ${isMe ? "justify-end" : ""}`}>
+                          <button onClick={() => setEmojiPickerMsgId(emojiPickerMsgId === msg.id ? null : msg.id)}
+                            className="font-mono text-[9px] text-zinc-600 hover:text-zinc-400 px-1">React</button>
+                          <button onClick={() => void openThread(msg.id)}
+                            className="font-mono text-[9px] text-zinc-600 hover:text-zinc-400 px-1">Reply</button>
+                          {isMe && (
+                            <button onClick={() => { setEditingId(msg.id); setEditBody(msg.body); }}
+                              className="font-mono text-[9px] text-zinc-600 hover:text-zinc-400 px-1">Edit</button>
+                          )}
+                          {isMe && deleteAskId !== msg.id && (
+                            <button onClick={() => setDeleteAskId(msg.id)}
+                              className="font-mono text-[9px] text-zinc-600 hover:text-red-400 px-1">Delete</button>
+                          )}
+                          {isMe && deleteAskId === msg.id && (
+                            <span className="flex items-center gap-1">
+                              <span className="font-mono text-[9px] text-zinc-500">Delete?</span>
+                              <button onClick={() => void confirmDelete(msg.id)} className="font-mono text-[9px] text-red-400 hover:text-red-300 px-1">Yes</button>
+                              <button onClick={() => setDeleteAskId(null)} className="font-mono text-[9px] text-zinc-600 hover:text-zinc-400 px-1">No</button>
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Reaction bar */}
+                      {((msg.reactions ?? []).length > 0 || emojiPickerMsgId === msg.id) && !msg.deleted_at && (
+                        <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                          {(msg.reactions ?? []).filter(r => r.count > 0).map(r => {
+                            const iMine = r.profile_ids.includes(profileId ?? "");
+                            return (
+                              <button key={r.emoji} onClick={() => void toggleReaction(msg.id, r.emoji)}
+                                className={`flex items-center gap-1 px-1.5 py-0.5 rounded-sm border font-mono text-[10px] transition-colors ${
+                                  iMine ? "border-amber-700 bg-amber-950/30 text-amber-400"
+                                        : "border-zinc-700 bg-zinc-900 text-zinc-400 hover:border-zinc-600"
+                                }`}>
+                                {r.emoji} {r.count}
+                              </button>
+                            );
+                          })}
+                          {emojiPickerMsgId === msg.id ? (
+                            <div className="flex flex-wrap gap-0.5 p-2 border border-zinc-700 bg-zinc-900 rounded-sm max-w-[224px] z-10">
+                              {ALLOWED_EMOJI.map(e => (
+                                <button key={e} onClick={() => void toggleReaction(msg.id, e)}
+                                  className="text-sm hover:bg-zinc-800 rounded px-0.5">{e}</button>
+                              ))}
+                            </div>
+                          ) : (
+                            <button onClick={() => setEmojiPickerMsgId(msg.id)}
+                              className="px-1.5 py-0.5 border border-zinc-800 rounded-sm font-mono text-[10px] text-zinc-600 hover:text-zinc-400 hover:border-zinc-700">+</button>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Thread reply count link */}
+                      {!msg.deleted_at && (msg.reply_count ?? 0) > 0 && (
+                        <button onClick={() => void openThread(msg.id)}
+                          className="font-mono text-[9px] text-zinc-500 hover:text-amber-400 transition-colors flex items-center gap-1 mt-0.5">
+                          {msg.reply_count} {msg.reply_count === 1 ? "reply" : "replies"}
+                        </button>
+                      )}
+
+                      {msg.file && !msg.deleted_at && (
                         <div className="flex items-center gap-1.5 border border-zinc-800 rounded-sm px-2 py-1 bg-zinc-900/60">
                           <Paperclip className="w-2.5 h-2.5 text-zinc-500" />
                           <span className="font-mono text-[9px] text-zinc-400">{msg.file}</span>
@@ -361,17 +642,22 @@ function CollabInner() {
 
             {/* Input */}
             <div className="border-t border-zinc-800 p-3 space-y-2">
-              {attached && (
-                <div className="flex items-center gap-2 px-2 py-1 bg-zinc-900 border border-zinc-700 rounded-sm w-fit">
+              {attachment && (
+                <div className="flex items-center gap-2 px-2 py-1 bg-zinc-900 border border-zinc-700 rounded-sm w-fit max-w-[280px]">
                   <Paperclip className="w-2.5 h-2.5 text-amber-400 flex-shrink-0" />
-                  <span className="font-mono text-[10px] text-zinc-300 max-w-[200px] truncate">{attached}</span>
-                  <button onClick={() => setAttached(null)} className="text-zinc-600 hover:text-zinc-300">
+                  <span className="font-mono text-[10px] text-zinc-300 truncate flex-1">{attachment.file_name}</span>
+                  {attachment.progress && <Loader2 className="w-2.5 h-2.5 animate-spin text-zinc-500 flex-shrink-0" />}
+                  {attachment.error && <span className="font-mono text-[9px] text-red-400">{attachment.error}</span>}
+                  {!attachment.progress && !attachment.error && (
+                    <span className="font-mono text-[9px] text-emerald-500">done</span>
+                  )}
+                  <button onClick={() => setAttachment(null)} className="text-zinc-600 hover:text-zinc-300 flex-shrink-0">
                     <X className="w-2.5 h-2.5" />
                   </button>
                 </div>
               )}
               <div className="flex gap-2">
-                <input type="file" ref={chatFileRef} onChange={handleChatFile} className="hidden" />
+                <input type="file" ref={chatFileRef} onChange={e => void handleChatFile(e)} className="hidden" />
                 <button
                   onClick={() => chatFileRef.current?.click()}
                   className="h-9 w-9 flex-shrink-0 flex items-center justify-center rounded-sm border border-zinc-700 text-zinc-500 hover:text-zinc-300 transition-colors"
@@ -381,13 +667,13 @@ function CollabInner() {
                 <input
                   value={input}
                   onChange={e => setInput(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && !e.shiftKey && sendMessage()}
+                  onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void sendMessage(); } }}
                   placeholder="Message…"
                   className="flex-1 h-9 px-2.5 bg-zinc-900 border border-zinc-800 rounded-sm font-mono text-xs text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-600"
                 />
                 <button
-                  onClick={sendMessage}
-                  disabled={(!input.trim() && !attached) || sending}
+                  onClick={() => void sendMessage()}
+                  disabled={(!input.trim() && !attachment?.file_path) || sending || !!attachment?.progress}
                   className="h-9 w-9 flex-shrink-0 flex items-center justify-center rounded-sm border border-amber-900 bg-amber-950/30 text-amber-400 hover:border-amber-700 transition-colors disabled:opacity-30"
                 >
                   <Send className={`w-3.5 h-3.5 ${sending ? "opacity-40" : ""}`} />
@@ -413,7 +699,10 @@ function CollabInner() {
                     <div key={f.id} className="grid grid-cols-2 sm:grid-cols-5 gap-2 px-3 py-2.5 items-center hover:bg-zinc-900/30 transition-colors">
                       <div className="flex items-center gap-2 col-span-2 sm:col-span-1">
                         <Icon className={`w-3.5 h-3.5 flex-shrink-0 ${FILE_COLOR[f.type]}`} />
-                        <span className="font-mono text-[10px] text-zinc-300 truncate">{f.name}</span>
+                        <a href={`/api/collab/files/${f.id}`} download={f.name}
+                           className="font-mono text-[10px] text-zinc-300 hover:text-amber-400 truncate transition-colors">
+                          {f.name}
+                        </a>
                       </div>
                       <span className="font-mono text-[10px] text-zinc-500">{f.size}</span>
                       <span className="font-mono text-[10px] text-zinc-500">{f.uploaded}</span>
@@ -425,7 +714,7 @@ function CollabInner() {
               </div>
             </div>
 
-            <input type="file" ref={uploadFileRef} onChange={handleUploadFile} className="hidden" />
+            <input type="file" ref={uploadFileRef} onChange={e => void handleUploadFile(e)} className="hidden" />
             <button
               onClick={() => uploadFileRef.current?.click()}
               className="w-full h-9 rounded-sm border border-dashed border-zinc-700 text-zinc-500
@@ -479,12 +768,12 @@ function CollabInner() {
                 <input
                   value={repoInput}
                   onChange={e => { setRepoInput(e.target.value); setConnectError(null); }}
-                  onKeyDown={e => e.key === "Enter" && connectGitHub()}
+                  onKeyDown={e => { if (e.key === "Enter") void connectGitHub(); }}
                   placeholder="https://github.com/owner/repo"
                   className="flex-1 h-8 px-2.5 bg-zinc-900 border border-zinc-800 rounded-sm font-mono text-xs text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-600"
                 />
                 <button
-                  onClick={connectGitHub}
+                  onClick={() => void connectGitHub()}
                   disabled={!repoInput.trim() || connecting}
                   className="h-8 px-3 rounded-sm border border-zinc-700 text-zinc-400 font-mono text-[9px] uppercase tracking-widest hover:border-zinc-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
                 >
@@ -548,6 +837,86 @@ function CollabInner() {
           </div>
         )}
       </main>
+
+      {/* Thread Panel */}
+      {threadMsgId && (
+        <div className="fixed inset-0 z-40 flex justify-end">
+          <div className="flex-1" onClick={() => setThreadMsgId(null)} />
+          <div className="w-full sm:w-80 h-full bg-zinc-950 border-l border-zinc-800 flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800 flex-shrink-0">
+              <span className="font-mono text-xs font-medium text-zinc-300">Thread</span>
+              <button onClick={() => setThreadMsgId(null)} className="text-zinc-600 hover:text-zinc-300">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Parent message preview */}
+            {(() => {
+              const parent = messages.find(m => m.id === threadMsgId);
+              if (!parent) return null;
+              return (
+                <div className="px-4 py-2 border-b border-zinc-800/60 bg-zinc-900/30 flex-shrink-0">
+                  <p className="font-mono text-[9px] text-zinc-500">{parent.author}</p>
+                  <p className="font-mono text-xs text-zinc-400 line-clamp-2 mt-0.5">
+                    {parent.deleted_at ? "Message deleted" : parent.body}
+                  </p>
+                </div>
+              );
+            })()}
+
+            {/* Thread messages */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {threadLoading ? (
+                <div className="flex justify-center pt-4">
+                  <Loader2 className="w-4 h-4 animate-spin text-zinc-600" />
+                </div>
+              ) : threadMessages.length === 0 ? (
+                <p className="font-mono text-[10px] text-zinc-600 text-center pt-4">No replies yet.</p>
+              ) : threadMessages.map(tm => {
+                const isMeTm = tm.sender_id === profileId;
+                return (
+                  <div key={tm.id} className={`flex gap-2 ${isMeTm ? "flex-row-reverse" : ""}`}>
+                    <div className={`w-5 h-5 rounded-sm flex-shrink-0 flex items-center justify-center font-mono text-[8px] font-medium ${
+                      isMeTm ? "bg-sky-950 text-sky-400 border border-sky-800" : "bg-purple-950 text-purple-400 border border-purple-800"
+                    }`}>{tm.author[0]}</div>
+                    <div className={`max-w-[80%] space-y-0.5 flex flex-col ${isMeTm ? "items-end" : ""}`}>
+                      <div className={`flex items-center gap-1.5 ${isMeTm ? "flex-row-reverse" : ""}`}>
+                        <span className="font-mono text-[8px] text-zinc-600">{tm.author}</span>
+                        <span className="font-mono text-[8px] text-zinc-700">{tm.ts}</span>
+                      </div>
+                      <div className={`border rounded-sm px-2 py-1.5 font-mono text-xs leading-relaxed ${
+                        isMeTm ? "border-sky-900/50 bg-sky-950/20 text-zinc-300"
+                               : "border-zinc-800 bg-zinc-900 text-zinc-400"
+                      }`}>
+                        {tm.deleted_at ? <span className="italic text-zinc-600">Message deleted</span> : tm.body}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Reply input */}
+            <div className="border-t border-zinc-800 p-3 flex-shrink-0">
+              <div className="flex gap-2">
+                <input
+                  value={threadInput}
+                  onChange={e => setThreadInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void sendThreadReply(); } }}
+                  placeholder="Reply in thread…"
+                  className="flex-1 h-8 px-2.5 bg-zinc-900 border border-zinc-800 rounded-sm font-mono text-xs text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-600"
+                />
+                <button onClick={() => void sendThreadReply()}
+                  disabled={!threadInput.trim() || threadSending}
+                  className="h-8 w-8 flex-shrink-0 flex items-center justify-center rounded-sm border border-amber-900 bg-amber-950/30 text-amber-400 disabled:opacity-30">
+                  <Send className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
