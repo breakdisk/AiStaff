@@ -282,7 +282,7 @@ pub async fn init_google_oauth(
 
     sqlx::query(
         "INSERT INTO connected_integrations (user_id, provider, status, nonce)
-         VALUES ($1, 'google_calendar', 'pending', $2)
+         VALUES ($1, 'google_meet', 'pending', $2)
          ON CONFLICT (user_id, provider) DO UPDATE
              SET nonce  = $2,
                  status = 'pending'",
@@ -356,7 +356,7 @@ pub async fn complete_google_oauth(
              access_token  = $2,
              refresh_token = $3,
              expires_at    = NOW() + ($4 * INTERVAL '1 second'),
-             display_name  = 'google_calendar',
+             display_name  = 'Google Calendar',
              connected_at  = NOW()
          WHERE nonce = $1",
     )

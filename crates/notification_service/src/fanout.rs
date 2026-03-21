@@ -39,7 +39,10 @@ impl AppConfig {
                 .expect("GOOGLE_CLIENT_SECRET"),
             encryption_key_b64: std::env::var("INTEGRATION_TOKEN_ENCRYPTION_KEY")
                 .expect("INTEGRATION_TOKEN_ENCRYPTION_KEY"),
-            base_url: std::env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:3012".into()),
+            // In production: set BASE_URL=https://yourdomain.com/api so that
+            // the Google OAuth redirect_uri routes through Next.js rewrites
+            // (which forward /api/integrations/* to notification_service internally).
+            base_url: std::env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:3000/api".into()),
             messenger_page_username: std::env::var("MESSENGER_PAGE_USERNAME")
                 .unwrap_or_else(|_| "aistaffglobal".into()),
         }
