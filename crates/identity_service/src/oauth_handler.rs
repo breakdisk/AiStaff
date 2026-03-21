@@ -21,7 +21,8 @@ const GH_REPOS_PTS: f64 = 12.0;
 const LI_EMAIL_PTS: f64 = 8.0;
 const LI_EXISTS_PTS: f64 = 7.0;
 
-const GOOGLE_EMAIL_PTS: f64 = 15.0; // Google verifies email at account creation
+const GOOGLE_EMAIL_PTS: f64    = 15.0; // Google verifies email at account creation
+const FACEBOOK_EMAIL_PTS: f64 = 15.0; // Facebook requires a verified email on all accounts
 
 // ── Public entry point ────────────────────────────────────────────────────────
 
@@ -178,6 +179,13 @@ async fn link_provider(db: &PgPool, id: Uuid, p: &OAuthCallbackPayload) -> Resul
         )
         .bind(&p.provider_uid)
         .bind(id),
+        OAuthProvider::Facebook => sqlx::query(
+            "UPDATE unified_profiles
+                 SET facebook_uid = $1, facebook_connected_at = NOW(), updated_at = NOW()
+                 WHERE id = $2",
+        )
+        .bind(&p.provider_uid)
+        .bind(id),
     }
     .execute(db)
     .await
@@ -193,8 +201,8 @@ async fn fetch_and_score(
     current: &OAuthCallbackPayload,
 ) -> Result<(i16, IdentityTier)> {
     // Fetch what providers are now connected to this profile
-    let row: (Option<String>, Option<String>, Option<String>) = sqlx::query_as(
-        "SELECT github_uid, linkedin_uid, google_uid
+    let row: (Option<String>, Option<String>, Option<String>, Option<String>) = sqlx::query_as(
+        "SELECT github_uid, linkedin_uid, google_uid, facebook_uid
          FROM unified_profiles WHERE id = $1",
     )
     .bind(id)
@@ -202,7 +210,7 @@ async fn fetch_and_score(
     .await
     .context("fetch provider columns")?;
 
-    let (github_uid, linkedin_uid, google_uid) = row;
+    let (github_uid, linkedin_uid, google_uid, facebook_uid) = row;
 
     // GitHub score — use data from current payload if GitHub is the provider
     let github_score = if github_uid.is_some() {
@@ -240,7 +248,14 @@ async fn fetch_and_score(
         0.0
     };
 
-    let total = (github_score + linkedin_score + google_score)
+    // Facebook score — verified email required by Facebook on all accounts
+    let facebook_score = if facebook_uid.is_some() {
+        FACEBOOK_EMAIL_PTS
+    } else {
+        0.0
+    };
+
+    let total = (github_score + linkedin_score + google_score + facebook_score)
         .round()
         .clamp(0.0, 100.0) as i16;
 
@@ -272,9 +287,10 @@ fn calc_github_score(repos: Option<u32>, created_at: Option<chrono::DateTime<Utc
 
 fn provider_uid_col(p: OAuthProvider) -> &'static str {
     match p {
-        OAuthProvider::GitHub => "github_uid",
-        OAuthProvider::Google => "google_uid",
+        OAuthProvider::GitHub   => "github_uid",
+        OAuthProvider::Google   => "google_uid",
         OAuthProvider::LinkedIn => "linkedin_uid",
+        OAuthProvider::Facebook => "facebook_uid",
     }
 }
 

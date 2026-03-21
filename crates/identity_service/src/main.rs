@@ -386,7 +386,9 @@ async fn disconnect_provider(
             "UPDATE unified_profiles SET google_uid = NULL, google_connected_at = NULL, updated_at = NOW() WHERE id = $1",
         "linkedin" =>
             "UPDATE unified_profiles SET linkedin_uid = NULL, linkedin_connected_at = NULL, updated_at = NOW() WHERE id = $1",
-        _ => return (StatusCode::BAD_REQUEST, "provider must be github|google|linkedin").into_response(),
+        "facebook" =>
+            "UPDATE unified_profiles SET facebook_uid = NULL, facebook_connected_at = NULL, updated_at = NOW() WHERE id = $1",
+        _ => return (StatusCode::BAD_REQUEST, "provider must be github|google|linkedin|facebook").into_response(),
     };
 
     if let Err(e) = sqlx::query(update_sql).bind(id).execute(&pool).await {

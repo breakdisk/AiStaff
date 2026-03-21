@@ -77,6 +77,7 @@ pub enum OAuthProvider {
     GitHub,
     Google,
     LinkedIn,
+    Facebook,
 }
 
 /// Payload sent from Next.js → identity_service after any OAuth callback.

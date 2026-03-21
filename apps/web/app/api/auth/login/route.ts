@@ -27,7 +27,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-const ALLOWED_PROVIDERS = ["github", "google", "linkedin"] as const;
+const ALLOWED_PROVIDERS = ["github", "google", "linkedin", "facebook"] as const;
 type Provider = (typeof ALLOWED_PROVIDERS)[number];
 
 function isAllowedProvider(p: string): p is Provider {

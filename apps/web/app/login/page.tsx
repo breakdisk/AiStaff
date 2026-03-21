@@ -7,6 +7,14 @@ import { Github, Loader2, Linkedin } from "lucide-react";
 
 // ── Google icon (Lucide does not include it) ──────────────────────────────────
 
+function FacebookIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="#1877F2">
+      <path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.236 2.686.236v2.97h-1.513c-1.491 0-1.956.93-1.956 1.886v2.269h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/>
+    </svg>
+  );
+}
+
 function GoogleIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24">
@@ -26,7 +34,7 @@ function OAuthButton({
   icon,
   callbackUrl,
 }: {
-  provider:    "github" | "google" | "linkedin";
+  provider:    "github" | "google" | "linkedin" | "facebook";
   label:       string;
   icon:        React.ReactNode;
   callbackUrl: string;
@@ -71,10 +79,10 @@ function LoginForm() {
 
       <div className="space-y-2.5">
         <OAuthButton
-          provider="github"
-          label="Continue with GitHub"
+          provider="linkedin"
+          label="Continue with LinkedIn"
           callbackUrl={callbackUrl}
-          icon={<Github className="w-4 h-4 text-zinc-400" />}
+          icon={<Linkedin className="w-4 h-4 text-zinc-400" />}
         />
         <OAuthButton
           provider="google"
@@ -83,10 +91,16 @@ function LoginForm() {
           icon={<GoogleIcon className="w-4 h-4" />}
         />
         <OAuthButton
-          provider="linkedin"
-          label="Continue with LinkedIn"
+          provider="facebook"
+          label="Continue with Facebook"
           callbackUrl={callbackUrl}
-          icon={<Linkedin className="w-4 h-4 text-zinc-400" />}
+          icon={<FacebookIcon className="w-4 h-4" />}
+        />
+        <OAuthButton
+          provider="github"
+          label="Continue with GitHub"
+          callbackUrl={callbackUrl}
+          icon={<Github className="w-4 h-4 text-zinc-400" />}
         />
       </div>
 

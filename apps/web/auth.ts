@@ -2,6 +2,7 @@ import NextAuth from "next-auth";
 import GitHub from "next-auth/providers/github";
 import Google from "next-auth/providers/google";
 import LinkedIn from "next-auth/providers/linkedin";
+import Facebook from "next-auth/providers/facebook";
 import type { Account, Profile } from "next-auth";
 
 // ── identity_service base URL ─────────────────────────────────────────────────
@@ -12,7 +13,7 @@ const IDENTITY_URL =
 // ── Payload builder — maps NextAuth provider data → identity_service format ───
 
 interface OAuthCallbackPayload {
-  provider: "github" | "google" | "linkedin";
+  provider: "github" | "google" | "linkedin" | "facebook";
   provider_uid: string;
   email: string;
   display_name: string;
@@ -39,7 +40,7 @@ async function callIdentityOAuthCallback(
   githubExtra?: { public_repos: number; created_at: string; followers: number }
 ): Promise<OAuthCallbackResponse> {
   const payload: OAuthCallbackPayload = {
-    provider: account.provider as "github" | "google" | "linkedin",
+    provider: account.provider as "github" | "google" | "linkedin" | "facebook",
     provider_uid: String(account.providerAccountId),
     email: (profile as { email?: string }).email ?? "",
     display_name: (profile as { name?: string }).name ?? "",
@@ -152,6 +153,21 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     : undefined, // Dev: let Auth.js use defaults (no __Secure- prefix on HTTP)
 
   providers: [
+    LinkedIn({
+      clientId: process.env.LINKEDIN_CLIENT_ID!,
+      clientSecret: process.env.LINKEDIN_CLIENT_SECRET!,
+      checks: ["state"],
+    }),
+    Google({
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      checks: ["state"],
+    }),
+    Facebook({
+      clientId:     process.env.FACEBOOK_CLIENT_ID!,
+      clientSecret: process.env.FACEBOOK_CLIENT_SECRET!,
+      checks: ["state"],
+    }),
     GitHub({
       clientId: process.env.GITHUB_CLIENT_ID!,
       clientSecret: process.env.GITHUB_CLIENT_SECRET!,
@@ -160,16 +176,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       // (SPAs with no server-side secret). Keeping PKCE on a server-side app
       // behind Traefik adds a cookie that is unreliable across SSL-terminating
       // proxies — see full diagnosis in docs/adr/ (auth cookie fix).
-      checks: ["state"],
-    }),
-    Google({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-      checks: ["state"],
-    }),
-    LinkedIn({
-      clientId: process.env.LINKEDIN_CLIENT_ID!,
-      clientSecret: process.env.LINKEDIN_CLIENT_SECRET!,
       checks: ["state"],
     }),
   ],
