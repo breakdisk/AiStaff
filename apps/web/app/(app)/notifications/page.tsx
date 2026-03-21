@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useSession } from "next-auth/react";
 
 import {
   Bell, BellOff, Check, CheckCheck, ChevronDown, ChevronRight,
@@ -16,7 +17,6 @@ import {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const DEMO_USER_ID = "00000000-0000-0000-0000-000000000001";
 const UNREAD_POLL_MS = 30_000;
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -354,30 +354,36 @@ function NotificationRow({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function NotificationsPage() {
+  const { data: session } = useSession();
+  const userId = (session?.user as { profileId?: string })?.profileId ?? "";
+
   const [notifications, setNotifications] = useState<Notification[]>(DEMO_NOTIFICATIONS);
   const [filter, setFilter]               = useState<FilterTab>("all");
   const [liveUnread, setLiveUnread]       = useState<number | null>(null);
   const [isLoading, setIsLoading]         = useState(true);
 
-  // ── Load notifications on mount ───────────────────────────────────────────
+  // ── Load notifications when userId is known ────────────────────────────────
   useEffect(() => {
+    if (!userId) return;
     let cancelled = false;
-    fetchInAppNotifications(false, DEMO_USER_ID)
+    setIsLoading(true);
+    fetchInAppNotifications(false, userId)
       .then((items) => {
-        if (cancelled || items.length === 0) return;
-        setNotifications(items.map(mapApiNotification));
+        if (cancelled) return;
+        if (items.length > 0) setNotifications(items.map(mapApiNotification));
       })
       .catch(() => { /* keep demo data */ })
       .finally(() => { if (!cancelled) setIsLoading(false); });
     return () => { cancelled = true; };
-  }, []);
+  }, [userId]);
 
   // ── Poll unread count every 30s ───────────────────────────────────────────
   const refreshUnreadCount = useCallback(() => {
-    fetchUnreadCount(DEMO_USER_ID)
+    if (!userId) return;
+    fetchUnreadCount(userId)
       .then((data) => setLiveUnread(data.count))
       .catch(() => { /* ignore */ });
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     refreshUnreadCount();
@@ -398,7 +404,7 @@ export default function NotificationsPage() {
     // Optimistic update
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     setLiveUnread(0);
-    markAllNotificationsRead(DEMO_USER_ID).catch(() => { /* ignore */ });
+    markAllNotificationsRead(userId).catch(() => { /* ignore */ });
   }
 
   // ── Derived state ─────────────────────────────────────────────────────────
