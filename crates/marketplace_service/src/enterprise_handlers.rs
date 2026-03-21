@@ -83,7 +83,7 @@ pub async fn org_analytics(
         "SELECT
             COUNT(*)::BIGINT                                                                        AS total,
             COUNT(*) FILTER (WHERE state::TEXT NOT IN ('VETOED','RELEASED','FAILED'))::BIGINT      AS active,
-            COALESCE(SUM(escrow_amount_cents), 0::BIGINT)                                          AS spend
+            COALESCE(SUM(escrow_amount_cents)::BIGINT, 0::BIGINT)                                  AS spend
          FROM deployments
          WHERE org_id = $1",
     )
