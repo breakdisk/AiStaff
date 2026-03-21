@@ -874,8 +874,12 @@ export function fetchUnreadCount(userId = "demo-user"): Promise<{ count: number 
   return apiFetch(`/api/notifications/count?user_id=${userId}`);
 }
 
-export function markNotificationRead(id: string, userId = "demo-user"): Promise<{ ok: boolean }> {
-  return apiFetch(`/api/notifications/${id}/read?user_id=${userId}`, { method: "PATCH" });
+export function markNotificationRead(id: string): Promise<{ ok: boolean }> {
+  // POST to a static path — dynamic [id]/read loses to the /api/notifications/:path* rewrite
+  return apiFetch("/api/notifications/mark-read", {
+    method: "POST",
+    body: JSON.stringify({ id }),
+  });
 }
 
 export function markAllNotificationsRead(userId = "demo-user"): Promise<{ ok: boolean }> {
