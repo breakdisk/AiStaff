@@ -92,7 +92,8 @@ function AddReminderForm({ onCreated }: { onCreated: (r: ReminderRow) => void })
         <input
           type="date"
           className="w-full bg-zinc-900 border border-zinc-700 rounded-[2px] px-2.5 py-1.5
-                     font-mono text-xs text-zinc-200 focus:outline-none focus:border-amber-700"
+                     font-mono text-xs text-zinc-200 focus:outline-none focus:border-amber-700
+                     [color-scheme:dark]"
           value={date}
           onChange={(e) => setDate(e.target.value)}
           required
