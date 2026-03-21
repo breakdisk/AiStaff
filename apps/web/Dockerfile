@@ -26,6 +26,10 @@ ENV ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY
 ARG NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_placeholder
 ENV NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=$NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
 
+# Facebook App ID — public, baked into client bundle for fb:app_id meta tag.
+ARG NEXT_PUBLIC_FACEBOOK_APP_ID=
+ENV NEXT_PUBLIC_FACEBOOK_APP_ID=$NEXT_PUBLIC_FACEBOOK_APP_ID
+
 # Service URL build args — docker-compose passes these via build.args
 ARG IDENTITY_SERVICE_URL=http://identity-service:3001
 ARG MARKETPLACE_SERVICE_URL=http://marketplace-service:3002
