@@ -50,6 +50,8 @@ interface Notification {
 
 function eventTypeToKind(event_type: string, priority: string): { kind: NotifKind; severity?: "critical" | "warning" | "info" } {
   switch (event_type) {
+    case "reminder":
+      return { kind: "reminder" };
     case "DriftDetected":
     case "WarrantyClaimed":
       return { kind: "alert", severity: "critical" };
