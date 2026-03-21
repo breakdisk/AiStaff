@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { useSession } from "next-auth/react";
 import { useState, useEffect, useCallback } from "react";
 
 import {
@@ -16,8 +17,8 @@ import {
   type NotifPrefs, type IntegrationStatus,
 } from "@/lib/api";
 
-// ── Demo user (replace with real session in production) ───────────────────────
-const DEMO_USER_ID = "00000000-0000-0000-0000-000000000001";
+// ── Fallback for local dev without a live session ─────────────────────────────
+const DEV_FALLBACK_ID = "00000000-0000-0000-0000-000000000001";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -85,7 +86,7 @@ const INTEGRATION_PROVIDERS = [
     border:   "border-purple-900",
     note:     "Scan QR to authorise AiStaff in your Slack workspace",
     qrBased:  true,
-    oauthPath: `/api/integrations/slack/oauth?user_id=${DEMO_USER_ID}`,
+    oauthPath: `/api/integrations/slack/oauth`,
   },
   {
     key:      "teams",
@@ -104,7 +105,7 @@ const INTEGRATION_PROVIDERS = [
     border:   "border-red-900",
     note:     "Scan QR to link Google Calendar — Meet links auto-added to match events",
     qrBased:  true,
-    oauthPath: `/api/integrations/google/oauth?user_id=${DEMO_USER_ID}`,
+    oauthPath: `/api/integrations/google/oauth`,
   },
 ] as const;
 
@@ -181,10 +182,11 @@ function MatrixCell({ checked, disabled, onChange }: {
 }
 
 function IntegrationRow({
-  provider, status, onConnect, onDisconnect,
+  provider, status, userId, onConnect, onDisconnect,
 }: {
   provider: typeof INTEGRATION_PROVIDERS[number];
   status:   IntegrationStatus | undefined;
+  userId:       string;
   onConnect:    () => void;
   onDisconnect: () => void;
 }) {
@@ -257,7 +259,7 @@ function IntegrationRow({
 
       {/* Teams — URL paste field */}
       {!connected && provider.key === "teams" && (
-        <TeamsInput userId={DEMO_USER_ID} onSaved={() => { /* will be refreshed by parent poll */ }} />
+        <TeamsInput userId={userId} onSaved={() => { /* will be refreshed by parent poll */ }} />
       )}
     </div>
   );
@@ -310,6 +312,9 @@ function TeamsInput({ userId, onSaved }: { userId: string; onSaved: () => void }
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function NotificationSettingsPage() {
+  const { data: session } = useSession();
+  const userId = (session?.user as { profileId?: string })?.profileId ?? DEV_FALLBACK_ID;
+
   const [channels,    setChannels]    = useState<ChannelState>(DEFAULT_CHANNELS);
   const [matrix,      setMatrix]      = useState<MatrixState>(DEFAULT_MATRIX);
   const [digest,      setDigest]      = useState<DigestMode>("realtime");
@@ -321,14 +326,16 @@ export default function NotificationSettingsPage() {
   const [connectErr,    setConnectErr]    = useState<string | null>(null);
 
   const fetchIntegrationStatuses = useCallback(() => {
-    fetchIntegrationsStatus(DEMO_USER_ID)
+    if (!userId) return;
+    fetchIntegrationsStatus(userId)
       .then((data) => { if (Array.isArray(data)) setIntegrations(data); })
       .catch(() => {});
-  }, []);
+  }, [userId]);
 
   // ── Load preferences on mount ──────────────────────────────────────────────
   useEffect(() => {
-    fetchNotificationPreferences(DEMO_USER_ID).then((p) => {
+    if (!userId) return;
+    fetchNotificationPreferences(userId).then((p) => {
       setChannels({
         "in-app": p.in_app_enabled,
         email:    p.email_enabled,
@@ -376,7 +383,7 @@ export default function NotificationSettingsPage() {
   async function handleSave() {
     setSaving(true); setSaveErr(null);
     const prefs: NotifPrefs & { user_id: string } = {
-      user_id:           DEMO_USER_ID,
+      user_id:           userId,
       email_enabled:     channels.email,
       sms_enabled:       channels.sms,
       push_enabled:      channels.push,
@@ -406,7 +413,7 @@ export default function NotificationSettingsPage() {
     setConnectErr(null);
     if (providerKey === "whatsapp") {
       try {
-        const res = await initWhatsAppConnect(DEMO_USER_ID);
+        const res = await initWhatsAppConnect(userId);
         setIntegrations((prev) => [
           ...prev.filter((i) => i.provider !== "whatsapp"),
           { provider: "whatsapp", status: "pending", display_name: res.qr_url, connected_at: null },
@@ -416,7 +423,7 @@ export default function NotificationSettingsPage() {
       }
     } else if (providerKey === "messenger") {
       try {
-        const res = await initMessengerConnect(DEMO_USER_ID);
+        const res = await initMessengerConnect(userId);
         setIntegrations((prev) => [
           ...prev.filter((i) => i.provider !== "messenger"),
           { provider: "messenger", status: "pending", display_name: res.link, connected_at: null },
@@ -428,7 +435,7 @@ export default function NotificationSettingsPage() {
       // Slack / Google Meet — redirect to OAuth via QR
       const provider = INTEGRATION_PROVIDERS.find((p) => p.key === providerKey);
       if (provider && "oauthPath" in provider && provider.oauthPath) {
-        const oauthUrl = `${window.location.origin}${provider.oauthPath}`;
+        const oauthUrl = `${window.location.origin}${provider.oauthPath}?user_id=${userId}`;
         setIntegrations((prev) => [
           ...prev.filter((i) => i.provider !== providerKey),
           { provider: providerKey, status: "pending", display_name: oauthUrl, connected_at: null },
@@ -439,7 +446,7 @@ export default function NotificationSettingsPage() {
 
   async function handleDisconnect(providerKey: string) {
     try {
-      await disconnectIntegration(providerKey, DEMO_USER_ID);
+      await disconnectIntegration(providerKey, userId);
       setIntegrations((prev) => prev.filter((i) => i.provider !== providerKey));
     } catch { /* backend offline */ }
   }
@@ -619,6 +626,7 @@ export default function NotificationSettingsPage() {
                   key={provider.key}
                   provider={provider}
                   status={status}
+                  userId={userId}
                   onConnect={() => handleConnect(provider.key)}
                   onDisconnect={() => handleDisconnect(provider.key)}
                 />
