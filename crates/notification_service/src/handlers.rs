@@ -538,6 +538,32 @@ pub struct NotifyBody {
     pub body: String,
 }
 
+/// POST /notify-inapp  { user_id, title, body, event_type, priority }
+#[derive(Debug, Deserialize)]
+pub struct NotifyInAppBody {
+    pub user_id:    Uuid,
+    pub title:      String,
+    pub body:       String,
+    pub event_type: Option<String>,
+    pub priority:   Option<String>,
+}
+
+pub async fn send_notify_inapp(
+    State(s): State<AppState>,
+    Json(req): Json<NotifyInAppBody>,
+) -> impl IntoResponse {
+    let event_type = req.event_type.as_deref().unwrap_or("system");
+    let priority   = req.priority.as_deref().unwrap_or("normal");
+    match s.fanout.dispatch_in_app(req.user_id, &req.title, &req.body, event_type, priority).await {
+        Ok(_) => (StatusCode::OK, Json(json!({ "ok": true }))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "ok": false, "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
 /// POST /notify  { recipient_email, subject, body }
 /// Sends a transactional email via SMTP. recipient UUID is nil (no platform user required).
 pub async fn send_notify(

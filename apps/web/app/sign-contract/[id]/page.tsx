@@ -46,10 +46,11 @@ export default function SignContractPage() {
     if (!name.trim()) return;
     setSigning(true);
     try {
-      const res = await fetch(`/api/compliance/contracts/${id}/sign-external`, {
+      // Use /api/contract-sign which records signature AND notifies Party A
+      const res = await fetch("/api/contract-sign", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, signer_name: name.trim() }),
+        body: JSON.stringify({ contract_id: id, token, signer_name: name.trim() }),
       });
       if (!res.ok) throw new Error(await res.text());
       setSigned(true);
