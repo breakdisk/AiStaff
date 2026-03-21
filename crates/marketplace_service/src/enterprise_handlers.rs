@@ -93,8 +93,8 @@ pub async fn org_analytics(
 
     let (passed, total_steps): (i64, i64) = sqlx::query_as(
         "SELECT
-            COUNT(*) FILTER (WHERE dcs.approved_at IS NOT NULL) AS passed,
-            COUNT(*)                                             AS total_steps
+            COUNT(*) FILTER (WHERE dcs.passed = TRUE) AS passed,
+            COUNT(*)                                   AS total_steps
          FROM dod_checklist_steps dcs
          JOIN deployments d ON d.id = dcs.deployment_id
          WHERE d.org_id = $1",
