@@ -43,7 +43,11 @@ pub async fn init_whatsapp_connect(
 ) -> Result<InitWhatsAppResponse> {
     let nonce = Uuid::now_v7().to_string();
 
-    let number_digits = wa_business_number.trim_start_matches('+');
+    // Twilio stores numbers as "whatsapp:+14155238886" — strip any prefix before
+    // the digits so the wa.me link contains only the numeric E.164 digits.
+    let number_digits = wa_business_number
+        .trim_start_matches("whatsapp:")
+        .trim_start_matches('+');
     let qr_url = format!("https://wa.me/{}?text=connect:{}", number_digits, nonce);
 
     // Store qr_url as display_name so the polling loop can return it without

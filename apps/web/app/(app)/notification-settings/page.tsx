@@ -328,7 +328,7 @@ export default function NotificationSettingsPage() {
   const fetchIntegrationStatuses = useCallback(() => {
     if (!userId) return;
     fetchIntegrationsStatus(userId)
-      .then((data) => { if (Array.isArray(data)) setIntegrations(data); })
+      .then((data) => setIntegrations(data))
       .catch(() => {});
   }, [userId]);
 

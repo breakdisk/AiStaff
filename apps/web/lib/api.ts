@@ -905,8 +905,13 @@ export function registerDeviceToken(
   });
 }
 
-export function fetchIntegrationsStatus(userId = "demo-user"): Promise<IntegrationStatus[]> {
-  return apiFetch(`/api/integrations/status?user_id=${userId}`);
+// Backend returns { integrations: IntegrationStatus[] } — unwrap here so
+// callers always receive a plain array.
+export async function fetchIntegrationsStatus(userId = "demo-user"): Promise<IntegrationStatus[]> {
+  const data = await apiFetch<{ integrations: IntegrationStatus[] }>(
+    `/api/integrations/status?user_id=${userId}`,
+  );
+  return data.integrations ?? [];
 }
 
 export function initWhatsAppConnect(userId = "demo-user"): Promise<InitWhatsAppResponse> {
