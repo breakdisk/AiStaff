@@ -76,25 +76,29 @@ pub async fn org_analytics(
     State(state): State<Arc<AppState>>,
     Path(org_id): Path<Uuid>,
 ) -> Result<Json<OrgAnalytics>, StatusCode> {
-    // Valid terminal states: RELEASED, VETOED, FAILED — NOT 'COMPLETED'
-    // Column is `state` (deployment_status enum)
+    // Cast state::TEXT so PostgreSQL doesn't need to coerce string literals
+    // to the deployment_status enum type in a prepared statement.
+    // Cast COALESCE fallback to BIGINT to match SUM(BIGINT) return type.
     let (total, active, spend): (i64, i64, i64) = sqlx::query_as(
         "SELECT
-            COUNT(*)                                                                  AS total,
-            COUNT(*) FILTER (WHERE state NOT IN ('VETOED', 'RELEASED', 'FAILED'))    AS active,
-            COALESCE(SUM(escrow_amount_cents), 0)                                    AS spend
+            COUNT(*)::BIGINT                                                                        AS total,
+            COUNT(*) FILTER (WHERE state::TEXT NOT IN ('VETOED','RELEASED','FAILED'))::BIGINT      AS active,
+            COALESCE(SUM(escrow_amount_cents), 0::BIGINT)                                          AS spend
          FROM deployments
          WHERE org_id = $1",
     )
     .bind(org_id)
     .fetch_one(&state.db)
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|e| {
+        tracing::error!(%org_id, "org_analytics deployments query failed: {e:#}");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     let (passed, total_steps): (i64, i64) = sqlx::query_as(
         "SELECT
-            COUNT(*) FILTER (WHERE dcs.passed = TRUE) AS passed,
-            COUNT(*)                                   AS total_steps
+            COUNT(*) FILTER (WHERE dcs.passed = TRUE)::BIGINT AS passed,
+            COUNT(*)::BIGINT                                   AS total_steps
          FROM dod_checklist_steps dcs
          JOIN deployments d ON d.id = dcs.deployment_id
          WHERE d.org_id = $1",
@@ -102,7 +106,10 @@ pub async fn org_analytics(
     .bind(org_id)
     .fetch_one(&state.db)
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|e| {
+        tracing::error!(%org_id, "org_analytics dod query failed: {e:#}");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     let avg_pass = if total_steps > 0 {
         (passed as f64 / total_steps as f64) * 100.0
@@ -111,7 +118,7 @@ pub async fn org_analytics(
     };
 
     let drift: i64 = sqlx::query_scalar(
-        "SELECT COUNT(de.id)
+        "SELECT COUNT(*)::BIGINT
          FROM drift_events de
          JOIN deployments d ON d.id = de.deployment_id
          WHERE d.org_id = $1
@@ -120,7 +127,10 @@ pub async fn org_analytics(
     .bind(org_id)
     .fetch_one(&state.db)
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|e| {
+        tracing::error!(%org_id, "org_analytics drift query failed: {e:#}");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     Ok(Json(OrgAnalytics {
         org_id: org_id.to_string(),
