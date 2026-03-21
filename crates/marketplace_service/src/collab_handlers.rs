@@ -303,6 +303,188 @@ const ALLOWED_EMOJI: &[&str] = &[
     "💰","📊","🔗","🧪","⚡","🌍","🤝","📢","🔔","💎",
 ];
 
+// ── Task 7: File upload / serve constants and helpers ─────────────────────────
+
+const MAX_UPLOAD_BYTES: usize = 26_214_400; // 25 MB
+
+/// Map detected MIME type to a safe extension. Returns "bin" for unknown types.
+fn mime_to_ext(mime: &str) -> &'static str {
+    match mime {
+        "image/jpeg"       => "jpg",
+        "image/png"        => "png",
+        "image/gif"        => "gif",
+        "image/webp"       => "webp",
+        "application/pdf"  => "pdf",
+        "application/zip"  => "zip",
+        "application/wasm" => "wasm",
+        "text/plain"       => "txt",
+        "application/json" => "json",
+        "video/mp4"        => "mp4",
+        "video/webm"       => "webm",
+        _                  => "bin",
+    }
+}
+
+/// Validate slug format: `{36-char-uuid}.{1-10-char-ext}` — prevents path traversal.
+/// Uses a character scan — no regex, no unwrap().
+fn valid_slug(slug: &str) -> bool {
+    let Some(dot_pos) = slug.rfind('.') else { return false; };
+    let (base, ext) = (&slug[..dot_pos], &slug[dot_pos + 1..]);
+    if base.len() != 36 { return false; }
+    if !base.chars().all(|c| c.is_ascii_hexdigit() || c == '-') { return false; }
+    if ext.is_empty() || ext.len() > 10 { return false; }
+    if !ext.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit()) { return false; }
+    true
+}
+
+#[derive(Deserialize)]
+pub struct UploadQuery {
+    pub deployment_id: Uuid,
+}
+
+/// POST /collab/files?deployment_id=<uuid>
+/// Multipart upload: field "file" (binary). Access check before bytes are read.
+pub async fn upload_file(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Query(params): Query<UploadQuery>,
+    mut multipart: axum::extract::Multipart,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let profile_id = extract_profile_id(&headers)?;
+    check_deployment_access(&state.db, params.deployment_id, profile_id).await?;
+
+    let upload_dir = std::env::var("COLLAB_UPLOAD_DIR")
+        .unwrap_or_else(|_| "/tmp/collab-uploads".to_string());
+    tokio::fs::create_dir_all(&upload_dir).await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    // Find the "file" field in multipart
+    let mut field = loop {
+        match multipart.next_field().await
+            .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))? {
+            Some(f) if f.name() == Some("file") => break f,
+            Some(_) => continue,
+            None => return Err((StatusCode::BAD_REQUEST, "No 'file' field in multipart".to_string())),
+        }
+    };
+
+    let original_name = field.file_name()
+        .unwrap_or("upload")
+        .to_string();
+
+    // Read bytes with hard size limit on the stream
+    let mut bytes_vec: Vec<u8> = Vec::with_capacity(65536);
+    while let Some(chunk) = field.chunk().await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))? {
+        bytes_vec.extend_from_slice(&chunk);
+        if bytes_vec.len() > MAX_UPLOAD_BYTES {
+            return Err((StatusCode::PAYLOAD_TOO_LARGE, "File exceeds 25 MB limit".to_string()));
+        }
+    }
+
+    // MIME sniff → safe extension
+    let ext = infer::get(&bytes_vec)
+        .map(|t| mime_to_ext(t.mime_type()))
+        .unwrap_or("bin");
+
+    let slug      = format!("{}.{}", uuid::Uuid::new_v4(), ext);
+    let file_path = format!("{}/{}", upload_dir, slug);
+
+    tokio::fs::write(&file_path, &bytes_vec).await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    // Insert staging row for orphan cleanup
+    sqlx::query(
+        "INSERT INTO collab_file_uploads (file_path, deployment_id, profile_id)
+         VALUES ($1, $2, $3)
+         ON CONFLICT DO NOTHING",
+    )
+    .bind(&slug)
+    .bind(params.deployment_id)
+    .bind(profile_id)
+    .execute(&state.db)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let url = format!("/api/collab/files/{}", slug);
+    Ok(Json(serde_json::json!({
+        "file_name": original_name,
+        "file_path": slug,
+        "url":       url,
+    })))
+}
+
+/// GET /collab/files/:slug
+/// Streams a file from disk after verifying the caller is a deployment participant.
+pub async fn serve_file(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(slug): Path<String>,
+) -> Result<axum::response::Response, (StatusCode, String)> {
+    use axum::response::IntoResponse;
+
+    let profile_id = extract_profile_id(&headers)?;
+
+    if !valid_slug(&slug) {
+        return Err((StatusCode::BAD_REQUEST, "Invalid file slug format".to_string()));
+    }
+
+    // Look up owning deployment from committed messages first
+    let msg_row = sqlx::query(
+        "SELECT deployment_id FROM collab_messages WHERE file_path = $1 LIMIT 1",
+    )
+    .bind(&slug)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let (deployment_id, is_staging) = if let Some(row) = msg_row {
+        let did: Uuid = row.try_get("deployment_id")
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        (did, false)
+    } else {
+        // Check staging table — restrict to uploader only
+        let stg = sqlx::query(
+            "SELECT deployment_id, profile_id FROM collab_file_uploads WHERE file_path = $1",
+        )
+        .bind(&slug)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .ok_or_else(|| (StatusCode::NOT_FOUND, "File not found".to_string()))?;
+
+        let owner: Uuid = stg.try_get("profile_id")
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        if owner != profile_id {
+            return Err((StatusCode::FORBIDDEN, "Staging file only accessible to uploader".to_string()));
+        }
+        let did: Uuid = stg.try_get("deployment_id")
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        (did, true)
+    };
+
+    if !is_staging {
+        check_deployment_access(&state.db, deployment_id, profile_id).await?;
+    }
+
+    let upload_dir = std::env::var("COLLAB_UPLOAD_DIR")
+        .unwrap_or_else(|_| "/tmp/collab-uploads".to_string());
+    let file_path = format!("{}/{}", upload_dir, slug);
+
+    let bytes = tokio::fs::read(&file_path).await
+        .map_err(|_| (StatusCode::NOT_FOUND, "File not found on disk".to_string()))?;
+
+    // MIME sniff for Content-Type
+    let content_type = infer::get(&bytes)
+        .map(|t| t.mime_type())
+        .unwrap_or("application/octet-stream");
+
+    Ok((
+        [(axum::http::header::CONTENT_TYPE, content_type)],
+        bytes,
+    ).into_response())
+}
+
 // ── Additional body types ─────────────────────────────────────────────────────
 
 #[derive(Deserialize)]
