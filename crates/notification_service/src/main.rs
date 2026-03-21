@@ -49,6 +49,13 @@ async fn main() -> Result<()> {
     // ─────────────────────────────────────────────────────────────────────────
     let config = Arc::new(AppConfig::from_env());
 
+    // Log the Google OAuth redirect_uri so it can be compared against the
+    // value registered in Google Cloud Console.
+    tracing::info!(
+        google_redirect_uri = %format!("{}/integrations/google/callback", config.base_url),
+        "Google OAuth redirect_uri (must match Google Cloud Console exactly)"
+    );
+
     // ─────────────────────────────────────────────────────────────────────────
     // Infrastructure clients
     // ─────────────────────────────────────────────────────────────────────────

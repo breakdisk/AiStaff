@@ -42,7 +42,11 @@ impl AppConfig {
             // In production: set BASE_URL=https://yourdomain.com/api so that
             // the Google OAuth redirect_uri routes through Next.js rewrites
             // (which forward /api/integrations/* to notification_service internally).
-            base_url: std::env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:3000/api".into()),
+            // Always trim trailing slash so redirect_uri never gets a double-slash.
+            base_url: std::env::var("BASE_URL")
+                .unwrap_or_else(|_| "http://localhost:3000/api".into())
+                .trim_end_matches('/')
+                .to_string(),
             messenger_page_username: std::env::var("MESSENGER_PAGE_USERNAME")
                 .unwrap_or_else(|_| "aistaffglobal".into()),
         }
