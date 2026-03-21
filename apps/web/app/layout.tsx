@@ -27,14 +27,14 @@ export const metadata: Metadata = {
     siteName:    "AiStaff",
     title:       "AiStaff — AI Agent, Talent & Robotics Marketplace",
     description: "Deploy AI agents, hire vetted AI engineers, rent AI robotics — all escrow-backed with a 7-day warranty and ZK biometric identity.",
-    images: [{ url: "/api/og?name=AiStaff&desc=AI+Agent%2C+Talent+%26+Robotics+Marketplace", width: 1200, height: 630, alt: "AiStaff — AI-Native Marketplace" }],
+    images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: "AiStaff — AI-Native Marketplace" }],
   },
   twitter: {
     card:        "summary_large_image",
     site:        "@aistaff",
     title:       "AiStaff — AI Agent, Talent & Robotics Marketplace",
     description: "Deploy AI agents, hire vetted AI engineers, rent AI robotics — all escrow-backed with a 7-day warranty and ZK biometric identity.",
-    images:      ["/api/og?name=AiStaff&desc=AI+Agent%2C+Talent+%26+Robotics+Marketplace"],
+    images:      ["/opengraph-image"],
   },
   icons: {
     icon: [
