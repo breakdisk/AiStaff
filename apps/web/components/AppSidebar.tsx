@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
-import { Inbox, Briefcase, Mail, Bell, LogOut } from "lucide-react";
+import { Inbox, Briefcase, Mail, Bell, LogOut, X } from "lucide-react";
 import { signOut } from "next-auth/react";
 
 // ── Nav definitions ─────────────────────────────────────────────────────────
@@ -284,32 +284,103 @@ export function AppSidebar({ status }: AppSidebarProps) {
 // ── Mobile bottom nav ────────────────────────────────────────────────────────
 
 export function AppMobileNav() {
-  const pathname = usePathname();
+  const pathname  = usePathname();
   const { data: session } = useSession();
-  const role = (session?.user as { role?: string | null })?.role ?? null;
-  const showInvitations = !!session?.user;
+  const [moreOpen, setMoreOpen] = useState(false);
 
   const mobileItems = [
     ...MOBILE_NAV,
-    ...(showInvitations ? [{ label: "Inbox", href: "/invitations" }] : []),
+    ...(session?.user ? [{ label: "Inbox", href: "/invitations" }] : []),
   ];
 
   return (
-    <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 h-16 flex items-center border-t border-zinc-800 bg-zinc-950">
-      {mobileItems.map(({ label, href }) => {
-        const active = pathname === href || pathname.startsWith(href + "/");
-        return (
-          <a
-            key={label}
-            href={href}
-            className={`flex-1 flex flex-col items-center justify-center gap-0.5 h-full font-mono text-[10px] uppercase tracking-widest transition-colors ${
-              active ? "text-amber-400" : "text-zinc-600 hover:text-zinc-400"
-            }`}
-          >
-            {label}
-          </a>
-        );
-      })}
-    </nav>
+    <>
+      {/* ── Bottom tab bar ───────────────────────────────────────────────── */}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 h-16 flex items-center border-t border-zinc-800 bg-zinc-950">
+        {mobileItems.map(({ label, href }) => {
+          const active = pathname === href || pathname.startsWith(href + "/");
+          return (
+            <a
+              key={label}
+              href={href}
+              className={`flex-1 flex flex-col items-center justify-center gap-0.5 h-full font-mono text-[10px] uppercase tracking-widest transition-colors ${
+                active ? "text-amber-400" : "text-zinc-600 hover:text-zinc-400"
+              }`}
+            >
+              {label}
+            </a>
+          );
+        })}
+
+        {/* More — opens full section nav as bottom sheet */}
+        <button
+          onClick={() => setMoreOpen(true)}
+          aria-label="More navigation"
+          className={`flex-1 flex flex-col items-center justify-center gap-0.5 h-full font-mono text-[10px] uppercase tracking-widest transition-colors ${
+            moreOpen ? "text-amber-400" : "text-zinc-600 hover:text-zinc-400"
+          }`}
+        >
+          More
+        </button>
+      </nav>
+
+      {/* ── More bottom sheet ────────────────────────────────────────────── */}
+      {moreOpen && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="lg:hidden fixed inset-0 z-40 bg-black/60"
+            onClick={() => setMoreOpen(false)}
+          />
+
+          {/* Sheet */}
+          <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-zinc-950 border-t border-zinc-800 max-h-[78vh] flex flex-col">
+            {/* Handle + header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800 flex-shrink-0">
+              <span className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest">
+                Menu
+              </span>
+              <button
+                onClick={() => setMoreOpen(false)}
+                aria-label="Close menu"
+                className="p-1 text-zinc-600 hover:text-zinc-200 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Scrollable nav sections */}
+            <div className="overflow-y-auto pb-20 px-4 py-3 space-y-5">
+              {SECTION_NAV.map((section) => (
+                <div key={section.heading}>
+                  <p className="font-mono text-[10px] text-zinc-600 uppercase tracking-widest mb-1.5">
+                    {section.heading}
+                  </p>
+                  <div className="space-y-0.5">
+                    {section.items.map(({ label, href }) => {
+                      const active = pathname === href || pathname.startsWith(href + "/");
+                      return (
+                        <a
+                          key={href}
+                          href={href}
+                          onClick={() => setMoreOpen(false)}
+                          className={`block px-3 py-2 font-mono text-xs rounded-sm transition-colors ${
+                            active
+                              ? "text-amber-400 bg-amber-950/30"
+                              : "text-zinc-300 hover:text-zinc-100 hover:bg-zinc-900"
+                          }`}
+                        >
+                          {label}
+                        </a>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </>
   );
 }
