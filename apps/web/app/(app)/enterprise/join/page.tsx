@@ -8,33 +8,36 @@ import { Building2, CheckCircle, AlertTriangle, Loader2 } from "lucide-react";
 // ── Inner component — uses useSearchParams, must be inside <Suspense> ────────
 
 function EnterpriseJoinInner() {
-  const searchParams = useSearchParams();
-  const router       = useRouter();
-  const token        = searchParams.get("token") ?? "";
-
-  const { data: session } = useSession();
-  const profileId = (session?.user as { profileId?: string })?.profileId ?? "";
+  const searchParams            = useSearchParams();
+  const router                  = useRouter();
+  const token                   = searchParams.get("token") ?? "";
+  const { data: session, status: sessionStatus } = useSession();
 
   const [status,   setStatus]   = useState<"idle" | "joining" | "joined" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
 
+  const sessionLoading = sessionStatus === "loading";
+  // profile_id is resolved server-side; we just need to know the session exists
+  const hasSession     = !!session?.user;
+
   async function handleAccept() {
-    if (!profileId || !token) return;
+    if (!token || !hasSession) return;
     setStatus("joining");
     try {
+      // profile_id is resolved from the session on the server — no need to send it
       const res = await fetch(`/api/enterprise/invites/${token}/accept`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ profile_id: profileId }),
+        body:    JSON.stringify({}),
       });
       if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(text || `Error ${res.status}`);
+        const data = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(data.error ?? `Error ${res.status}`);
       }
       setStatus("joined");
       setTimeout(() => router.push("/enterprise"), 2000);
     } catch (e) {
-      setErrorMsg(e instanceof Error ? e.message : "Failed to accept invitation.");
+      setErrorMsg(e instanceof Error ? e.message : "Failed to accept invitation. Please try again.");
       setStatus("error");
     }
   }
@@ -92,13 +95,13 @@ function EnterpriseJoinInner() {
 
         <button
           onClick={handleAccept}
-          disabled={status === "joining" || !profileId}
+          disabled={status === "joining" || sessionLoading || !hasSession}
           className="w-full h-10 rounded-sm bg-amber-950 border border-amber-800 text-amber-400
                      font-mono text-xs hover:bg-amber-900 transition-colors disabled:opacity-50
                      flex items-center justify-center gap-2"
         >
-          {status === "joining"
-            ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Joining…</>
+          {status === "joining" || sessionLoading
+            ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> {sessionLoading ? "Loading…" : "Joining…"}</>
             : <><Building2 className="w-3.5 h-3.5" /> Accept Invitation</>
           }
         </button>

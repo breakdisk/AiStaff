@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { Users, UserMinus, Mail, Loader2, ChevronLeft } from "lucide-react";
+import { Users, UserMinus, Mail, Loader2, ChevronLeft, RefreshCw } from "lucide-react";
 import { getMyOrg, listMembers, inviteMember, removeMember, OrgMember } from "@/lib/enterpriseApi";
 
 export default function EnterpriseMembers() {
@@ -59,6 +59,13 @@ export default function EnterpriseMembers() {
           <a href="/enterprise" className="text-zinc-500 hover:text-zinc-300"><ChevronLeft size={16} /></a>
           <Users className="text-amber-400" size={16} />
           <h1 className="text-base font-semibold">Team Members</h1>
+          <button
+            onClick={load}
+            className="ml-auto text-zinc-500 hover:text-zinc-300 transition-colors"
+            title="Refresh member list"
+          >
+            <RefreshCw size={13} />
+          </button>
         </div>
 
         <div className="bg-zinc-900 border border-zinc-800 rounded-sm p-4 space-y-3">
