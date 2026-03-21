@@ -20,9 +20,13 @@ export default auth((req) => {
     pathname.startsWith("/api/network-intl/webhook") ||
     pathname.startsWith("/api/network-intl/callback") ||
     pathname.startsWith("/api/network-intl/diag") ||   // Temporary diagnostic — remove after IP confirmed
-    pathname.startsWith("/sign/") ||           // Public e-signature page (token-gated, no auth)
-    pathname.startsWith("/api/sign/") ||       // Public e-signature API proxy
-    pathname.startsWith("/api/generate-pdf") || // PDF generation — called from public sign page
+    pathname.startsWith("/sign/") ||              // Public e-signature page (token-gated, no auth)
+    pathname.startsWith("/api/sign/") ||          // Public e-signature API proxy
+    pathname.startsWith("/sign-contract/") ||     // Contract sign page — party B, no account needed
+    pathname.startsWith("/api/generate-pdf") ||   // PDF generation — called from public sign page
+    // Contract preview + external sign — token-gated in compliance_service, no session required
+    (pathname.startsWith("/api/compliance/contracts/") &&
+      (pathname.endsWith("/preview") || pathname.endsWith("/sign-external"))) ||
     pathname.startsWith("/talent/") ||           // Public talent profiles
     pathname.startsWith("/api/talent/") ||       // Public talent API (profile + privacy GET/PATCH)
     pathname === "/transparency" ||              // (marketing) — public trust page

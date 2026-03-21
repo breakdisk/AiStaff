@@ -906,6 +906,8 @@ export default function LegalToolkitPage() {
       .finally(() => setLoading(false));
   }, [profileId]);
 
+  // Load on mount (for stats counter) and whenever documents tab is opened
+  useEffect(() => { loadContracts(); }, [loadContracts]);
   useEffect(() => {
     if (tab === "documents") loadContracts();
   }, [tab, loadContracts]);
