@@ -527,6 +527,37 @@ pub async fn integration_status(
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Generic email send (used by web layer for contract and proposal emails)
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct NotifyBody {
+    pub recipient_email: String,
+    pub subject: String,
+    pub body: String,
+}
+
+/// POST /notify  { recipient_email, subject, body }
+/// Sends a transactional email via SMTP. recipient UUID is nil (no platform user required).
+pub async fn send_notify(
+    State(s): State<AppState>,
+    Json(req): Json<NotifyBody>,
+) -> impl IntoResponse {
+    match s
+        .fanout
+        .dispatch_email(Uuid::nil(), &req.recipient_email, &req.subject, &req.body)
+        .await
+    {
+        Ok(_) => (StatusCode::OK, Json(json!({ "ok": true }))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "ok": false, "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
 /// DELETE /integrations/:provider?user_id=UUID
 pub async fn revoke_integration(
     State(s): State<AppState>,

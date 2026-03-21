@@ -112,6 +112,7 @@ async fn main() -> Result<()> {
 
     let app = Router::new()
         .route("/health", get(|| async { Json(json!({"ok": true})) }))
+        .route("/notify", post(handlers::send_notify))
         .route("/notifications", get(handlers::list_notifications))
         .route("/notifications/count", get(handlers::count_unread))
         .route("/notifications/{id}/read", patch(handlers::mark_read))

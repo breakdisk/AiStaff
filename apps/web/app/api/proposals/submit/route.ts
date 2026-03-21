@@ -22,7 +22,8 @@ async function tryNotify(payload: {
   body:            string;
 }): Promise<boolean> {
   try {
-    const res = await fetch("http://localhost:3012/notify", {
+    const notifUrl = process.env.NOTIFICATION_SERVICE_URL ?? "http://localhost:3012";
+    const res = await fetch(`${notifUrl}/notify`, {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
       body:    JSON.stringify(payload),

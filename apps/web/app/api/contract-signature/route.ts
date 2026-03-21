@@ -5,7 +5,16 @@ export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { sendEmail } from "@/lib/mailer";
+
+const NOTIF_URL = process.env.NOTIFICATION_SERVICE_URL ?? "http://localhost:3012";
+
+async function sendEmail(to: string, subject: string, body: string): Promise<void> {
+  await fetch(`${NOTIF_URL}/notify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ recipient_email: to, subject, body }),
+  }).catch((e) => console.error("[contract-signature] notify failed:", e));
+}
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const session = await auth();
