@@ -32,6 +32,9 @@ export default auth((req) => {
     pathname === "/transparency" ||              // (marketing) — public trust page
     pathname === "/pricing-tool" ||              // (marketing) — public pricing reference
     pathname === "/proof-of-human" ||            // (marketing) — public PoH methodology
+    pathname === "/terms" ||                     // Terms of Service — public
+    pathname === "/privacy" ||                   // Privacy Policy — public
+    pathname === "/data-deletion" ||             // Data Deletion Instructions — required by Facebook OAuth
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico" ||
     /\.(?:png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|otf)$/i.test(pathname);

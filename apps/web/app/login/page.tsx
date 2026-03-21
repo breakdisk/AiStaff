@@ -128,6 +128,10 @@ function LoginForm() {
         <Link href="/terms" className="text-zinc-400 hover:text-zinc-200 transition-colors">
           Terms of Service
         </Link>
+        {" "}and{" "}
+        <Link href="/privacy" className="text-zinc-400 hover:text-zinc-200 transition-colors">
+          Privacy Policy
+        </Link>
       </p>
     </div>
   );
