@@ -315,7 +315,7 @@ services:
       SMTP_USERNAME: ${SMTP_USERNAME:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       NOTIFICATION_HTTP_PORT: "3012"
-      BASE_URL: http://localhost:3012
+      BASE_URL: ${BASE_URL:-http://localhost:3000/api}
       # Twilio (SMS + WhatsApp)
       TWILIO_ACCOUNT_SID:     ${TWILIO_ACCOUNT_SID:-dev_placeholder}
       TWILIO_AUTH_TOKEN:      ${TWILIO_AUTH_TOKEN:-dev_placeholder}
