@@ -24,15 +24,14 @@ export async function POST(
 
   const user = session.user as {
     profileId?:    string;
-    email?:        string | null;
     name?:         string | null;
+    email?:        string | null;   // fallback for displayName only
     identityTier?: string;
   };
 
   const profileId    = user.profileId;
-  const userEmail    = (user.email ?? "").toLowerCase().trim();
   const identityTier = user.identityTier ?? "UNVERIFIED";
-  const displayName  = user.name ?? userEmail;
+  const displayName  = user.name ?? (user.email ?? "");
 
   if (!profileId) {
     return NextResponse.json(
@@ -55,23 +54,19 @@ export async function POST(
 
   const { token } = await params;
 
-  // ── Gate 2: email match + fetch org/owner info ─────────────────────────────
-  // Single query: validate token, get invitee email, org name, owner details.
-  let inviteeEmail: string;
-  let orgName:      string;
-  let ownerUserId:  string;
-  let ownerEmail:   string | null;
+  // ── Fetch org/owner info from the invite token ────────────────────────────
+  let orgName:     string;
+  let ownerUserId: string;
+  let ownerEmail:  string | null;
 
   const client = await pool.connect();
   try {
     const { rows } = await client.query<{
-      invitee_email: string;
-      org_name:      string;
-      owner_id:      string;
-      owner_email:   string | null;
+      org_name:    string;
+      owner_id:    string;
+      owner_email: string | null;
     }>(
-      `SELECT oi.invitee_email,
-              o.name          AS org_name,
+      `SELECT o.name          AS org_name,
               o.owner_id::text,
               up.email        AS owner_email
        FROM   org_invites       oi
@@ -91,24 +86,11 @@ export async function POST(
       );
     }
 
-    inviteeEmail = rows[0].invitee_email.toLowerCase().trim();
     orgName      = rows[0].org_name;
     ownerUserId  = rows[0].owner_id;
     ownerEmail   = rows[0].owner_email;
   } finally {
     client.release();
-  }
-
-  // The invitation was addressed to a specific email — enforce it.
-  if (userEmail !== inviteeEmail) {
-    return NextResponse.json(
-      {
-        error:
-          `This invitation was sent to ${inviteeEmail}. ` +
-          `Please sign in with that email address to accept.`,
-      },
-      { status: 403 },
-    );
   }
 
   // ── Record membership via identity_service ─────────────────────────────────
