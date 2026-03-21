@@ -373,8 +373,13 @@ pub async fn list_members(
 ) -> Result<Json<Vec<MemberResponse>>, StatusCode> {
     let rows: Vec<(Uuid, String, String, String, String, i32, chrono::DateTime<chrono::Utc>)> =
         sqlx::query_as(
-            "SELECT om.profile_id, up.display_name, up.email,
-                    om.member_role, up.identity_tier::TEXT, up.trust_score::INT, om.joined_at
+            "SELECT om.profile_id,
+                    COALESCE(up.display_name, up.email, '') AS display_name,
+                    COALESCE(up.email, '') AS email,
+                    om.member_role,
+                    up.identity_tier::TEXT,
+                    up.trust_score::INT,
+                    om.joined_at
              FROM org_members om
              JOIN unified_profiles up ON up.id = om.profile_id
              WHERE om.org_id = $1
