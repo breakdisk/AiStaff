@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Query, State},
+    extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
     Json,
 };
@@ -293,6 +293,29 @@ pub async fn mark_read(
     Ok(StatusCode::NO_CONTENT)
 }
 
+// ── Emoji allowlist ───────────────────────────────────────────────────────────
+
+/// 40-entry emoji allowlist — identical on server and client.
+const ALLOWED_EMOJI: &[&str] = &[
+    "👍","👎","❤️","🔥","🎉","😂","😮","😢","🙏","✅",
+    "❌","⚠️","🚀","💡","🐛","🔒","📎","📋","⏳","✏️",
+    "💬","🔄","📌","🏆","💪","👀","🤔","😅","🎯","🛡️",
+    "💰","📊","🔗","🧪","⚡","🌍","🤝","📢","🔔","💎",
+];
+
+// ── Additional body types ─────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+pub struct EditMessageBody {
+    pub body: String,
+}
+
+#[derive(Deserialize)]
+pub struct ToggleReactionBody {
+    pub message_id: Uuid,
+    pub emoji:      String,
+}
+
 /// GET /collab/unread?profile_id=<uuid>
 /// Returns total unread message count across all of the caller's deployments.
 pub async fn unread_count(
@@ -329,4 +352,261 @@ pub async fn unread_count(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(serde_json::json!({ "unread": cnt })))
+}
+
+// ── Task 4: Edit / Delete ─────────────────────────────────────────────────────
+
+/// PATCH /collab/messages/:id
+pub async fn edit_message(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(msg_id): Path<Uuid>,
+    Json(body): Json<EditMessageBody>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    let profile_id = extract_profile_id(&headers)?;
+
+    let row = sqlx::query(
+        "SELECT deployment_id, sender_id, deleted_at FROM collab_messages WHERE id = $1",
+    )
+    .bind(msg_id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+    .ok_or_else(|| (StatusCode::NOT_FOUND, "Message not found".to_string()))?;
+
+    let deployment_id: Uuid = row.try_get("deployment_id")
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let sender_id: Uuid = row.try_get("sender_id")
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let deleted_at: Option<chrono::DateTime<chrono::Utc>> = row.try_get("deleted_at")
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    check_deployment_access(&state.db, deployment_id, profile_id).await?;
+
+    if sender_id != profile_id {
+        return Err((StatusCode::FORBIDDEN, "Cannot edit another user's message".to_string()));
+    }
+    if deleted_at.is_some() {
+        return Err((StatusCode::FORBIDDEN, "Cannot edit a deleted message".to_string()));
+    }
+
+    sqlx::query(
+        "UPDATE collab_messages SET body = $1, edited_at = NOW() WHERE id = $2",
+    )
+    .bind(&body.body)
+    .bind(msg_id)
+    .execute(&state.db)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// DELETE /collab/messages/:id  (soft delete — sets deleted_at, never hard-deletes)
+pub async fn delete_message(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(msg_id): Path<Uuid>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    let profile_id = extract_profile_id(&headers)?;
+
+    let row = sqlx::query(
+        "SELECT deployment_id, sender_id FROM collab_messages WHERE id = $1",
+    )
+    .bind(msg_id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+    .ok_or_else(|| (StatusCode::NOT_FOUND, "Message not found".to_string()))?;
+
+    let deployment_id: Uuid = row.try_get("deployment_id")
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let sender_id: Uuid = row.try_get("sender_id")
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    check_deployment_access(&state.db, deployment_id, profile_id).await?;
+
+    if sender_id != profile_id {
+        return Err((StatusCode::FORBIDDEN, "Cannot delete another user's message".to_string()));
+    }
+
+    sqlx::query("UPDATE collab_messages SET deleted_at = NOW() WHERE id = $1")
+        .bind(msg_id)
+        .execute(&state.db)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+// ── Task 5: Reactions ─────────────────────────────────────────────────────────
+
+/// POST /collab/reactions — toggle emoji reaction on a message
+pub async fn toggle_reaction(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(body): Json<ToggleReactionBody>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let profile_id = extract_profile_id(&headers)?;
+
+    // 1. Look up message — 404 before access check
+    let row = sqlx::query(
+        "SELECT deployment_id, deleted_at FROM collab_messages WHERE id = $1",
+    )
+    .bind(body.message_id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+    .ok_or_else(|| (StatusCode::NOT_FOUND, "Message not found".to_string()))?;
+
+    let deployment_id: Uuid = row.try_get("deployment_id")
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let deleted_at: Option<chrono::DateTime<chrono::Utc>> = row.try_get("deleted_at")
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    // 2. Access check
+    check_deployment_access(&state.db, deployment_id, profile_id).await?;
+
+    // 3. Emoji allowlist validation
+    if !ALLOWED_EMOJI.contains(&body.emoji.as_str()) {
+        return Err((StatusCode::UNPROCESSABLE_ENTITY, format!("Emoji '{}' is not in the allowed list", body.emoji)));
+    }
+
+    // 4. Block reactions on deleted messages
+    if deleted_at.is_some() {
+        return Err((StatusCode::FORBIDDEN, "Cannot react to a deleted message".to_string()));
+    }
+
+    // 5. Toggle: delete if exists, insert if not
+    let deleted = sqlx::query(
+        "DELETE FROM collab_reactions
+         WHERE message_id = $1 AND profile_id = $2 AND emoji = $3",
+    )
+    .bind(body.message_id)
+    .bind(profile_id)
+    .bind(&body.emoji)
+    .execute(&state.db)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+    .rows_affected();
+
+    let action = if deleted > 0 {
+        "removed"
+    } else {
+        sqlx::query(
+            "INSERT INTO collab_reactions (message_id, profile_id, emoji)
+             VALUES ($1, $2, $3)
+             ON CONFLICT DO NOTHING",
+        )
+        .bind(body.message_id)
+        .bind(profile_id)
+        .bind(&body.emoji)
+        .execute(&state.db)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        "added"
+    };
+
+    Ok(Json(serde_json::json!({ "action": action })))
+}
+
+// ── Task 6: Thread fetch ──────────────────────────────────────────────────────
+
+/// GET /collab/messages/:id/thread
+/// Returns all replies to a given parent message, ordered ASC.
+pub async fn list_thread(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(parent_id): Path<Uuid>,
+) -> Result<Json<Vec<MessageRow>>, (StatusCode, String)> {
+    let profile_id = extract_profile_id(&headers)?;
+
+    // Verify parent message exists and get its deployment
+    let parent = sqlx::query(
+        "SELECT deployment_id FROM collab_messages WHERE id = $1",
+    )
+    .bind(parent_id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+    .ok_or_else(|| (StatusCode::NOT_FOUND, "Parent message not found".to_string()))?;
+
+    let deployment_id: Uuid = parent.try_get("deployment_id")
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    check_deployment_access(&state.db, deployment_id, profile_id).await?;
+
+    let rows = sqlx::query(
+        "SELECT
+             m.id, m.deployment_id, m.sender_id, m.sender_name,
+             CASE WHEN m.deleted_at IS NOT NULL THEN '[deleted]' ELSE m.body END AS body,
+             m.file_name,
+             CASE WHEN m.deleted_at IS NOT NULL THEN NULL ELSE m.file_path END AS file_path,
+             to_char(m.created_at AT TIME ZONE 'UTC', 'Mon DD HH24:MI') AS ts,
+             to_char(m.edited_at  AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS edited_at,
+             to_char(m.deleted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS deleted_at,
+             m.parent_msg_id,
+             0::bigint AS reply_count,
+             COALESCE(
+               json_agg(
+                 json_build_object('emoji', r.emoji, 'profile_id', r.profile_id::text)
+               ) FILTER (WHERE r.emoji IS NOT NULL),
+               '[]'::json
+             ) AS raw_reactions
+         FROM collab_messages m
+         LEFT JOIN collab_reactions r ON r.message_id = m.id
+         WHERE m.parent_msg_id = $1
+         GROUP BY m.id
+         ORDER BY m.created_at ASC",
+    )
+    .bind(parent_id)
+    .fetch_all(&state.db)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let messages = rows.iter().map(|row| {
+        let raw: serde_json::Value = row.try_get("raw_reactions")
+            .unwrap_or(serde_json::Value::Array(vec![]));
+        Ok(MessageRow {
+            id:            row.try_get::<Uuid, _>("id")?,
+            deployment_id: row.try_get::<Uuid, _>("deployment_id")?,
+            sender_id:     row.try_get::<Uuid, _>("sender_id")?,
+            sender_name:   row.try_get::<String, _>("sender_name")?,
+            body:          row.try_get::<String, _>("body")?,
+            file_name:     row.try_get::<Option<String>, _>("file_name")?,
+            file_path:     row.try_get::<Option<String>, _>("file_path")?,
+            ts:            row.try_get::<String, _>("ts")?,
+            edited_at:     row.try_get::<Option<String>, _>("edited_at")?,
+            deleted_at:    row.try_get::<Option<String>, _>("deleted_at")?,
+            parent_msg_id: row.try_get::<Option<Uuid>, _>("parent_msg_id")?,
+            reply_count:   row.try_get::<i64, _>("reply_count")?,
+            reactions:     build_reaction_groups(raw),
+        })
+    }).collect::<Result<Vec<MessageRow>, sqlx::Error>>()
+      .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(Json(messages))
+}
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn allowlist_has_40_entries() {
+        assert_eq!(ALLOWED_EMOJI.len(), 40);
+    }
+
+    #[test]
+    fn thumbs_up_is_allowed() {
+        assert!(ALLOWED_EMOJI.contains(&"👍"));
+    }
+
+    #[test]
+    fn arbitrary_text_is_not_allowed() {
+        assert!(!ALLOWED_EMOJI.contains(&"javascript"));
+        assert!(!ALLOWED_EMOJI.contains(&"DROP TABLE"));
+    }
 }
