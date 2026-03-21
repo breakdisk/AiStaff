@@ -234,7 +234,7 @@ function GenerateModal({ tpl, profileId, name, email, onClose, onCreated }: Gene
 
       // Request counterparty signature if email provided
       if (partyBEmail.trim()) {
-        const sig = await requestSignature(result.contract_id, partyBEmail.trim()).catch(() => null);
+        const sig = await requestSignature(result.contract_id, partyBEmail.trim(), email || undefined).catch(() => null);
         if (sig?.sign_url) setSignUrl(sig.sign_url);
       }
 
@@ -586,7 +586,7 @@ function CustomDocModal({ profileId, name, email, onClose, onCreated }: {
       await downloadContractPdf(text, result.document_hash, kind, result.contract_id);
 
       if (partyBEmail.trim()) {
-        const sig = await requestSignature(result.contract_id, partyBEmail.trim()).catch(() => null);
+        const sig = await requestSignature(result.contract_id, partyBEmail.trim(), email || undefined).catch(() => null);
         if (sig?.sign_url) setSignUrl(sig.sign_url);
       }
 

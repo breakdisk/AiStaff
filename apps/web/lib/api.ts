@@ -478,12 +478,18 @@ export function signContract(contractId: string, signerId: string): Promise<void
 }
 
 export function requestSignature(
-  contractId:  string,
-  partyBEmail: string,
+  contractId:   string,
+  partyBEmail:  string,
+  partyAEmail?: string,
 ): Promise<{ sign_url: string; sign_token: string }> {
-  return apiFetch(`/api/compliance/contracts/${contractId}/request-signature`, {
+  // Uses static /api/contract-signature route which builds sign_url + emails both parties.
+  return apiFetch("/api/contract-signature", {
     method: "POST",
-    body:   JSON.stringify({ party_b_email: partyBEmail }),
+    body:   JSON.stringify({
+      contract_id:   contractId,
+      party_b_email: partyBEmail,
+      party_a_email: partyAEmail,
+    }),
   });
 }
 
