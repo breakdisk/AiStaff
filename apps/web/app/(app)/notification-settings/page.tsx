@@ -84,8 +84,8 @@ const INTEGRATION_PROVIDERS = [
     icon:     Slack,
     color:    "text-purple-400",
     border:   "border-purple-900",
-    note:     "Scan QR to authorise AiStaff in your Slack workspace",
-    qrBased:  true,
+    note:     "Click Connect — you will be redirected to Slack to authorise AiStaff",
+    qrBased:  false,
     oauthPath: `/api/integrations/slack/oauth`,
   },
   {
@@ -103,8 +103,8 @@ const INTEGRATION_PROVIDERS = [
     icon:     Video,
     color:    "text-red-400",
     border:   "border-red-900",
-    note:     "Scan QR to link Google Calendar — Meet links auto-added to match events",
-    qrBased:  true,
+    note:     "Click Connect — you will be redirected to Google to authorise Calendar access",
+    qrBased:  false,
     oauthPath: `/api/integrations/google/oauth`,
   },
 ] as const;
@@ -432,14 +432,29 @@ export default function NotificationSettingsPage() {
         setConnectErr("Could not connect Messenger — service may be offline.");
       }
     } else {
-      // Slack / Google Meet — redirect to OAuth via QR
-      const provider = INTEGRATION_PROVIDERS.find((p) => p.key === providerKey);
-      if (provider && "oauthPath" in provider && provider.oauthPath) {
-        const oauthUrl = `${window.location.origin}${provider.oauthPath}?user_id=${userId}`;
-        setIntegrations((prev) => [
-          ...prev.filter((i) => i.provider !== providerKey),
-          { provider: providerKey, status: "pending", display_name: oauthUrl, connected_at: null },
-        ]);
+      // Slack / Google Meet — call the backend (authenticated same-origin request)
+      // to get the OAuth auth_url, then redirect the browser there.
+      // Never encode the intermediate /api/* endpoint as a QR — that URL is behind
+      // the auth middleware and would return 401 when opened in a new tab / mobile.
+      const prov = INTEGRATION_PROVIDERS.find((p) => p.key === providerKey);
+      if (prov && "oauthPath" in prov && prov.oauthPath) {
+        try {
+          const data = await fetch(
+            `${prov.oauthPath}?user_id=${encodeURIComponent(userId)}`,
+            { headers: { "Content-Type": "application/json" } },
+          );
+          if (!data.ok) throw new Error(`${data.status}`);
+          const json = (await data.json()) as { auth_url?: string };
+          if (json.auth_url) {
+            // Redirect current tab — OAuth flow must stay in same session for
+            // the callback cookie to work.
+            window.location.href = json.auth_url;
+          } else {
+            setConnectErr(`Could not connect ${prov.label} — no auth URL returned.`);
+          }
+        } catch {
+          setConnectErr(`Could not connect ${prov.label} — service may be offline.`);
+        }
       }
     }
   }
