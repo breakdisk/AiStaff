@@ -35,6 +35,7 @@ export default auth((req) => {
     pathname === "/terms" ||                     // Terms of Service — public
     pathname === "/privacy" ||                   // Privacy Policy — public
     pathname === "/data-deletion" ||             // Data Deletion Instructions — required by Facebook OAuth
+    pathname === "/opengraph-image" ||           // OG image — must be public for social crawlers (Meta, Twitter, LinkedIn)
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico" ||
     /\.(?:png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|otf)$/i.test(pathname);
@@ -118,6 +119,6 @@ export const config = {
     //                                  callback with no middleware interference.
     //   - /listings/*               — OG share pages for social crawlers
     //   - Static file extensions    — images, fonts, favicons
-    "/((?!_next/static|_next/image|api/auth|api/og|favicon\\.ico|icon|apple-icon|sitemap\\.xml|robots\\.txt|llms.*|listings/.*|.*\\.(?:png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|otf)$).*)",
+    "/((?!_next/static|_next/image|api/auth|api/og|favicon\\.ico|icon|apple-icon|opengraph-image|sitemap\\.xml|robots\\.txt|llms.*|listings/.*|.*\\.(?:png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|otf)$).*)",
   ],
 };
