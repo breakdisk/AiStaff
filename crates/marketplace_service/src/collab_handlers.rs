@@ -52,6 +52,7 @@ async fn check_deployment_access(
 #[derive(Deserialize)]
 pub struct ListMessagesQuery {
     pub deployment_id: Uuid,
+    pub after:         Option<chrono::DateTime<chrono::Utc>>,
 }
 
 #[derive(Deserialize)]
@@ -64,6 +65,13 @@ pub struct MarkReadBody {
     pub deployment_id: Uuid,
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+pub struct ReactionGroup {
+    pub emoji:       String,
+    pub count:       i64,
+    pub profile_ids: Vec<Uuid>,
+}
+
 #[derive(Serialize)]
 pub struct MessageRow {
     pub id:            Uuid,
@@ -72,7 +80,13 @@ pub struct MessageRow {
     pub sender_name:   String,
     pub body:          String,
     pub file_name:     Option<String>,
+    pub file_path:     Option<String>,
     pub ts:            String,
+    pub edited_at:     Option<String>,
+    pub deleted_at:    Option<String>,
+    pub parent_msg_id: Option<Uuid>,
+    pub reply_count:   i64,
+    pub reactions:     Vec<ReactionGroup>,
 }
 
 #[derive(Deserialize)]
@@ -95,14 +109,34 @@ pub async fn list_messages(
     check_deployment_access(&state.db, params.deployment_id, profile_id).await?;
 
     let rows = sqlx::query(
-        "SELECT id, deployment_id, sender_id, sender_name, body, file_name,
-                to_char(created_at, 'Mon DD HH24:MI') AS ts
-         FROM collab_messages
-         WHERE deployment_id = $1
-         ORDER BY created_at ASC
+        "SELECT
+             m.id, m.deployment_id, m.sender_id, m.sender_name,
+             CASE WHEN m.deleted_at IS NOT NULL THEN '[deleted]' ELSE m.body END AS body,
+             m.file_name,
+             CASE WHEN m.deleted_at IS NOT NULL THEN NULL ELSE m.file_path END AS file_path,
+             to_char(m.created_at AT TIME ZONE 'UTC', 'Mon DD HH24:MI') AS ts,
+             to_char(m.edited_at  AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS edited_at,
+             to_char(m.deleted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS deleted_at,
+             m.parent_msg_id,
+             (SELECT COUNT(*) FROM collab_messages r
+              WHERE r.parent_msg_id = m.id AND r.deleted_at IS NULL) AS reply_count,
+             COALESCE(
+               json_agg(
+                 json_build_object('emoji', r.emoji, 'profile_id', r.profile_id::text)
+               ) FILTER (WHERE r.emoji IS NOT NULL),
+               '[]'::json
+             ) AS raw_reactions
+         FROM collab_messages m
+         LEFT JOIN collab_reactions r ON r.message_id = m.id
+         WHERE m.deployment_id = $1
+           AND m.parent_msg_id IS NULL
+           AND ($2::timestamptz IS NULL OR m.created_at > $2)
+         GROUP BY m.id
+         ORDER BY m.created_at ASC
          LIMIT 200",
     )
     .bind(params.deployment_id)
+    .bind(params.after)
     .fetch_all(&state.db)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -110,6 +144,10 @@ pub async fn list_messages(
     let messages = rows
         .iter()
         .map(|row| {
+            let raw: serde_json::Value = row.try_get("raw_reactions")
+                .unwrap_or(serde_json::Value::Array(vec![]));
+            let reactions = build_reaction_groups(raw);
+
             Ok(MessageRow {
                 id:            row.try_get::<Uuid, _>("id")?,
                 deployment_id: row.try_get::<Uuid, _>("deployment_id")?,
@@ -117,13 +155,39 @@ pub async fn list_messages(
                 sender_name:   row.try_get::<String, _>("sender_name")?,
                 body:          row.try_get::<String, _>("body")?,
                 file_name:     row.try_get::<Option<String>, _>("file_name")?,
+                file_path:     row.try_get::<Option<String>, _>("file_path")?,
                 ts:            row.try_get::<String, _>("ts")?,
+                edited_at:     row.try_get::<Option<String>, _>("edited_at")?,
+                deleted_at:    row.try_get::<Option<String>, _>("deleted_at")?,
+                parent_msg_id: row.try_get::<Option<Uuid>, _>("parent_msg_id")?,
+                reply_count:   row.try_get::<i64, _>("reply_count")?,
+                reactions,
             })
         })
         .collect::<Result<Vec<MessageRow>, sqlx::Error>>()
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(messages))
+}
+
+/// Collapse flat `[{emoji, profile_id}, ...]` JSON into grouped `ReactionGroup` vec.
+pub fn build_reaction_groups(raw: serde_json::Value) -> Vec<ReactionGroup> {
+    use std::collections::BTreeMap;
+    let arr = match raw { serde_json::Value::Array(a) => a, _ => return vec![] };
+    let mut groups: BTreeMap<String, Vec<Uuid>> = BTreeMap::new();
+    for item in arr {
+        let emoji = item.get("emoji").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let pid   = item.get("profile_id")
+            .and_then(|v| v.as_str())
+            .and_then(|s| Uuid::parse_str(s).ok());
+        if emoji.is_empty() { continue; }
+        groups.entry(emoji).or_default().extend(pid);
+    }
+    groups.into_iter().map(|(emoji, profile_ids)| ReactionGroup {
+        count: profile_ids.len() as i64,
+        emoji,
+        profile_ids,
+    }).collect()
 }
 
 pub async fn post_message(
@@ -252,7 +316,8 @@ pub async fn unread_count(
               AND h.profile_id    = $1
          WHERE (d.client_id = $1 OR d.freelancer_id = $1 OR d.developer_id = $1)
            AND m.sender_id != $1
-           AND m.created_at > COALESCE(h.last_read_at, '1970-01-01'::timestamptz)",
+           AND m.created_at > COALESCE(h.last_read_at, '1970-01-01'::timestamptz)
+           AND m.parent_msg_id IS NULL",
     )
     .bind(profile_id)
     .fetch_one(&state.db)
