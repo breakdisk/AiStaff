@@ -1080,14 +1080,12 @@ export async function fetchReminders(): Promise<ReminderRow[]> {
 
 export async function createReminder(
   title: string,
-  date: string,
-  hours: number,
-  minutes: number,
+  remindAt: string, // UTC ISO string — browser converts local→UTC before calling
 ): Promise<ReminderRow> {
   const data = await apiFetch<{ reminder: ReminderRow }>("/api/reminders", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ title, date, hours, minutes }),
+    body: JSON.stringify({ title, remind_at: remindAt }),
   });
   return data.reminder;
 }

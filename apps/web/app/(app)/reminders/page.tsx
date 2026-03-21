@@ -43,6 +43,12 @@ function AddReminderForm({ onCreated }: { onCreated: (r: ReminderRow) => void })
   const [minutes, setMinutes] = useState(0);
   const [saving,  setSaving]  = useState(false);
   const [error,   setError]   = useState<string | null>(null);
+  const [tz,      setTz]      = useState("local");
+
+  // Detect browser timezone after hydration (avoids SSR/client mismatch)
+  useEffect(() => {
+    setTz(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -50,7 +56,13 @@ function AddReminderForm({ onCreated }: { onCreated: (r: ReminderRow) => void })
     setSaving(true);
     setError(null);
     try {
-      const reminder = await createReminder(title.trim(), date, hours, minutes);
+      // Build a local datetime string (no Z = local time) then convert to UTC ISO
+      const hh = String(hours).padStart(2, "0");
+      const mm = String(minutes).padStart(2, "0");
+      const localStr = `${date}T${hh}:${mm}:00`;
+      const remindAtUtc = new Date(localStr).toISOString(); // browser converts local→UTC
+
+      const reminder = await createReminder(title.trim(), remindAtUtc);
       onCreated(reminder);
       setTitle("");
       setDate("");
@@ -103,7 +115,7 @@ function AddReminderForm({ onCreated }: { onCreated: (r: ReminderRow) => void })
       <div className="grid grid-cols-2 gap-2">
         <div>
           <label className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest block mb-1">
-            Hour (UTC)
+            Hour <span className="normal-case">({tz})</span>
           </label>
           <select
             className="w-full bg-zinc-900 border border-zinc-700 rounded-[2px] px-2.5 py-1.5

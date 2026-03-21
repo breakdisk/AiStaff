@@ -46,32 +46,25 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let body: { title?: string; date?: string; hours?: number; minutes?: number };
+  let body: { title?: string; remind_at?: string };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { title, date, hours, minutes } = body;
+  const { title, remind_at } = body;
 
   if (!title || typeof title !== "string" || title.trim() === "") {
     return NextResponse.json({ error: "title is required" }, { status: 400 });
   }
-  if (!date || typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-    return NextResponse.json({ error: "date must be YYYY-MM-DD" }, { status: 400 });
+  if (!remind_at || typeof remind_at !== "string") {
+    return NextResponse.json({ error: "remind_at is required" }, { status: 400 });
   }
-  if (typeof hours !== "number" || hours < 0 || hours > 23) {
-    return NextResponse.json({ error: "hours must be 0–23" }, { status: 400 });
+  const remindAt = new Date(remind_at);
+  if (isNaN(remindAt.getTime())) {
+    return NextResponse.json({ error: "remind_at must be a valid ISO datetime" }, { status: 400 });
   }
-  if (typeof minutes !== "number" || minutes < 0 || minutes > 59) {
-    return NextResponse.json({ error: "minutes must be 0–59" }, { status: 400 });
-  }
-
-  // Combine date + time into a UTC timestamp string.
-  const hh = String(hours).padStart(2, "0");
-  const mm = String(minutes).padStart(2, "0");
-  const remindAt = `${date}T${hh}:${mm}:00Z`;
 
   let client;
   try {
@@ -80,7 +73,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       `INSERT INTO reminders (user_id, title, remind_at, source)
        VALUES ($1, $2, $3, 'user')
        RETURNING id, user_id, deployment_id, title, remind_at, source, fired, created_at`,
-      [userId, title.trim(), remindAt],
+      [userId, title.trim(), remindAt.toISOString()],
     );
     return NextResponse.json({ reminder: result.rows[0] }, { status: 201 });
   } catch (err) {
