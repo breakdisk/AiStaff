@@ -72,65 +72,82 @@ pub async fn list_org_deployments(
 }
 
 /// GET /enterprise/orgs/:id/analytics
+///
+/// Uses individual query_scalar calls to avoid multi-column tuple type
+/// inference issues with sqlx. Each scalar maps to a single unambiguous
+/// PostgreSQL return type.
 pub async fn org_analytics(
     State(state): State<Arc<AppState>>,
     Path(org_id): Path<Uuid>,
 ) -> Result<Json<OrgAnalytics>, StatusCode> {
-    // Cast state::TEXT so PostgreSQL doesn't need to coerce string literals
-    // to the deployment_status enum type in a prepared statement.
-    // Cast COALESCE fallback to BIGINT to match SUM(BIGINT) return type.
-    let (total, active, spend): (i64, i64, i64) = sqlx::query_as(
-        "SELECT
-            COUNT(*)::BIGINT                                                                        AS total,
-            COUNT(*) FILTER (WHERE state::TEXT NOT IN ('VETOED','RELEASED','FAILED'))::BIGINT      AS active,
-            COALESCE(SUM(escrow_amount_cents)::BIGINT, 0::BIGINT)                                  AS spend
-         FROM deployments
-         WHERE org_id = $1",
-    )
-    .bind(org_id)
-    .fetch_one(&state.db)
-    .await
-    .map_err(|e| {
-        tracing::error!(%org_id, "org_analytics deployments query failed: {e:#}");
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    macro_rules! scalar {
+        ($label:expr, $sql:expr) => {
+            sqlx::query_scalar($sql)
+                .bind(org_id)
+                .fetch_one(&state.db)
+                .await
+                .map_err(|e| {
+                    tracing::error!(%org_id, "{} failed: {e:#}", $label);
+                    StatusCode::INTERNAL_SERVER_ERROR
+                })?
+        };
+    }
 
-    let (passed, total_steps): (i64, i64) = sqlx::query_as(
-        "SELECT
-            COUNT(*) FILTER (WHERE dcs.passed = TRUE)::BIGINT AS passed,
-            COUNT(*)::BIGINT                                   AS total_steps
+    // ── Deployment counts ──────────────────────────────────────────────────
+    let total: i64 = scalar!(
+        "total_deployments",
+        "SELECT COUNT(*) FROM deployments WHERE org_id = $1"
+    );
+
+    let active: i64 = scalar!(
+        "active_deployments",
+        "SELECT COUNT(*)
+         FROM deployments
+         WHERE org_id = $1
+           AND state::TEXT NOT IN ('VETOED','RELEASED','FAILED')"
+    );
+
+    // SUM(bigint) returns NUMERIC in PostgreSQL — cast explicitly to bigint.
+    let spend: i64 = scalar!(
+        "total_spend",
+        "SELECT COALESCE(SUM(escrow_amount_cents)::BIGINT, 0)
+         FROM deployments
+         WHERE org_id = $1"
+    );
+
+    // ── DoD pass rate ──────────────────────────────────────────────────────
+    let dod_total: i64 = scalar!(
+        "dod_total_steps",
+        "SELECT COUNT(*)
          FROM dod_checklist_steps dcs
          JOIN deployments d ON d.id = dcs.deployment_id
-         WHERE d.org_id = $1",
-    )
-    .bind(org_id)
-    .fetch_one(&state.db)
-    .await
-    .map_err(|e| {
-        tracing::error!(%org_id, "org_analytics dod query failed: {e:#}");
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+         WHERE d.org_id = $1"
+    );
 
-    let avg_pass = if total_steps > 0 {
-        (passed as f64 / total_steps as f64) * 100.0
+    let dod_passed: i64 = scalar!(
+        "dod_passed_steps",
+        "SELECT COUNT(*)
+         FROM dod_checklist_steps dcs
+         JOIN deployments d ON d.id = dcs.deployment_id
+         WHERE d.org_id = $1
+           AND dcs.passed = TRUE"
+    );
+
+    let avg_pass = if dod_total > 0 {
+        (dod_passed as f64 / dod_total as f64) * 100.0
     } else {
         0.0
     };
 
-    let drift: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*)::BIGINT
+    // ── Drift incidents ────────────────────────────────────────────────────
+    let drift: i64 = scalar!(
+        "drift_incidents",
+        "SELECT COUNT(*)
          FROM drift_events de
          JOIN deployments d ON d.id = de.deployment_id
          WHERE d.org_id = $1
-           AND de.detected_at > NOW() - INTERVAL '30 days'",
-    )
-    .bind(org_id)
-    .fetch_one(&state.db)
-    .await
-    .map_err(|e| {
-        tracing::error!(%org_id, "org_analytics drift query failed: {e:#}");
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+           AND de.detected_at > NOW() - INTERVAL '30 days'"
+    );
 
     Ok(Json(OrgAnalytics {
         org_id: org_id.to_string(),
