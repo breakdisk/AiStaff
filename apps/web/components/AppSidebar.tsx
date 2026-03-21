@@ -125,7 +125,12 @@ export function AppSidebar({ status }: AppSidebarProps) {
         .catch(() => {});
     poll();
     const id = setInterval(poll, 30_000);
-    return () => clearInterval(id);
+    // Refresh immediately when a notification is marked read on the page
+    window.addEventListener("notif-count-changed", poll);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("notif-count-changed", poll);
+    };
   }, [session]);
 
   const [unread, setUnread] = useState(0);

@@ -395,18 +395,25 @@ export default function NotificationsPage() {
 
   // ── Actions ───────────────────────────────────────────────────────────────
   function markRead(id: string) {
-    // Optimistic update
     setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, read: true } : n));
     setLiveUnread((prev) => (prev !== null ? Math.max(0, prev - 1) : null));
-    // Persist to backend (silent — local state already updated)
-    markNotificationRead(id).catch(() => { /* rollback not needed; will re-sync on next poll */ });
+    markNotificationRead(id)
+      .then(() => {
+        refreshUnreadCount(); // sync count from DB immediately
+        window.dispatchEvent(new Event("notif-count-changed")); // tell sidebar
+      })
+      .catch(() => {});
   }
 
   function markAllRead() {
-    // Optimistic update
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     setLiveUnread(0);
-    markAllNotificationsRead(userId).catch(() => { /* ignore */ });
+    markAllNotificationsRead(userId)
+      .then(() => {
+        refreshUnreadCount();
+        window.dispatchEvent(new Event("notif-count-changed")); // tell sidebar
+      })
+      .catch(() => {});
   }
 
   // ── Derived state ─────────────────────────────────────────────────────────
