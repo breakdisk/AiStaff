@@ -49,6 +49,9 @@ export const metadata: Metadata = {
       { rel: "manifest", url: "/site.webmanifest" },
     ],
   },
+  other: {
+    "fb:app_id": process.env.NEXT_PUBLIC_FACEBOOK_APP_ID ?? "",
+  },
   robots: {
     index:          true,
     follow:         true,
