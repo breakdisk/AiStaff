@@ -84,6 +84,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark">
+      <head>
+        <meta property="fb:app_id" content="1116524950614559" />
+      </head>
       <body className="min-h-screen bg-zinc-950">
         <Providers>{children}</Providers>
       </body>
