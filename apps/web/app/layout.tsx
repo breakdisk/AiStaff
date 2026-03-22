@@ -5,7 +5,7 @@ import { Providers } from "./providers";
 export async function generateMetadata(): Promise<Metadata> {
   // FACEBOOK_CLIENT_ID is already a runtime env var in Dokploy (used for OAuth).
   // Reading it here (server-side, request-time) avoids needing a build arg.
-  const fbAppId = process.env.FACEBOOK_CLIENT_ID ?? process.env.NEXT_PUBLIC_FACEBOOK_APP_ID ?? "";
+  const fbAppId = process.env.FACEBOOK_CLIENT_ID ?? process.env.NEXT_PUBLIC_FACEBOOK_APP_ID ?? "1116524950614559";
 
   return {
     title: {
