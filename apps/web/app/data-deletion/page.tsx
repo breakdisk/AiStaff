@@ -3,6 +3,13 @@ import Link from "next/link";
 export const metadata = {
   title: "Data Deletion Instructions — AiStaff",
   description: "How to request deletion of your AiStaff account data and Facebook-connected information.",
+  openGraph: {
+    title: "Data Deletion Instructions — AiStaff",
+    description: "How to request deletion of your AiStaff account data and Facebook-connected information.",
+    url: "https://aistaffglobal.com/data-deletion",
+    siteName: "AiStaff",
+    type: "website",
+  },
 };
 
 export default function DataDeletionPage() {

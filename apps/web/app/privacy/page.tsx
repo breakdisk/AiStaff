@@ -3,6 +3,13 @@ import Link from "next/link";
 export const metadata = {
   title: "Privacy Policy — AiStaff",
   description: "Privacy Policy for the AiStaff AI talent and agent marketplace platform.",
+  openGraph: {
+    title: "Privacy Policy — AiStaff",
+    description: "Privacy Policy for the AiStaff AI talent and agent marketplace platform.",
+    url: "https://aistaffglobal.com/privacy",
+    siteName: "AiStaff",
+    type: "website",
+  },
 };
 
 export default function PrivacyPage() {

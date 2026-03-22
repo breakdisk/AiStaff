@@ -3,6 +3,13 @@ import Link from "next/link";
 export const metadata = {
   title: "Terms of Service — AiStaff",
   description: "Terms of Service for the AiStaff AI talent and agent marketplace platform.",
+  openGraph: {
+    title: "Terms of Service — AiStaff",
+    description: "Terms of Service for the AiStaff AI talent and agent marketplace platform.",
+    url: "https://aistaffglobal.com/terms",
+    siteName: "AiStaff",
+    type: "website",
+  },
 };
 
 export default function TermsPage() {

@@ -1,3 +1,34 @@
+# Meta crawlers — explicitly allowed for app review validation
+User-agent: facebookexternalhit
+Allow: /
+Allow: /terms
+Allow: /privacy
+Allow: /data-deletion
+
+User-agent: meta-externalagent
+Allow: /
+Allow: /terms
+Allow: /privacy
+Allow: /data-deletion
+
+User-agent: meta-externalfetcher
+Allow: /
+Allow: /terms
+Allow: /privacy
+Allow: /data-deletion
+
+User-agent: meta-webindexer
+Allow: /
+Allow: /terms
+Allow: /privacy
+Allow: /data-deletion
+
+User-agent: meta-externalads
+Allow: /
+Allow: /terms
+Allow: /privacy
+Allow: /data-deletion
+
 User-agent: *
 Allow: /
 Allow: /marketplace
