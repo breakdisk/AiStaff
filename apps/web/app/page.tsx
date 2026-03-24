@@ -343,7 +343,7 @@ function Categories() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
         <div className="text-center mb-12">
           <p className="font-mono text-xs text-amber-400 uppercase tracking-widest mb-3">What we offer</p>
-          <h2 className="text-3xl sm:text-4xl font-semibold text-zinc-50 tracking-tight">Three Product Categories</h2>
+          <h2 className="text-3xl sm:text-4xl font-semibold text-zinc-50 tracking-tight">Our AI Staffing Solutions</h2>
           <p className="mt-3 text-zinc-400 text-sm sm:text-base max-w-xl mx-auto">
             From human specialists to autonomous systems — one platform, one escrow model, zero trust gaps.
           </p>
