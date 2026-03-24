@@ -1,4 +1,18 @@
+import Link from "next/link";
 import { fetchRevenueSummary, fetchAdminListings, fetchAdminDeployments } from "@/lib/adminApi";
+
+const ADMIN_SECTIONS = [
+  { label: "Payouts",         href: "/admin/payouts"         },
+  { label: "Warranty Claims", href: "/admin/warranty-claims" },
+  { label: "Audit Log",       href: "/admin/audit"           },
+  { label: "Feature Flags",   href: "/admin/feature-flags"   },
+  { label: "Contracts",       href: "/admin/contracts"       },
+  { label: "Announcements",   href: "/admin/announcements"   },
+  { label: "Listings",        href: "/admin/listings"        },
+  { label: "Deployments",     href: "/admin/deployments"     },
+  { label: "Revenue",         href: "/admin/revenue"         },
+  { label: "Users",           href: "/admin/users"           },
+];
 
 function fmtUSD(cents: number) {
   return new Intl.NumberFormat("en-US", {
@@ -36,6 +50,15 @@ export default async function AdminOverview() {
   return (
     <div>
       <h1 className="text-base font-semibold text-zinc-50 mb-6">Platform Overview</h1>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 mb-6">
+        {ADMIN_SECTIONS.map(s => (
+          <Link key={s.href} href={s.href}
+            className="bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-sm p-3 text-xs text-zinc-300 hover:text-zinc-50 transition-colors">
+            {s.label}
+          </Link>
+        ))}
+      </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard

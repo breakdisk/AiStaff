@@ -18,6 +18,7 @@ import DodChecklistCard           from "@/components/DodChecklistCard";
 import ReputationBadge            from "@/components/ReputationBadge";
 import { roiToReputation }        from "@/lib/roi";
 import TalentDashboardContent     from "@/components/TalentDashboardContent";
+import { AnnouncementBanner }     from "@/components/AnnouncementBanner";
 import {
   fetchRoiReport,
   fetchMatches,
@@ -313,6 +314,7 @@ export default function DashboardPage() {
 
   return (
       <main className="flex-1 p-4 pb-20 lg:pb-4 space-y-4 max-w-2xl mx-auto w-full">
+        <AnnouncementBanner />
 
         {/* Role check — talent users see a different widget set */}
         {(() => {

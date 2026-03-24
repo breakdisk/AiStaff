@@ -13,8 +13,9 @@ import {
   type AgentListing, type ListingCategory, type SellerType, type SkillTag,
 } from "@/lib/api";
 
-import { VettingBadge }  from "@/components/VettingBadge";
-import { ShareButton }   from "@/components/ShareSheet";
+import { VettingBadge }        from "@/components/VettingBadge";
+import { ShareButton }         from "@/components/ShareSheet";
+import { AnnouncementBanner }  from "@/components/AnnouncementBanner";
 import type { VettingTier } from "@/components/VettingBadge";
 
 function tierStringToNum(t: string | undefined): VettingTier {
@@ -1249,6 +1250,7 @@ export default function MarketplacePage() {
   return (
     <>
       <main className="flex-1 p-4 pb-20 lg:pb-4 space-y-4 max-w-5xl mx-auto w-full">
+        <AnnouncementBanner />
 
         {/* Header */}
         <div className="flex items-center gap-3 flex-wrap">
