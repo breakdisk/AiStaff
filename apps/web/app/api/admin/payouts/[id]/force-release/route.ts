@@ -21,6 +21,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ reason: body.reason, admin_id: profileId }),
+    signal: AbortSignal.timeout(5000),
   });
 
   if (upstream.status === 204) return new NextResponse(null, { status: 204 });

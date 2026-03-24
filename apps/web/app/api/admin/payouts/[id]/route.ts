@@ -14,24 +14,16 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!profileId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (!(await assertAdmin(profileId))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  let client;
   try {
-    client = await pool.connect();
     const [depRes, payoutsRes, feesRes] = await Promise.all([
-      client.query(
-        `SELECT id, state::TEXT AS state, escrow_amount_cents, client_id, freelancer_id,
+      pool.query(`SELECT id, state::TEXT AS state, escrow_amount_cents, client_id, freelancer_id,
                 created_at, updated_at,
                 updated_at < NOW() - INTERVAL '48 hours' AS is_stuck
-         FROM deployments WHERE id = $1`, [id]
-      ),
-      client.query(
-        `SELECT id, recipient_id, amount_cents, reason, created_at
-         FROM escrow_payouts WHERE deployment_id = $1 ORDER BY created_at ASC`, [id]
-      ),
-      client.query(
-        `SELECT id, fee_cents, fee_pct, created_at
-         FROM platform_fees WHERE deployment_id = $1 ORDER BY created_at ASC`, [id]
-      ),
+         FROM deployments WHERE id = $1`, [id]),
+      pool.query(`SELECT id, recipient_id, amount_cents, reason, created_at
+         FROM escrow_payouts WHERE deployment_id = $1 ORDER BY created_at ASC`, [id]),
+      pool.query(`SELECT id, fee_cents, fee_pct, created_at
+         FROM platform_fees WHERE deployment_id = $1 ORDER BY created_at ASC`, [id]),
     ]);
     if (!depRes.rows.length) return NextResponse.json({ error: "Not found" }, { status: 404 });
     return NextResponse.json({
@@ -42,7 +34,5 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   } catch (err) {
     console.error("[admin/payouts/[id] GET]", err);
     return NextResponse.json({ error: "Failed to load deployment" }, { status: 500 });
-  } finally {
-    client?.release();
   }
 }

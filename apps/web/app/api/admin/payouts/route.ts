@@ -21,11 +21,10 @@ export async function GET(req: Request) {
   const limit  = 50;
   const offset = page * limit;
 
-  let client;
   try {
-    client = await pool.connect();
-    const result = await client.query(
-      `SELECT d.id, d.state::TEXT AS state, d.escrow_amount_cents,
+    const result = await pool.query(
+      `SELECT DISTINCT ON (d.id)
+              d.id, d.state::TEXT AS state, d.escrow_amount_cents,
               d.client_id, d.freelancer_id, d.created_at, d.updated_at,
               EXTRACT(EPOCH FROM (NOW() - d.updated_at))::INT AS seconds_in_state,
               COALESCE(pf.fee_cents, 0) AS platform_fee_cents
@@ -34,7 +33,7 @@ export async function GET(req: Request) {
        WHERE ($1::TEXT IS NULL OR d.state::TEXT = $1)
          AND ($2::TIMESTAMPTZ IS NULL OR d.created_at >= $2::TIMESTAMPTZ)
          AND ($3::TIMESTAMPTZ IS NULL OR d.created_at <= $3::TIMESTAMPTZ)
-       ORDER BY d.created_at DESC
+       ORDER BY d.id, d.created_at DESC
        LIMIT $4 OFFSET $5`,
       [state, from ?? null, to ?? null, limit, offset]
     );
@@ -42,7 +41,5 @@ export async function GET(req: Request) {
   } catch (err) {
     console.error("[admin/payouts GET]", err);
     return NextResponse.json({ error: "Failed to load payouts" }, { status: 500 });
-  } finally {
-    client?.release();
   }
 }
