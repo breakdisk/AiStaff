@@ -374,3 +374,50 @@ pub async fn sign_external(
 pub async fn health() -> StatusCode {
     StatusCode::OK
 }
+
+// ── POST /admin/contracts/:id/revoke ─────────────────────────────────────────
+
+/// Returns true if the contract state allows revocation.
+pub fn revoke_allowed_states(status: &str) -> bool {
+    matches!(status, "DRAFT" | "PENDING_SIGNATURE")
+}
+
+pub async fn revoke_contract(
+    State(svc): State<AppState>,
+    Path(contract_id): Path<Uuid>,
+) -> impl IntoResponse {
+    let updated = sqlx::query(
+        "UPDATE contracts
+         SET status = 'REVOKED'::contract_status
+         WHERE id = $1
+           AND status IN ('DRAFT'::contract_status, 'PENDING_SIGNATURE'::contract_status)
+         RETURNING id",
+    )
+    .bind(contract_id)
+    .fetch_optional(&svc.db)
+    .await;
+
+    match updated {
+        Ok(Some(_)) => StatusCode::NO_CONTENT.into_response(),
+        Ok(None) => (
+            StatusCode::CONFLICT,
+            "Contract is not in a revocable state (must be DRAFT or PENDING_SIGNATURE)",
+        )
+            .into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::revoke_allowed_states;
+
+    #[test]
+    fn only_draft_and_pending_are_revocable() {
+        assert!(revoke_allowed_states("DRAFT"));
+        assert!(revoke_allowed_states("PENDING_SIGNATURE"));
+        assert!(!revoke_allowed_states("SIGNED"));
+        assert!(!revoke_allowed_states("EXPIRED"));
+        assert!(!revoke_allowed_states("REVOKED"));
+    }
+}

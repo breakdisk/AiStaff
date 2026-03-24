@@ -24,7 +24,10 @@ async fn main() -> Result<()> {
 
     let app = Router::new()
         .route("/health", get(handlers::health))
-        .route("/contracts", get(handlers::list_contracts).post(handlers::create_contract))
+        .route(
+            "/contracts",
+            get(handlers::list_contracts).post(handlers::create_contract),
+        )
         .route("/contracts/{id}", get(handlers::get_contract))
         .route("/contracts/{id}/sign", post(handlers::sign_contract))
         .route(
@@ -40,6 +43,10 @@ async fn main() -> Result<()> {
         .route(
             "/warranty-claims/{id}/resolve",
             post(handlers::resolve_warranty_claim),
+        )
+        .route(
+            "/admin/contracts/{id}/revoke",
+            post(handlers::revoke_contract),
         )
         .with_state(svc)
         .layer(TraceLayer::new_for_http());
