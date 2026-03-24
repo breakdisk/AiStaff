@@ -97,13 +97,13 @@ pub struct ReleaseEscrow {
 /// Full escrow split release event: 15% platform commission + 70/30 of remainder.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EscrowRelease {
-    pub deployment_id:   Uuid,
-    pub developer_id:    Uuid,
+    pub deployment_id: Uuid,
+    pub developer_id: Uuid,
     pub developer_cents: u64,
-    pub talent_id:       Uuid,
-    pub talent_cents:    u64,
+    pub talent_id: Uuid,
+    pub talent_cents: u64,
     /// Platform's 15% commission. Recorded in `platform_fees` table.
-    pub platform_cents:  u64,
+    pub platform_cents: u64,
 }
 
 // ── v2 Topic constants ────────────────────────────────────────────────────────
@@ -228,13 +228,13 @@ pub const TOPIC_MESSAGE_SENT: &str = "collab.message_sent";
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MessageSent {
     pub deployment_id: Uuid,
-    pub message_id:    Uuid,
-    pub sender_id:     Uuid,
-    pub sender_name:   String,
+    pub message_id: Uuid,
+    pub sender_id: Uuid,
+    pub sender_name: String,
     /// All deployment participants except the sender.
     pub recipient_ids: Vec<Uuid>,
     /// First 120 chars of the message body — safe for email preview.
-    pub body_preview:  String,
+    pub body_preview: String,
 }
 
 // ── Community & Growth events (Feature 08) ────────────────────────────────────

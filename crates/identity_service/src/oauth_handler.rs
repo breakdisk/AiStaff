@@ -21,7 +21,7 @@ const GH_REPOS_PTS: f64 = 12.0;
 const LI_EMAIL_PTS: f64 = 8.0;
 const LI_EXISTS_PTS: f64 = 7.0;
 
-const GOOGLE_EMAIL_PTS: f64    = 15.0; // Google verifies email at account creation
+const GOOGLE_EMAIL_PTS: f64 = 15.0; // Google verifies email at account creation
 const FACEBOOK_EMAIL_PTS: f64 = 15.0; // Facebook requires a verified email on all accounts
 
 // ── Public entry point ────────────────────────────────────────────────────────
@@ -66,13 +66,11 @@ pub async fn handle_oauth_callback(
 
     // Read account_type + role + is_admin set during onboarding / agency registration.
     let (account_type, role, is_admin): (String, Option<String>, bool) =
-        sqlx::query_as(
-            "SELECT account_type, role, is_admin FROM unified_profiles WHERE id = $1",
-        )
-        .bind(profile_id)
-        .fetch_one(db)
-        .await
-        .context("Fetch account_type + role + is_admin")?;
+        sqlx::query_as("SELECT account_type, role, is_admin FROM unified_profiles WHERE id = $1")
+            .bind(profile_id)
+            .fetch_one(db)
+            .await
+            .context("Fetch account_type + role + is_admin")?;
 
     Ok(OAuthCallbackResponse {
         profile_id,
@@ -201,7 +199,12 @@ async fn fetch_and_score(
     current: &OAuthCallbackPayload,
 ) -> Result<(i16, IdentityTier)> {
     // Fetch what providers are now connected to this profile
-    let row: (Option<String>, Option<String>, Option<String>, Option<String>) = sqlx::query_as(
+    let row: (
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+    ) = sqlx::query_as(
         "SELECT github_uid, linkedin_uid, google_uid, facebook_uid
          FROM unified_profiles WHERE id = $1",
     )
@@ -287,8 +290,8 @@ fn calc_github_score(repos: Option<u32>, created_at: Option<chrono::DateTime<Utc
 
 fn provider_uid_col(p: OAuthProvider) -> &'static str {
     match p {
-        OAuthProvider::GitHub   => "github_uid",
-        OAuthProvider::Google   => "google_uid",
+        OAuthProvider::GitHub => "github_uid",
+        OAuthProvider::Google => "google_uid",
         OAuthProvider::LinkedIn => "linkedin_uid",
         OAuthProvider::Facebook => "facebook_uid",
     }

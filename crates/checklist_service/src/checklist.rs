@@ -1,8 +1,8 @@
 use anyhow::Result;
 use chrono::Utc;
 use common::events::{
-    ChecklistFinalized, ChecklistStepCompleted, DeploymentComplete,
-    EventEnvelope, TOPIC_CHECKLIST_EVENTS, TOPIC_DEPLOYMENT_COMPLETE,
+    ChecklistFinalized, ChecklistStepCompleted, DeploymentComplete, EventEnvelope,
+    TOPIC_CHECKLIST_EVENTS, TOPIC_DEPLOYMENT_COMPLETE,
 };
 use common::kafka::producer::KafkaProducer;
 use sqlx::PgPool;
@@ -158,15 +158,15 @@ impl ChecklistService {
         };
 
         let developer_id: Option<Uuid> = row.get("developer_id");
-        let freelancer_id: Uuid        = row.get("freelancer_id");
-        let escrow_cents: i64          = row.get("escrow_amount_cents");
-        let artifact_hash: String      = row.get("agent_artifact_hash");
+        let freelancer_id: Uuid = row.get("freelancer_id");
+        let escrow_cents: i64 = row.get("escrow_amount_cents");
+        let artifact_hash: String = row.get("agent_artifact_hash");
 
         let event = DeploymentComplete {
             deployment_id,
-            developer_id:  developer_id.unwrap_or(freelancer_id),
-            talent_id:     freelancer_id,
-            total_cents:   escrow_cents as u64,
+            developer_id: developer_id.unwrap_or(freelancer_id),
+            talent_id: freelancer_id,
+            total_cents: escrow_cents as u64,
             artifact_hash,
         };
 

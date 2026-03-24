@@ -26,14 +26,16 @@ async fn main() -> anyhow::Result<()> {
 
     let producer = common::kafka::producer::KafkaProducer::new(&brokers)?;
 
-    tracing::info!("deployment_engine starting — ChecklistConsumer (primary) + SuccessTrigger (secondary)");
+    tracing::info!(
+        "deployment_engine starting — ChecklistConsumer (primary) + SuccessTrigger (secondary)"
+    );
 
     // SuccessTrigger handles the external-installer path (installation.events).
     // It is secondary: its failure must NOT kill the ChecklistConsumer.
     // Spawn it independently with auto-restart on error.
     {
-        let pool_st    = pool.clone();
-        let prod_st    = producer.clone();
+        let pool_st = pool.clone();
+        let prod_st = producer.clone();
         let brokers_st = brokers.clone();
         tokio::spawn(async move {
             loop {

@@ -89,12 +89,10 @@ impl ContractService {
         contract_id: Uuid,
         party_b_email: &str,
     ) -> Result<String> {
-        let row = sqlx::query(
-            "SELECT status::TEXT AS status FROM contracts WHERE id = $1",
-        )
-        .bind(contract_id)
-        .fetch_optional(&self.db)
-        .await?;
+        let row = sqlx::query("SELECT status::TEXT AS status FROM contracts WHERE id = $1")
+            .bind(contract_id)
+            .fetch_optional(&self.db)
+            .await?;
 
         match row {
             None => bail!("contract {contract_id} not found"),

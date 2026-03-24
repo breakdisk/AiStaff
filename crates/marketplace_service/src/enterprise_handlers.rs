@@ -38,20 +38,27 @@ pub async fn list_org_deployments(
     Path(org_id): Path<Uuid>,
 ) -> Result<Json<Vec<OrgDeploymentRow>>, StatusCode> {
     // Column is `state` (deployment_status enum), aliased as `status`
-    let rows: Vec<(Uuid, Option<String>, String, String, i64, chrono::DateTime<chrono::Utc>, Uuid)> =
-        sqlx::query_as(
-            "SELECT d.id, al.title, d.deployment_type::TEXT,
+    let rows: Vec<(
+        Uuid,
+        Option<String>,
+        String,
+        String,
+        i64,
+        chrono::DateTime<chrono::Utc>,
+        Uuid,
+    )> = sqlx::query_as(
+        "SELECT d.id, al.title, d.deployment_type::TEXT,
                     d.state::TEXT AS status, d.escrow_amount_cents, d.created_at, d.org_id
              FROM deployments d
              LEFT JOIN agent_listings al ON al.id = d.listing_id
              WHERE d.org_id = $1
              ORDER BY d.created_at DESC
              LIMIT 100",
-        )
-        .bind(org_id)
-        .fetch_all(&state.db)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    )
+    .bind(org_id)
+    .fetch_all(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let deployments = rows
         .into_iter()

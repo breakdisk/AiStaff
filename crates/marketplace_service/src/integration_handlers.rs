@@ -16,8 +16,8 @@ use crate::handlers::AppState;
 /// (no deployment) or scoped to a specific deployment.
 #[derive(Deserialize)]
 pub struct ListIntegrationsQuery {
-    pub deployment_id:  Option<Uuid>,
-    pub profile_id:     Option<Uuid>,
+    pub deployment_id: Option<Uuid>,
+    pub profile_id: Option<Uuid>,
 }
 
 #[derive(Deserialize)]
@@ -27,42 +27,42 @@ pub struct ByExternalIdQuery {
 
 #[derive(Serialize)]
 pub struct IntegrationEvent {
-    pub id:          Uuid,
-    pub event_type:  String,
-    pub title:       String,
+    pub id: Uuid,
+    pub event_type: String,
+    pub title: String,
     pub occurred_at: String,
 }
 
 #[derive(Serialize)]
 pub struct IntegrationRow {
-    pub id:             Uuid,
-    pub deployment_id:  Option<Uuid>,
-    pub provider:       String,
-    pub name:           String,
-    pub external_url:   String,
-    pub external_id:    String,
-    pub status:         String,
-    pub connected_at:   String,
-    pub events:         Vec<IntegrationEvent>,
+    pub id: Uuid,
+    pub deployment_id: Option<Uuid>,
+    pub provider: String,
+    pub name: String,
+    pub external_url: String,
+    pub external_id: String,
+    pub status: String,
+    pub connected_at: String,
+    pub events: Vec<IntegrationEvent>,
 }
 
 #[derive(Deserialize)]
 pub struct CreateIntegrationBody {
-    pub deployment_id:    Option<Uuid>,
+    pub deployment_id: Option<Uuid>,
     pub owner_profile_id: Option<Uuid>,
-    pub provider:         String,
-    pub name:             String,
-    pub external_url:     String,
-    pub external_id:      String,
-    pub webhook_id:       Option<i64>,
-    pub connected_by:     Uuid,
+    pub provider: String,
+    pub name: String,
+    pub external_url: String,
+    pub external_id: String,
+    pub webhook_id: Option<i64>,
+    pub connected_by: Uuid,
 }
 
 #[derive(Deserialize)]
 pub struct CreateEventBody {
     pub integration_id: Uuid,
-    pub event_type:     String,
-    pub title:          String,
+    pub event_type: String,
+    pub title: String,
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -71,9 +71,13 @@ fn extract_profile_id(headers: &HeaderMap) -> Result<Uuid, (StatusCode, String)>
     let val = headers
         .get("x-profile-id")
         .and_then(|v| v.to_str().ok())
-        .ok_or_else(|| (StatusCode::UNAUTHORIZED, "Missing X-Profile-Id header".to_string()))?;
-    Uuid::parse_str(val)
-        .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid X-Profile-Id".to_string()))
+        .ok_or_else(|| {
+            (
+                StatusCode::UNAUTHORIZED,
+                "Missing X-Profile-Id header".to_string(),
+            )
+        })?;
+    Uuid::parse_str(val).map_err(|_| (StatusCode::BAD_REQUEST, "Invalid X-Profile-Id".to_string()))
 }
 
 async fn check_deployment_access(
@@ -96,7 +100,10 @@ async fn check_deployment_access(
 
     let ok: bool = row.try_get("ok").unwrap_or(false);
     if !ok {
-        return Err((StatusCode::FORBIDDEN, "Not a participant of this deployment".to_string()));
+        return Err((
+            StatusCode::FORBIDDEN,
+            "Not a participant of this deployment".to_string(),
+        ));
     }
     Ok(())
 }
@@ -121,9 +128,9 @@ async fn fetch_events(
     rows.iter()
         .map(|er| {
             Ok(IntegrationEvent {
-                id:          er.try_get::<Uuid, _>("id")?,
-                event_type:  er.try_get::<String, _>("event_type")?,
-                title:       er.try_get::<String, _>("title")?,
+                id: er.try_get::<Uuid, _>("id")?,
+                event_type: er.try_get::<String, _>("event_type")?,
+                title: er.try_get::<String, _>("title")?,
                 occurred_at: er.try_get::<String, _>("occurred_at_fmt")?,
             })
         })
@@ -185,12 +192,24 @@ pub async fn list_integrations(
         integrations.push(IntegrationRow {
             id,
             deployment_id: row.try_get("deployment_id").ok(),
-            provider:      row.try_get("provider")     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?,
-            name:          row.try_get("name")          .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?,
-            external_url:  row.try_get("external_url")  .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?,
-            external_id:   row.try_get("external_id")   .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?,
-            status:        row.try_get("status")        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?,
-            connected_at:  row.try_get("connected_at_fmt").map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?,
+            provider: row
+                .try_get("provider")
+                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?,
+            name: row
+                .try_get("name")
+                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?,
+            external_url: row
+                .try_get("external_url")
+                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?,
+            external_id: row
+                .try_get("external_id")
+                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?,
+            status: row
+                .try_get("status")
+                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?,
+            connected_at: row
+                .try_get("connected_at_fmt")
+                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?,
             events,
         });
     }
@@ -222,7 +241,10 @@ pub async fn create_integration(
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    Ok((StatusCode::CREATED, Json(serde_json::json!({ "id": id.to_string() }))))
+    Ok((
+        StatusCode::CREATED,
+        Json(serde_json::json!({ "id": id.to_string() })),
+    ))
 }
 
 /// POST /integrations/events
@@ -243,7 +265,10 @@ pub async fn create_event(
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    Ok((StatusCode::CREATED, Json(serde_json::json!({ "id": id.to_string() }))))
+    Ok((
+        StatusCode::CREATED,
+        Json(serde_json::json!({ "id": id.to_string() })),
+    ))
 }
 
 /// GET /integrations/by-external-id?external_id=<string>
@@ -261,8 +286,12 @@ pub async fn get_by_external_id(
 
     match row {
         Some(r) => {
-            let id: Uuid = r.try_get("id").map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-            let connected_by: Uuid = r.try_get("connected_by").map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+            let id: Uuid = r
+                .try_get("id")
+                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+            let connected_by: Uuid = r
+                .try_get("connected_by")
+                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
             let owner_profile_id: Option<Uuid> = r.try_get("owner_profile_id").ok();
             Ok(Json(serde_json::json!({
                 "id": id.to_string(),

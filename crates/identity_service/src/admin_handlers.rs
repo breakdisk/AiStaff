@@ -122,10 +122,7 @@ pub async fn suspend_user(
 
 // ── POST /admin/users/:id/unsuspend ───────────────────────────────────────────
 
-pub async fn unsuspend_user(
-    State(pool): State<PgPool>,
-    Path(id): Path<Uuid>,
-) -> impl IntoResponse {
+pub async fn unsuspend_user(State(pool): State<PgPool>, Path(id): Path<Uuid>) -> impl IntoResponse {
     let res = sqlx::query(
         "UPDATE unified_profiles
          SET suspended_at = NULL, suspended_reason = NULL, updated_at = NOW()

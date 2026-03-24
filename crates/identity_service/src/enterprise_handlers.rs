@@ -165,13 +165,12 @@ pub async fn get_my_org(
         .and_then(|s| Uuid::parse_str(s).ok())
         .ok_or(StatusCode::BAD_REQUEST)?;
 
-    let org_id: Option<Uuid> = sqlx::query_scalar(
-        "SELECT org_id FROM org_members WHERE profile_id = $1 LIMIT 1",
-    )
-    .bind(profile_id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let org_id: Option<Uuid> =
+        sqlx::query_scalar("SELECT org_id FROM org_members WHERE profile_id = $1 LIMIT 1")
+            .bind(profile_id)
+            .fetch_optional(&pool)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     match org_id {
         None => Err(StatusCode::NOT_FOUND),
@@ -210,24 +209,20 @@ pub async fn update_org(
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     }
     if let Some(v) = &body.csm_name {
-        sqlx::query(
-            "UPDATE organisations SET csm_name = $1, updated_at = NOW() WHERE id = $2",
-        )
-        .bind(v)
-        .bind(id)
-        .execute(&pool)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        sqlx::query("UPDATE organisations SET csm_name = $1, updated_at = NOW() WHERE id = $2")
+            .bind(v)
+            .bind(id)
+            .execute(&pool)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     }
     if let Some(v) = &body.csm_email {
-        sqlx::query(
-            "UPDATE organisations SET csm_email = $1, updated_at = NOW() WHERE id = $2",
-        )
-        .bind(v)
-        .bind(id)
-        .execute(&pool)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        sqlx::query("UPDATE organisations SET csm_email = $1, updated_at = NOW() WHERE id = $2")
+            .bind(v)
+            .bind(id)
+            .execute(&pool)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     }
     if let Some(v) = &body.csm_response_sla {
         sqlx::query(
@@ -261,14 +256,12 @@ pub async fn update_org(
     }
     if let Some(v) = &body.renewal_date {
         let d: chrono::NaiveDate = v.parse().map_err(|_| StatusCode::BAD_REQUEST)?;
-        sqlx::query(
-            "UPDATE organisations SET renewal_date = $1, updated_at = NOW() WHERE id = $2",
-        )
-        .bind(d)
-        .bind(id)
-        .execute(&pool)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        sqlx::query("UPDATE organisations SET renewal_date = $1, updated_at = NOW() WHERE id = $2")
+            .bind(d)
+            .bind(id)
+            .execute(&pool)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     }
     if let Some(tier) = &body.plan_tier {
         if !["GROWTH", "ENTERPRISE", "PLATINUM"].contains(&tier.as_str()) {
@@ -329,8 +322,7 @@ pub async fn accept_invite(
     Path(token): Path<String>,
     Json(body): Json<AcceptInviteBody>,
 ) -> Result<StatusCode, StatusCode> {
-    let profile_id =
-        Uuid::parse_str(&body.profile_id).map_err(|_| StatusCode::BAD_REQUEST)?;
+    let profile_id = Uuid::parse_str(&body.profile_id).map_err(|_| StatusCode::BAD_REQUEST)?;
 
     let row: Option<(Uuid, Uuid)> = sqlx::query_as(
         "SELECT id, org_id FROM org_invites
@@ -371,9 +363,16 @@ pub async fn list_members(
     State(pool): State<PgPool>,
     Path(org_id): Path<Uuid>,
 ) -> Result<Json<Vec<MemberResponse>>, StatusCode> {
-    let rows: Vec<(Uuid, String, String, String, String, i32, chrono::DateTime<chrono::Utc>)> =
-        sqlx::query_as(
-            "SELECT om.profile_id,
+    let rows: Vec<(
+        Uuid,
+        String,
+        String,
+        String,
+        String,
+        i32,
+        chrono::DateTime<chrono::Utc>,
+    )> = sqlx::query_as(
+        "SELECT om.profile_id,
                     COALESCE(up.display_name, up.email, '') AS display_name,
                     COALESCE(up.email, '') AS email,
                     om.member_role,
@@ -384,11 +383,11 @@ pub async fn list_members(
              JOIN unified_profiles up ON up.id = om.profile_id
              WHERE om.org_id = $1
              ORDER BY om.joined_at",
-        )
-        .bind(org_id)
-        .fetch_all(&pool)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    )
+    .bind(org_id)
+    .fetch_all(&pool)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let members = rows
         .into_iter()
@@ -481,8 +480,7 @@ pub async fn create_api_key(
     Path(org_id): Path<Uuid>,
     Json(body): Json<CreateKeyBody>,
 ) -> Result<(StatusCode, Json<CreatedKeyResponse>), StatusCode> {
-    let created_by =
-        Uuid::parse_str(&body.created_by).map_err(|_| StatusCode::BAD_REQUEST)?;
+    let created_by = Uuid::parse_str(&body.created_by).map_err(|_| StatusCode::BAD_REQUEST)?;
 
     let raw_key = format!("ask_{}", Uuid::now_v7().to_string().replace('-', ""));
 
@@ -518,13 +516,11 @@ pub async fn revoke_api_key(
     State(pool): State<PgPool>,
     Path((_org_id, key_id)): Path<(Uuid, Uuid)>,
 ) -> Result<StatusCode, StatusCode> {
-    sqlx::query(
-        "UPDATE org_api_keys SET revoked_at = NOW() WHERE id = $1 AND revoked_at IS NULL",
-    )
-    .bind(key_id)
-    .execute(&pool)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    sqlx::query("UPDATE org_api_keys SET revoked_at = NOW() WHERE id = $1 AND revoked_at IS NULL")
+        .bind(key_id)
+        .execute(&pool)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(StatusCode::NO_CONTENT)
 }

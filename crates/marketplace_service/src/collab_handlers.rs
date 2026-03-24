@@ -17,9 +17,13 @@ fn extract_profile_id(headers: &HeaderMap) -> Result<Uuid, (StatusCode, String)>
     let val = headers
         .get("x-profile-id")
         .and_then(|v| v.to_str().ok())
-        .ok_or_else(|| (StatusCode::UNAUTHORIZED, "Missing X-Profile-Id header".to_string()))?;
-    Uuid::parse_str(val)
-        .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid X-Profile-Id".to_string()))
+        .ok_or_else(|| {
+            (
+                StatusCode::UNAUTHORIZED,
+                "Missing X-Profile-Id header".to_string(),
+            )
+        })?;
+    Uuid::parse_str(val).map_err(|_| (StatusCode::BAD_REQUEST, "Invalid X-Profile-Id".to_string()))
 }
 
 async fn check_deployment_access(
@@ -42,7 +46,10 @@ async fn check_deployment_access(
 
     let ok: bool = row.try_get("ok").unwrap_or(false);
     if !ok {
-        return Err((StatusCode::FORBIDDEN, "Not a participant of this deployment".to_string()));
+        return Err((
+            StatusCode::FORBIDDEN,
+            "Not a participant of this deployment".to_string(),
+        ));
     }
     Ok(())
 }
@@ -52,7 +59,7 @@ async fn check_deployment_access(
 #[derive(Deserialize)]
 pub struct ListMessagesQuery {
     pub deployment_id: Uuid,
-    pub after:         Option<chrono::DateTime<chrono::Utc>>,
+    pub after: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 #[derive(Deserialize)]
@@ -67,35 +74,35 @@ pub struct MarkReadBody {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ReactionGroup {
-    pub emoji:       String,
-    pub count:       i64,
+    pub emoji: String,
+    pub count: i64,
     pub profile_ids: Vec<Uuid>,
 }
 
 #[derive(Serialize)]
 pub struct MessageRow {
-    pub id:            Uuid,
+    pub id: Uuid,
     pub deployment_id: Uuid,
-    pub sender_id:     Uuid,
-    pub sender_name:   String,
-    pub body:          String,
-    pub file_name:     Option<String>,
-    pub file_path:     Option<String>,
-    pub ts:            String,
-    pub edited_at:     Option<String>,
-    pub deleted_at:    Option<String>,
+    pub sender_id: Uuid,
+    pub sender_name: String,
+    pub body: String,
+    pub file_name: Option<String>,
+    pub file_path: Option<String>,
+    pub ts: String,
+    pub edited_at: Option<String>,
+    pub deleted_at: Option<String>,
     pub parent_msg_id: Option<Uuid>,
-    pub reply_count:   i64,
-    pub reactions:     Vec<ReactionGroup>,
+    pub reply_count: i64,
+    pub reactions: Vec<ReactionGroup>,
 }
 
 #[derive(Deserialize)]
 pub struct PostMessageBody {
     pub deployment_id: Uuid,
-    pub sender_id:     Uuid,
-    pub sender_name:   String,
-    pub body:          String,
-    pub file_name:     Option<String>,
+    pub sender_id: Uuid,
+    pub sender_name: String,
+    pub body: String,
+    pub file_name: Option<String>,
 }
 
 // ── Handlers ──────────────────────────────────────────────────────────────────
@@ -144,23 +151,24 @@ pub async fn list_messages(
     let messages = rows
         .iter()
         .map(|row| {
-            let raw: serde_json::Value = row.try_get("raw_reactions")
+            let raw: serde_json::Value = row
+                .try_get("raw_reactions")
                 .unwrap_or(serde_json::Value::Array(vec![]));
             let reactions = build_reaction_groups(raw);
 
             Ok(MessageRow {
-                id:            row.try_get::<Uuid, _>("id")?,
+                id: row.try_get::<Uuid, _>("id")?,
                 deployment_id: row.try_get::<Uuid, _>("deployment_id")?,
-                sender_id:     row.try_get::<Uuid, _>("sender_id")?,
-                sender_name:   row.try_get::<String, _>("sender_name")?,
-                body:          row.try_get::<String, _>("body")?,
-                file_name:     row.try_get::<Option<String>, _>("file_name")?,
-                file_path:     row.try_get::<Option<String>, _>("file_path")?,
-                ts:            row.try_get::<String, _>("ts")?,
-                edited_at:     row.try_get::<Option<String>, _>("edited_at")?,
-                deleted_at:    row.try_get::<Option<String>, _>("deleted_at")?,
+                sender_id: row.try_get::<Uuid, _>("sender_id")?,
+                sender_name: row.try_get::<String, _>("sender_name")?,
+                body: row.try_get::<String, _>("body")?,
+                file_name: row.try_get::<Option<String>, _>("file_name")?,
+                file_path: row.try_get::<Option<String>, _>("file_path")?,
+                ts: row.try_get::<String, _>("ts")?,
+                edited_at: row.try_get::<Option<String>, _>("edited_at")?,
+                deleted_at: row.try_get::<Option<String>, _>("deleted_at")?,
                 parent_msg_id: row.try_get::<Option<Uuid>, _>("parent_msg_id")?,
-                reply_count:   row.try_get::<i64, _>("reply_count")?,
+                reply_count: row.try_get::<i64, _>("reply_count")?,
                 reactions,
             })
         })
@@ -173,21 +181,34 @@ pub async fn list_messages(
 /// Collapse flat `[{emoji, profile_id}, ...]` JSON into grouped `ReactionGroup` vec.
 pub fn build_reaction_groups(raw: serde_json::Value) -> Vec<ReactionGroup> {
     use std::collections::BTreeMap;
-    let arr = match raw { serde_json::Value::Array(a) => a, _ => return vec![] };
+    let arr = match raw {
+        serde_json::Value::Array(a) => a,
+        _ => return vec![],
+    };
     let mut groups: BTreeMap<String, Vec<Uuid>> = BTreeMap::new();
     for item in arr {
-        let emoji = item.get("emoji").and_then(|v| v.as_str()).unwrap_or("").to_string();
-        let pid   = item.get("profile_id")
+        let emoji = item
+            .get("emoji")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let pid = item
+            .get("profile_id")
             .and_then(|v| v.as_str())
             .and_then(|s| Uuid::parse_str(s).ok());
-        if emoji.is_empty() { continue; }
+        if emoji.is_empty() {
+            continue;
+        }
         groups.entry(emoji).or_default().extend(pid);
     }
-    groups.into_iter().map(|(emoji, profile_ids)| ReactionGroup {
-        count: profile_ids.len() as i64,
-        emoji,
-        profile_ids,
-    }).collect()
+    groups
+        .into_iter()
+        .map(|(emoji, profile_ids)| ReactionGroup {
+            count: profile_ids.len() as i64,
+            emoji,
+            profile_ids,
+        })
+        .collect()
 }
 
 pub async fn post_message(
@@ -198,7 +219,10 @@ pub async fn post_message(
     let profile_id = extract_profile_id(&headers)?;
 
     if body.sender_id != profile_id {
-        return Err((StatusCode::FORBIDDEN, "sender_id does not match authenticated profile".to_string()));
+        return Err((
+            StatusCode::FORBIDDEN,
+            "sender_id does not match authenticated profile".to_string(),
+        ));
     }
 
     check_deployment_access(&state.db, body.deployment_id, profile_id).await?;
@@ -223,18 +247,17 @@ pub async fn post_message(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     // Fetch deployment participants to build recipient list
-    let dep_row = sqlx::query(
-        "SELECT client_id, freelancer_id, developer_id FROM deployments WHERE id = $1",
-    )
-    .bind(body.deployment_id)
-    .fetch_optional(&state.db)
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let dep_row =
+        sqlx::query("SELECT client_id, freelancer_id, developer_id FROM deployments WHERE id = $1")
+            .bind(body.deployment_id)
+            .fetch_optional(&state.db)
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     if let Some(dep) = dep_row {
-        let client_id:     Uuid = dep.try_get("client_id")    .unwrap_or(profile_id);
+        let client_id: Uuid = dep.try_get("client_id").unwrap_or(profile_id);
         let freelancer_id: Uuid = dep.try_get("freelancer_id").unwrap_or(profile_id);
-        let developer_id:  Uuid = dep.try_get("developer_id") .unwrap_or(profile_id);
+        let developer_id: Uuid = dep.try_get("developer_id").unwrap_or(profile_id);
 
         // Recipients = all participants except the sender
         let recipient_ids: Vec<Uuid> = [client_id, freelancer_id, developer_id]
@@ -249,8 +272,8 @@ pub async fn post_message(
             let event = MessageSent {
                 deployment_id: body.deployment_id,
                 message_id,
-                sender_id:    body.sender_id,
-                sender_name:  body.sender_name.clone(),
+                sender_id: body.sender_id,
+                sender_name: body.sender_name.clone(),
                 recipient_ids,
                 body_preview: preview,
             };
@@ -258,7 +281,11 @@ pub async fn post_message(
             // Non-fatal: if Kafka is down, message is still saved
             if let Err(e) = state
                 .producer
-                .publish(TOPIC_MESSAGE_SENT, &body.deployment_id.to_string(), &envelope)
+                .publish(
+                    TOPIC_MESSAGE_SENT,
+                    &body.deployment_id.to_string(),
+                    &envelope,
+                )
                 .await
             {
                 tracing::warn!(error=%e, "Failed to emit MessageSent — message saved, notification skipped");
@@ -266,7 +293,10 @@ pub async fn post_message(
         }
     }
 
-    Ok((StatusCode::CREATED, Json(serde_json::json!({ "ok": true, "id": message_id }))))
+    Ok((
+        StatusCode::CREATED,
+        Json(serde_json::json!({ "ok": true, "id": message_id })),
+    ))
 }
 
 /// POST /collab/read — upsert read horizon for caller in a deployment
@@ -297,10 +327,9 @@ pub async fn mark_read(
 
 /// 40-entry emoji allowlist — identical on server and client.
 const ALLOWED_EMOJI: &[&str] = &[
-    "👍","👎","❤️","🔥","🎉","😂","😮","😢","🙏","✅",
-    "❌","⚠️","🚀","💡","🐛","🔒","📎","📋","⏳","✏️",
-    "💬","🔄","📌","🏆","💪","👀","🤔","😅","🎯","🛡️",
-    "💰","📊","🔗","🧪","⚡","🌍","🤝","📢","🔔","💎",
+    "👍", "👎", "❤️", "🔥", "🎉", "😂", "😮", "😢", "🙏", "✅", "❌", "⚠️", "🚀", "💡", "🐛", "🔒",
+    "📎", "📋", "⏳", "✏️", "💬", "🔄", "📌", "🏆", "💪", "👀", "🤔", "😅", "🎯", "🛡️", "💰", "📊",
+    "🔗", "🧪", "⚡", "🌍", "🤝", "📢", "🔔", "💎",
 ];
 
 // ── Task 7: File upload / serve constants and helpers ─────────────────────────
@@ -310,30 +339,43 @@ const MAX_UPLOAD_BYTES: usize = 26_214_400; // 25 MB
 /// Map detected MIME type to a safe extension. Returns "bin" for unknown types.
 fn mime_to_ext(mime: &str) -> &'static str {
     match mime {
-        "image/jpeg"       => "jpg",
-        "image/png"        => "png",
-        "image/gif"        => "gif",
-        "image/webp"       => "webp",
-        "application/pdf"  => "pdf",
-        "application/zip"  => "zip",
+        "image/jpeg" => "jpg",
+        "image/png" => "png",
+        "image/gif" => "gif",
+        "image/webp" => "webp",
+        "application/pdf" => "pdf",
+        "application/zip" => "zip",
         "application/wasm" => "wasm",
-        "text/plain"       => "txt",
+        "text/plain" => "txt",
         "application/json" => "json",
-        "video/mp4"        => "mp4",
-        "video/webm"       => "webm",
-        _                  => "bin",
+        "video/mp4" => "mp4",
+        "video/webm" => "webm",
+        _ => "bin",
     }
 }
 
 /// Validate slug format: `{36-char-uuid}.{1-10-char-ext}` — prevents path traversal.
 /// Uses a character scan — no regex, no unwrap().
 fn valid_slug(slug: &str) -> bool {
-    let Some(dot_pos) = slug.rfind('.') else { return false; };
+    let Some(dot_pos) = slug.rfind('.') else {
+        return false;
+    };
     let (base, ext) = (&slug[..dot_pos], &slug[dot_pos + 1..]);
-    if base.len() != 36 { return false; }
-    if !base.chars().all(|c| c.is_ascii_hexdigit() || c == '-') { return false; }
-    if ext.is_empty() || ext.len() > 10 { return false; }
-    if !ext.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit()) { return false; }
+    if base.len() != 36 {
+        return false;
+    }
+    if !base.chars().all(|c| c.is_ascii_hexdigit() || c == '-') {
+        return false;
+    }
+    if ext.is_empty() || ext.len() > 10 {
+        return false;
+    }
+    if !ext
+        .chars()
+        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
+    {
+        return false;
+    }
     true
 }
 
@@ -353,32 +395,45 @@ pub async fn upload_file(
     let profile_id = extract_profile_id(&headers)?;
     check_deployment_access(&state.db, params.deployment_id, profile_id).await?;
 
-    let upload_dir = std::env::var("COLLAB_UPLOAD_DIR")
-        .unwrap_or_else(|_| "/tmp/collab-uploads".to_string());
-    tokio::fs::create_dir_all(&upload_dir).await
+    let upload_dir =
+        std::env::var("COLLAB_UPLOAD_DIR").unwrap_or_else(|_| "/tmp/collab-uploads".to_string());
+    tokio::fs::create_dir_all(&upload_dir)
+        .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     // Find the "file" field in multipart
     let mut field = loop {
-        match multipart.next_field().await
-            .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))? {
+        match multipart
+            .next_field()
+            .await
+            .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?
+        {
             Some(f) if f.name() == Some("file") => break f,
             Some(_) => continue,
-            None => return Err((StatusCode::BAD_REQUEST, "No 'file' field in multipart".to_string())),
+            None => {
+                return Err((
+                    StatusCode::BAD_REQUEST,
+                    "No 'file' field in multipart".to_string(),
+                ))
+            }
         }
     };
 
-    let original_name = field.file_name()
-        .unwrap_or("upload")
-        .to_string();
+    let original_name = field.file_name().unwrap_or("upload").to_string();
 
     // Read bytes with hard size limit on the stream
     let mut bytes_vec: Vec<u8> = Vec::with_capacity(65536);
-    while let Some(chunk) = field.chunk().await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))? {
+    while let Some(chunk) = field
+        .chunk()
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+    {
         bytes_vec.extend_from_slice(&chunk);
         if bytes_vec.len() > MAX_UPLOAD_BYTES {
-            return Err((StatusCode::PAYLOAD_TOO_LARGE, "File exceeds 25 MB limit".to_string()));
+            return Err((
+                StatusCode::PAYLOAD_TOO_LARGE,
+                "File exceeds 25 MB limit".to_string(),
+            ));
         }
     }
 
@@ -387,10 +442,11 @@ pub async fn upload_file(
         .map(|t| mime_to_ext(t.mime_type()))
         .unwrap_or("bin");
 
-    let slug      = format!("{}.{}", uuid::Uuid::new_v4(), ext);
+    let slug = format!("{}.{}", uuid::Uuid::new_v4(), ext);
     let file_path = format!("{}/{}", upload_dir, slug);
 
-    tokio::fs::write(&file_path, &bytes_vec).await
+    tokio::fs::write(&file_path, &bytes_vec)
+        .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     // Insert staging row for orphan cleanup
@@ -426,20 +482,23 @@ pub async fn serve_file(
     let profile_id = extract_profile_id(&headers)?;
 
     if !valid_slug(&slug) {
-        return Err((StatusCode::BAD_REQUEST, "Invalid file slug format".to_string()));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Invalid file slug format".to_string(),
+        ));
     }
 
     // Look up owning deployment from committed messages first
-    let msg_row = sqlx::query(
-        "SELECT deployment_id FROM collab_messages WHERE file_path = $1 LIMIT 1",
-    )
-    .bind(&slug)
-    .fetch_optional(&state.db)
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let msg_row =
+        sqlx::query("SELECT deployment_id FROM collab_messages WHERE file_path = $1 LIMIT 1")
+            .bind(&slug)
+            .fetch_optional(&state.db)
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let (deployment_id, is_staging) = if let Some(row) = msg_row {
-        let did: Uuid = row.try_get("deployment_id")
+        let did: Uuid = row
+            .try_get("deployment_id")
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
         (did, false)
     } else {
@@ -453,12 +512,17 @@ pub async fn serve_file(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
         .ok_or_else(|| (StatusCode::NOT_FOUND, "File not found".to_string()))?;
 
-        let owner: Uuid = stg.try_get("profile_id")
+        let owner: Uuid = stg
+            .try_get("profile_id")
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
         if owner != profile_id {
-            return Err((StatusCode::FORBIDDEN, "Staging file only accessible to uploader".to_string()));
+            return Err((
+                StatusCode::FORBIDDEN,
+                "Staging file only accessible to uploader".to_string(),
+            ));
         }
-        let did: Uuid = stg.try_get("deployment_id")
+        let did: Uuid = stg
+            .try_get("deployment_id")
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
         (did, true)
     };
@@ -467,11 +531,12 @@ pub async fn serve_file(
         check_deployment_access(&state.db, deployment_id, profile_id).await?;
     }
 
-    let upload_dir = std::env::var("COLLAB_UPLOAD_DIR")
-        .unwrap_or_else(|_| "/tmp/collab-uploads".to_string());
+    let upload_dir =
+        std::env::var("COLLAB_UPLOAD_DIR").unwrap_or_else(|_| "/tmp/collab-uploads".to_string());
     let file_path = format!("{}/{}", upload_dir, slug);
 
-    let bytes = tokio::fs::read(&file_path).await
+    let bytes = tokio::fs::read(&file_path)
+        .await
         .map_err(|_| (StatusCode::NOT_FOUND, "File not found on disk".to_string()))?;
 
     // MIME sniff for Content-Type
@@ -479,10 +544,7 @@ pub async fn serve_file(
         .map(|t| t.mime_type())
         .unwrap_or("application/octet-stream");
 
-    Ok((
-        [(axum::http::header::CONTENT_TYPE, content_type)],
-        bytes,
-    ).into_response())
+    Ok(([(axum::http::header::CONTENT_TYPE, content_type)], bytes).into_response())
 }
 
 // ── Additional body types ─────────────────────────────────────────────────────
@@ -495,7 +557,7 @@ pub struct EditMessageBody {
 #[derive(Deserialize)]
 pub struct ToggleReactionBody {
     pub message_id: Uuid,
-    pub emoji:      String,
+    pub emoji: String,
 }
 
 /// GET /collab/unread?profile_id=<uuid>
@@ -509,7 +571,10 @@ pub async fn unread_count(
 
     // Verify caller is only querying their own count
     if params.profile_id != profile_id {
-        return Err((StatusCode::FORBIDDEN, "Cannot query unread for another profile".to_string()));
+        return Err((
+            StatusCode::FORBIDDEN,
+            "Cannot query unread for another profile".to_string(),
+        ));
     }
 
     let row = sqlx::query(
@@ -556,30 +621,37 @@ pub async fn edit_message(
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
     .ok_or_else(|| (StatusCode::NOT_FOUND, "Message not found".to_string()))?;
 
-    let deployment_id: Uuid = row.try_get("deployment_id")
+    let deployment_id: Uuid = row
+        .try_get("deployment_id")
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let sender_id: Uuid = row.try_get("sender_id")
+    let sender_id: Uuid = row
+        .try_get("sender_id")
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let deleted_at: Option<chrono::DateTime<chrono::Utc>> = row.try_get("deleted_at")
+    let deleted_at: Option<chrono::DateTime<chrono::Utc>> = row
+        .try_get("deleted_at")
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     check_deployment_access(&state.db, deployment_id, profile_id).await?;
 
     if sender_id != profile_id {
-        return Err((StatusCode::FORBIDDEN, "Cannot edit another user's message".to_string()));
+        return Err((
+            StatusCode::FORBIDDEN,
+            "Cannot edit another user's message".to_string(),
+        ));
     }
     if deleted_at.is_some() {
-        return Err((StatusCode::FORBIDDEN, "Cannot edit a deleted message".to_string()));
+        return Err((
+            StatusCode::FORBIDDEN,
+            "Cannot edit a deleted message".to_string(),
+        ));
     }
 
-    sqlx::query(
-        "UPDATE collab_messages SET body = $1, edited_at = NOW() WHERE id = $2",
-    )
-    .bind(&body.body)
-    .bind(msg_id)
-    .execute(&state.db)
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    sqlx::query("UPDATE collab_messages SET body = $1, edited_at = NOW() WHERE id = $2")
+        .bind(&body.body)
+        .bind(msg_id)
+        .execute(&state.db)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -592,24 +664,27 @@ pub async fn delete_message(
 ) -> Result<StatusCode, (StatusCode, String)> {
     let profile_id = extract_profile_id(&headers)?;
 
-    let row = sqlx::query(
-        "SELECT deployment_id, sender_id FROM collab_messages WHERE id = $1",
-    )
-    .bind(msg_id)
-    .fetch_optional(&state.db)
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-    .ok_or_else(|| (StatusCode::NOT_FOUND, "Message not found".to_string()))?;
+    let row = sqlx::query("SELECT deployment_id, sender_id FROM collab_messages WHERE id = $1")
+        .bind(msg_id)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .ok_or_else(|| (StatusCode::NOT_FOUND, "Message not found".to_string()))?;
 
-    let deployment_id: Uuid = row.try_get("deployment_id")
+    let deployment_id: Uuid = row
+        .try_get("deployment_id")
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let sender_id: Uuid = row.try_get("sender_id")
+    let sender_id: Uuid = row
+        .try_get("sender_id")
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     check_deployment_access(&state.db, deployment_id, profile_id).await?;
 
     if sender_id != profile_id {
-        return Err((StatusCode::FORBIDDEN, "Cannot delete another user's message".to_string()));
+        return Err((
+            StatusCode::FORBIDDEN,
+            "Cannot delete another user's message".to_string(),
+        ));
     }
 
     sqlx::query("UPDATE collab_messages SET deleted_at = NOW() WHERE id = $1")
@@ -632,18 +707,18 @@ pub async fn toggle_reaction(
     let profile_id = extract_profile_id(&headers)?;
 
     // 1. Look up message — 404 before access check
-    let row = sqlx::query(
-        "SELECT deployment_id, deleted_at FROM collab_messages WHERE id = $1",
-    )
-    .bind(body.message_id)
-    .fetch_optional(&state.db)
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-    .ok_or_else(|| (StatusCode::NOT_FOUND, "Message not found".to_string()))?;
+    let row = sqlx::query("SELECT deployment_id, deleted_at FROM collab_messages WHERE id = $1")
+        .bind(body.message_id)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .ok_or_else(|| (StatusCode::NOT_FOUND, "Message not found".to_string()))?;
 
-    let deployment_id: Uuid = row.try_get("deployment_id")
+    let deployment_id: Uuid = row
+        .try_get("deployment_id")
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let deleted_at: Option<chrono::DateTime<chrono::Utc>> = row.try_get("deleted_at")
+    let deleted_at: Option<chrono::DateTime<chrono::Utc>> = row
+        .try_get("deleted_at")
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     // 2. Access check
@@ -651,12 +726,18 @@ pub async fn toggle_reaction(
 
     // 3. Emoji allowlist validation
     if !ALLOWED_EMOJI.contains(&body.emoji.as_str()) {
-        return Err((StatusCode::UNPROCESSABLE_ENTITY, format!("Emoji '{}' is not in the allowed list", body.emoji)));
+        return Err((
+            StatusCode::UNPROCESSABLE_ENTITY,
+            format!("Emoji '{}' is not in the allowed list", body.emoji),
+        ));
     }
 
     // 4. Block reactions on deleted messages
     if deleted_at.is_some() {
-        return Err((StatusCode::FORBIDDEN, "Cannot react to a deleted message".to_string()));
+        return Err((
+            StatusCode::FORBIDDEN,
+            "Cannot react to a deleted message".to_string(),
+        ));
     }
 
     // 5. Toggle: delete if exists, insert if not
@@ -704,16 +785,20 @@ pub async fn list_thread(
     let profile_id = extract_profile_id(&headers)?;
 
     // Verify parent message exists and get its deployment
-    let parent = sqlx::query(
-        "SELECT deployment_id FROM collab_messages WHERE id = $1",
-    )
-    .bind(parent_id)
-    .fetch_optional(&state.db)
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-    .ok_or_else(|| (StatusCode::NOT_FOUND, "Parent message not found".to_string()))?;
+    let parent = sqlx::query("SELECT deployment_id FROM collab_messages WHERE id = $1")
+        .bind(parent_id)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                "Parent message not found".to_string(),
+            )
+        })?;
 
-    let deployment_id: Uuid = parent.try_get("deployment_id")
+    let deployment_id: Uuid = parent
+        .try_get("deployment_id")
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     check_deployment_access(&state.db, deployment_id, profile_id).await?;
@@ -746,26 +831,30 @@ pub async fn list_thread(
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    let messages = rows.iter().map(|row| {
-        let raw: serde_json::Value = row.try_get("raw_reactions")
-            .unwrap_or(serde_json::Value::Array(vec![]));
-        Ok(MessageRow {
-            id:            row.try_get::<Uuid, _>("id")?,
-            deployment_id: row.try_get::<Uuid, _>("deployment_id")?,
-            sender_id:     row.try_get::<Uuid, _>("sender_id")?,
-            sender_name:   row.try_get::<String, _>("sender_name")?,
-            body:          row.try_get::<String, _>("body")?,
-            file_name:     row.try_get::<Option<String>, _>("file_name")?,
-            file_path:     row.try_get::<Option<String>, _>("file_path")?,
-            ts:            row.try_get::<String, _>("ts")?,
-            edited_at:     row.try_get::<Option<String>, _>("edited_at")?,
-            deleted_at:    row.try_get::<Option<String>, _>("deleted_at")?,
-            parent_msg_id: row.try_get::<Option<Uuid>, _>("parent_msg_id")?,
-            reply_count:   row.try_get::<i64, _>("reply_count")?,
-            reactions:     build_reaction_groups(raw),
+    let messages = rows
+        .iter()
+        .map(|row| {
+            let raw: serde_json::Value = row
+                .try_get("raw_reactions")
+                .unwrap_or(serde_json::Value::Array(vec![]));
+            Ok(MessageRow {
+                id: row.try_get::<Uuid, _>("id")?,
+                deployment_id: row.try_get::<Uuid, _>("deployment_id")?,
+                sender_id: row.try_get::<Uuid, _>("sender_id")?,
+                sender_name: row.try_get::<String, _>("sender_name")?,
+                body: row.try_get::<String, _>("body")?,
+                file_name: row.try_get::<Option<String>, _>("file_name")?,
+                file_path: row.try_get::<Option<String>, _>("file_path")?,
+                ts: row.try_get::<String, _>("ts")?,
+                edited_at: row.try_get::<Option<String>, _>("edited_at")?,
+                deleted_at: row.try_get::<Option<String>, _>("deleted_at")?,
+                parent_msg_id: row.try_get::<Option<Uuid>, _>("parent_msg_id")?,
+                reply_count: row.try_get::<i64, _>("reply_count")?,
+                reactions: build_reaction_groups(raw),
+            })
         })
-    }).collect::<Result<Vec<MessageRow>, sqlx::Error>>()
-      .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        .collect::<Result<Vec<MessageRow>, sqlx::Error>>()
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(messages))
 }

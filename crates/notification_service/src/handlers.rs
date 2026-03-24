@@ -338,12 +338,8 @@ pub async fn init_messenger(
     State(s): State<AppState>,
     Json(b): Json<UserBody>,
 ) -> impl IntoResponse {
-    match integrations::init_messenger_connect(
-        &s.db,
-        b.user_id,
-        &s.config.messenger_page_username,
-    )
-    .await
+    match integrations::init_messenger_connect(&s.db, b.user_id, &s.config.messenger_page_username)
+        .await
     {
         Ok(r) => (StatusCode::OK, Json(json!(r))).into_response(),
         Err(e) => (
@@ -355,10 +351,7 @@ pub async fn init_messenger(
 }
 
 /// POST /integrations/messenger/webhook  body: plain text containing ref={nonce}
-pub async fn messenger_webhook(
-    State(s): State<AppState>,
-    body: String,
-) -> impl IntoResponse {
+pub async fn messenger_webhook(State(s): State<AppState>, body: String) -> impl IntoResponse {
     match integrations::verify_messenger_webhook(&s.db, &body).await {
         Ok(()) => (StatusCode::OK, Json(json!({ "ok": true }))).into_response(),
         Err(e) => {
@@ -541,11 +534,11 @@ pub struct NotifyBody {
 /// POST /notify-inapp  { user_id, title, body, event_type, priority }
 #[derive(Debug, Deserialize)]
 pub struct NotifyInAppBody {
-    pub user_id:    Uuid,
-    pub title:      String,
-    pub body:       String,
+    pub user_id: Uuid,
+    pub title: String,
+    pub body: String,
     pub event_type: Option<String>,
-    pub priority:   Option<String>,
+    pub priority: Option<String>,
 }
 
 pub async fn send_notify_inapp(
@@ -553,8 +546,12 @@ pub async fn send_notify_inapp(
     Json(req): Json<NotifyInAppBody>,
 ) -> impl IntoResponse {
     let event_type = req.event_type.as_deref().unwrap_or("system");
-    let priority   = req.priority.as_deref().unwrap_or("normal");
-    match s.fanout.dispatch_in_app(req.user_id, &req.title, &req.body, event_type, priority).await {
+    let priority = req.priority.as_deref().unwrap_or("normal");
+    match s
+        .fanout
+        .dispatch_in_app(req.user_id, &req.title, &req.body, event_type, priority)
+        .await
+    {
         Ok(_) => (StatusCode::OK, Json(json!({ "ok": true }))).into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,

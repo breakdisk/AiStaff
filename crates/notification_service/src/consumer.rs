@@ -644,23 +644,28 @@ impl NotificationConsumer {
                         .unwrap_or_default();
 
                     for rid in recipient_ids {
-                        let Some(rid_str) = rid.as_str() else { continue };
-                        let Ok(rid_uuid) = uuid::Uuid::parse_str(rid_str) else { continue };
+                        let Some(rid_str) = rid.as_str() else {
+                            continue;
+                        };
+                        let Ok(rid_uuid) = uuid::Uuid::parse_str(rid_str) else {
+                            continue;
+                        };
 
                         // Look up recipient email from unified_profiles
-                        let email_row = sqlx::query(
-                            "SELECT email FROM unified_profiles WHERE id = $1",
-                        )
-                        .bind(rid_uuid)
-                        .fetch_optional(&self.fanout.db)
-                        .await;
+                        let email_row =
+                            sqlx::query("SELECT email FROM unified_profiles WHERE id = $1")
+                                .bind(rid_uuid)
+                                .fetch_optional(&self.fanout.db)
+                                .await;
 
                         let email = match email_row {
                             Ok(Some(r)) => r.try_get::<String, _>("email").unwrap_or_default(),
                             _ => continue,
                         };
 
-                        if email.is_empty() { continue; }
+                        if email.is_empty() {
+                            continue;
+                        }
 
                         let subject = format!("New message from {sender_name}");
                         let body = format!(
@@ -689,7 +694,10 @@ impl NotificationConsumer {
                         .unwrap_or("");
 
                     let Ok(freelancer_id) = uuid::Uuid::parse_str(freelancer_id_str) else {
-                        tracing::warn!(freelancer_id_str, "DeploymentStarted: invalid freelancer_id");
+                        tracing::warn!(
+                            freelancer_id_str,
+                            "DeploymentStarted: invalid freelancer_id"
+                        );
                         continue;
                     };
 
@@ -707,14 +715,19 @@ impl NotificationConsumer {
                     {
                         Ok(rows) => rows,
                         Err(e) => {
-                            tracing::error!(deployment_id = deployment_id_str, "failed to fetch checklist steps: {e}");
+                            tracing::error!(
+                                deployment_id = deployment_id_str,
+                                "failed to fetch checklist steps: {e}"
+                            );
                             continue;
                         }
                     };
 
                     let count = steps.len();
                     for step in &steps {
-                        let Ok(step_label) = step.try_get::<String, _>("step_label") else { continue };
+                        let Ok(step_label) = step.try_get::<String, _>("step_label") else {
+                            continue;
+                        };
                         if let Err(e) = sqlx::query(
                             "INSERT INTO reminders (user_id, deployment_id, title, remind_at, source)
                              VALUES ($1, $2::uuid, $3, NOW() + INTERVAL '24 hours', 'system')",
@@ -728,7 +741,11 @@ impl NotificationConsumer {
                             tracing::error!("reminder insert error: {e}");
                         }
                     }
-                    tracing::info!(deployment_id = deployment_id_str, count, "system reminders seeded");
+                    tracing::info!(
+                        deployment_id = deployment_id_str,
+                        count,
+                        "system reminders seeded"
+                    );
                 }
 
                 _ => {}

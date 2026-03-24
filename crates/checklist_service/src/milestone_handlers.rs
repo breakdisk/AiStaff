@@ -7,8 +7,8 @@ use axum::{
 };
 use chrono::Utc;
 use common::events::{
-    ChecklistFinalized, DeploymentComplete, EventEnvelope,
-    TOPIC_CHECKLIST_EVENTS, TOPIC_DEPLOYMENT_COMPLETE,
+    ChecklistFinalized, DeploymentComplete, EventEnvelope, TOPIC_CHECKLIST_EVENTS,
+    TOPIC_DEPLOYMENT_COMPLETE,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
@@ -59,12 +59,12 @@ pub async fn list_milestones(
     let milestones = rows
         .iter()
         .map(|r| MilestoneStatus {
-            step_id:      r.try_get("step_id").unwrap_or_default(),
-            step_label:   r.try_get("step_label").unwrap_or_default(),
-            passed:       r.try_get("passed").unwrap_or(false),
+            step_id: r.try_get("step_id").unwrap_or_default(),
+            step_label: r.try_get("step_label").unwrap_or_default(),
+            passed: r.try_get("passed").unwrap_or(false),
             submitted_at: r.try_get("submitted_at").unwrap_or(None),
-            approved_at:  r.try_get("approved_at").unwrap_or(None),
-            notes:        r.try_get("notes").unwrap_or(None),
+            approved_at: r.try_get("approved_at").unwrap_or(None),
+            notes: r.try_get("notes").unwrap_or(None),
         })
         .collect();
 
@@ -141,15 +141,14 @@ pub async fn approve_milestone(
         ));
     }
 
-    let total: i64 = sqlx::query(
-        "SELECT COUNT(*)::BIGINT FROM dod_checklist_steps WHERE deployment_id = $1",
-    )
-    .bind(deployment_id)
-    .fetch_one(&svc.db)
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-    .try_get(0)
-    .unwrap_or(0);
+    let total: i64 =
+        sqlx::query("SELECT COUNT(*)::BIGINT FROM dod_checklist_steps WHERE deployment_id = $1")
+            .bind(deployment_id)
+            .fetch_one(&svc.db)
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+            .try_get(0)
+            .unwrap_or(0);
 
     let approved: i64 = sqlx::query(
         "SELECT COUNT(*)::BIGINT FROM dod_checklist_steps WHERE deployment_id = $1 AND passed = TRUE",

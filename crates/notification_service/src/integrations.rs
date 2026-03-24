@@ -28,7 +28,7 @@ pub struct InitWhatsAppResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InitMessengerResponse {
-    pub link:  String,
+    pub link: String,
     pub nonce: String,
 }
 

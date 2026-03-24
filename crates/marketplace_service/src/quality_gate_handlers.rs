@@ -16,35 +16,35 @@ use crate::handlers::AppState;
 #[derive(Deserialize)]
 pub struct ListScansQuery {
     pub deployment_id: Option<Uuid>,
-    pub profile_id:    Option<Uuid>,
+    pub profile_id: Option<Uuid>,
 }
 
 // ── Request bodies ────────────────────────────────────────────────────────────
 
 #[derive(Deserialize)]
 pub struct CreateScanRequest {
-    pub deployment_id:   Option<Uuid>,
-    pub uploaded_by:     Uuid,
-    pub file_name:       String,
+    pub deployment_id: Option<Uuid>,
+    pub uploaded_by: Uuid,
+    pub file_name: String,
     pub file_size_bytes: i64,
-    pub scan_type:       String,
-    pub milestone:       Option<String>,
+    pub scan_type: String,
+    pub milestone: Option<String>,
 }
 
 #[derive(Deserialize)]
 pub struct UpdateStatusRequest {
-    pub status:        String,
-    pub score:         Option<i16>,
+    pub status: String,
+    pub score: Option<i16>,
     pub blocks_release: bool,
-    pub duration_ms:   Option<i32>,
+    pub duration_ms: Option<i32>,
 }
 
 #[derive(Deserialize)]
 pub struct IssueInput {
-    pub severity:   String,
-    pub category:   String,
-    pub message:    String,
-    pub location:   Option<String>,
+    pub severity: String,
+    pub category: String,
+    pub message: String,
+    pub location: Option<String>,
     pub suggestion: Option<String>,
 }
 
@@ -148,7 +148,10 @@ pub async fn list_scans(
         .map(row_to_json)
         .collect()
     } else {
-        return Err((StatusCode::BAD_REQUEST, "deployment_id or profile_id required".to_string()));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "deployment_id or profile_id required".to_string(),
+        ));
     };
 
     Ok(Json(json!({ "scans": rows })))
@@ -161,7 +164,10 @@ pub async fn create_scan(
 ) -> Result<(StatusCode, Json<Value>), (StatusCode, String)> {
     let valid_types = ["code", "security", "plagiarism", "text"];
     if !valid_types.contains(&body.scan_type.as_str()) {
-        return Err((StatusCode::BAD_REQUEST, format!("Invalid scan_type: {}", body.scan_type)));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            format!("Invalid scan_type: {}", body.scan_type),
+        ));
     }
 
     let scan_id: Uuid = sqlx::query_scalar(
@@ -193,7 +199,10 @@ pub async fn update_scan_status(
 ) -> Result<Json<Value>, (StatusCode, String)> {
     let valid_statuses = ["pending", "scanning", "passed", "flagged", "skipped"];
     if !valid_statuses.contains(&body.status.as_str()) {
-        return Err((StatusCode::BAD_REQUEST, format!("Invalid status: {}", body.status)));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            format!("Invalid status: {}", body.status),
+        ));
     }
 
     let rows_affected = sqlx::query(

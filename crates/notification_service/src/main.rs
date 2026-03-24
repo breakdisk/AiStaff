@@ -13,9 +13,7 @@ use consumer::NotificationConsumer;
 use dotenvy::dotenv;
 use fanout::{AppConfig, Fanout};
 use handlers::AppState;
-use lettre::{
-    transport::smtp::authentication::Credentials, AsyncSmtpTransport, Tokio1Executor,
-};
+use lettre::{transport::smtp::authentication::Credentials, AsyncSmtpTransport, Tokio1Executor};
 use serde_json::json;
 use sqlx::PgPool;
 use std::sync::Arc;
@@ -136,8 +134,14 @@ async fn main() -> Result<()> {
             "/integrations/whatsapp/webhook",
             post(handlers::whatsapp_webhook),
         )
-        .route("/integrations/messenger/init",    post(handlers::init_messenger))
-        .route("/integrations/messenger/webhook", post(handlers::messenger_webhook))
+        .route(
+            "/integrations/messenger/init",
+            post(handlers::init_messenger),
+        )
+        .route(
+            "/integrations/messenger/webhook",
+            post(handlers::messenger_webhook),
+        )
         .route("/integrations/slack/oauth", get(handlers::slack_oauth_init))
         .route(
             "/integrations/slack/callback",
@@ -183,8 +187,8 @@ async fn main() -> Result<()> {
     });
 
     tokio::spawn(async move {
-        use std::time::Duration;
         use sqlx::Row;
+        use std::time::Duration;
         let mut ticker = tokio::time::interval(Duration::from_secs(60));
         loop {
             ticker.tick().await;
@@ -206,22 +210,31 @@ async fn main() -> Result<()> {
             };
 
             for r in &due {
-                let Ok(user_id) = r.try_get::<uuid::Uuid, _>("user_id") else { continue };
-                let Ok(title) = r.try_get::<String, _>("title") else { continue };
+                let Ok(user_id) = r.try_get::<uuid::Uuid, _>("user_id") else {
+                    continue;
+                };
+                let Ok(title) = r.try_get::<String, _>("title") else {
+                    continue;
+                };
 
                 // Look up email — best-effort; skip email if not found.
-                let email: Option<String> = sqlx::query(
-                    "SELECT email FROM unified_profiles WHERE id = $1",
-                )
-                .bind(user_id)
-                .fetch_optional(&poll_fanout.db)
-                .await
-                .ok()
-                .flatten()
-                .and_then(|row| row.try_get::<String, _>("email").ok());
+                let email: Option<String> =
+                    sqlx::query("SELECT email FROM unified_profiles WHERE id = $1")
+                        .bind(user_id)
+                        .fetch_optional(&poll_fanout.db)
+                        .await
+                        .ok()
+                        .flatten()
+                        .and_then(|row| row.try_get::<String, _>("email").ok());
 
                 poll_fanout
-                    .dispatch_in_app(user_id, &title, "Your reminder is due.", "reminder", "normal")
+                    .dispatch_in_app(
+                        user_id,
+                        &title,
+                        "Your reminder is due.",
+                        "reminder",
+                        "normal",
+                    )
                     .await
                     .unwrap_or_else(|e| tracing::error!("in_app dispatch error: {e}"));
 

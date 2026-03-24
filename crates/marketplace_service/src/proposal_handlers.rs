@@ -76,16 +76,16 @@ pub async fn list_proposals_for_job(
     let proposals = rows
         .iter()
         .map(|r| ProposalRow {
-            id:                r.try_get("id").unwrap_or_default(),
-            job_listing_id:    r.try_get("job_listing_id").unwrap_or(None),
-            freelancer_id:     r.try_get("freelancer_id").unwrap_or(None),
-            freelancer_email:  r.try_get("freelancer_email").unwrap_or_default(),
-            job_title:         r.try_get("job_title").unwrap_or_default(),
-            cover_letter:      r.try_get("cover_letter").unwrap_or_default(),
-            proposed_budget:   r.try_get("proposed_budget").unwrap_or_default(),
+            id: r.try_get("id").unwrap_or_default(),
+            job_listing_id: r.try_get("job_listing_id").unwrap_or(None),
+            freelancer_id: r.try_get("freelancer_id").unwrap_or(None),
+            freelancer_email: r.try_get("freelancer_email").unwrap_or_default(),
+            job_title: r.try_get("job_title").unwrap_or_default(),
+            cover_letter: r.try_get("cover_letter").unwrap_or_default(),
+            proposed_budget: r.try_get("proposed_budget").unwrap_or_default(),
             proposed_timeline: r.try_get("proposed_timeline").unwrap_or_default(),
-            status:            r.try_get("status").unwrap_or_default(),
-            submitted_at:      r.try_get("submitted_at").unwrap_or_default(),
+            status: r.try_get("status").unwrap_or_default(),
+            submitted_at: r.try_get("submitted_at").unwrap_or_default(),
         })
         .collect();
 
@@ -108,19 +108,20 @@ pub async fn accept_proposal(
 
     let status: String = row.try_get("status").unwrap_or_default();
     if status != "PENDING" {
-        return Err((StatusCode::CONFLICT, format!("Proposal is already {status}")));
+        return Err((
+            StatusCode::CONFLICT,
+            format!("Proposal is already {status}"),
+        ));
     }
 
     let freelancer_id: Option<Uuid> = row.try_get("freelancer_id").unwrap_or(None);
     let job_listing_id: Option<Uuid> = row.try_get("job_listing_id").unwrap_or(None);
 
-    let existing = sqlx::query(
-        "SELECT id::TEXT FROM deployments WHERE transaction_id = $1",
-    )
-    .bind(req.transaction_id)
-    .fetch_optional(&state.db)
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let existing = sqlx::query("SELECT id::TEXT FROM deployments WHERE transaction_id = $1")
+        .bind(req.transaction_id)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     if let Some(row) = existing {
         let dep_id: String = row.try_get("id").unwrap_or_default();
@@ -237,7 +238,10 @@ pub async fn reject_proposal(
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     if result.rows_affected() == 0 {
-        return Err((StatusCode::CONFLICT, "Proposal already processed".to_string()));
+        return Err((
+            StatusCode::CONFLICT,
+            "Proposal already processed".to_string(),
+        ));
     }
 
     if let Some(reason) = req.reason {

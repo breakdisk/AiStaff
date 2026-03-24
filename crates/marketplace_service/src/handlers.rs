@@ -8,8 +8,8 @@ use axum::{
 };
 use common::{
     events::{
-        DeploymentComplete, DeploymentStarted, EventEnvelope,
-        TOPIC_DEPLOYMENT_COMPLETE, TOPIC_DEPLOYMENT_STARTED,
+        DeploymentComplete, DeploymentStarted, EventEnvelope, TOPIC_DEPLOYMENT_COMPLETE,
+        TOPIC_DEPLOYMENT_STARTED,
     },
     kafka::producer::KafkaProducer,
 };
@@ -58,7 +58,7 @@ pub async fn create_deployment(
     use sqlx::Row;
 
     let transaction_id = req.transaction_id.unwrap_or_else(Uuid::now_v7);
-    let developer_id   = req.developer_id.unwrap_or(req.freelancer_id);
+    let developer_id = req.developer_id.unwrap_or(req.freelancer_id);
 
     // 0. Identity tier gate — client must be at least SOCIAL_VERIFIED (tier 1).
     //    This enforces the server-side check that the UI also performs.
@@ -93,7 +93,7 @@ pub async fn create_deployment(
                         "detail": "Client profile not found"
                     })),
                 )
-                .into_response();
+                    .into_response();
             }
             Err(e) => {
                 return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
@@ -103,15 +103,14 @@ pub async fn create_deployment(
 
     // 1. Idempotency: if this transaction_id was already used, return the
     //    existing deployment so the client can safely retry.
-    let existing = sqlx::query(
-        "SELECT id, state::TEXT AS state FROM deployments WHERE transaction_id = $1",
-    )
-    .bind(transaction_id)
-    .fetch_optional(&state.db)
-    .await;
+    let existing =
+        sqlx::query("SELECT id, state::TEXT AS state FROM deployments WHERE transaction_id = $1")
+            .bind(transaction_id)
+            .fetch_optional(&state.db)
+            .await;
 
     if let Ok(Some(row)) = existing {
-        let dep_id: Uuid  = row.get("id");
+        let dep_id: Uuid = row.get("id");
         let dep_state: &str = row.get("state");
         tracing::info!(%dep_id, "deployment idempotency hit — returning existing record");
         return (
@@ -145,7 +144,11 @@ pub async fn create_deployment(
     .bind(req.escrow_amount_cents)
     .bind(transaction_id)
     .bind(&req.stripe_payment_intent_id)
-    .bind(if req.stripe_payment_intent_id.is_some() { "confirmed" } else { "pending" })
+    .bind(if req.stripe_payment_intent_id.is_some() {
+        "confirmed"
+    } else {
+        "pending"
+    })
     .execute(&state.db)
     .await;
 
@@ -209,20 +212,20 @@ pub async fn complete_deployment(
 
     let row = match row {
         Ok(Some(r)) => r,
-        Ok(None)    => return StatusCode::NOT_FOUND.into_response(),
-        Err(e)      => return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Ok(None) => return StatusCode::NOT_FOUND.into_response(),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     };
 
     let developer_id: Option<Uuid> = row.get("developer_id");
-    let freelancer_id: Uuid        = row.get("freelancer_id");
-    let escrow_cents: i64          = row.get("escrow_amount_cents");
-    let artifact_hash: String      = row.get("agent_artifact_hash");
+    let freelancer_id: Uuid = row.get("freelancer_id");
+    let escrow_cents: i64 = row.get("escrow_amount_cents");
+    let artifact_hash: String = row.get("agent_artifact_hash");
 
     let event = DeploymentComplete {
-        deployment_id:  id,
-        developer_id:   developer_id.unwrap_or(freelancer_id),
-        talent_id:      freelancer_id,
-        total_cents:    escrow_cents as u64,
+        deployment_id: id,
+        developer_id: developer_id.unwrap_or(freelancer_id),
+        talent_id: freelancer_id,
+        total_cents: escrow_cents as u64,
         artifact_hash,
     };
 
@@ -339,20 +342,23 @@ pub async fn list_my_deployments(
 
     match rows {
         Ok(rs) => {
-            let items: Vec<_> = rs.iter().map(|r| {
-                let id: Uuid         = r.get("id");
-                let name: &str       = r.get("agent_name");
-                let state_s: &str    = r.get("state");
-                let cents: i64       = r.get("escrow_amount_cents");
-                let created: &str    = r.get("created_fmt");
-                serde_json::json!({
-                    "id":                  id,
-                    "agent_name":          name,
-                    "state":               state_s,
-                    "escrow_amount_cents": cents,
-                    "created_at":          created,
+            let items: Vec<_> = rs
+                .iter()
+                .map(|r| {
+                    let id: Uuid = r.get("id");
+                    let name: &str = r.get("agent_name");
+                    let state_s: &str = r.get("state");
+                    let cents: i64 = r.get("escrow_amount_cents");
+                    let created: &str = r.get("created_fmt");
+                    serde_json::json!({
+                        "id":                  id,
+                        "agent_name":          name,
+                        "state":               state_s,
+                        "escrow_amount_cents": cents,
+                        "created_at":          created,
+                    })
                 })
-            }).collect();
+                .collect();
             (StatusCode::OK, Json(serde_json::json!(items))).into_response()
         }
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
@@ -381,7 +387,13 @@ pub struct CreateListingRequest {
 fn to_slug(name: &str) -> String {
     let base: String = name
         .chars()
-        .map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '-' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() {
+                c.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
         .collect();
 
     // Collapse consecutive dashes and strip leading/trailing ones.
@@ -540,8 +552,8 @@ pub async fn get_listing(
 
     match row {
         Ok(Some(r)) => (StatusCode::OK, Json(listing_row_to_json(&r))).into_response(),
-        Ok(None)    => StatusCode::NOT_FOUND.into_response(),
-        Err(e)      => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Ok(None) => StatusCode::NOT_FOUND.into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
 }
 
@@ -564,8 +576,8 @@ pub async fn get_listing_by_slug(
 
     match row {
         Ok(Some(r)) => (StatusCode::OK, Json(listing_row_to_json(&r))).into_response(),
-        Ok(None)    => StatusCode::NOT_FOUND.into_response(),
-        Err(e)      => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Ok(None) => StatusCode::NOT_FOUND.into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
 }
 
