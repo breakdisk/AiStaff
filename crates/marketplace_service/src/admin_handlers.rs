@@ -301,12 +301,31 @@ pub async fn force_release_payout(
     let is_stuck: bool = row.get("is_stuck");
     let escrow_cents: i64 = row.get("escrow_amount_cents");
     let freelancer_id: Uuid = row.get("freelancer_id");
-    let developer_id: Uuid = row.get("developer_id");
+    let developer_id: Option<Uuid> = row.try_get("developer_id").unwrap_or(None);
+    let developer_id = match developer_id {
+        Some(id) => id,
+        None => {
+            return (StatusCode::CONFLICT, "Deployment has no developer assigned").into_response()
+        }
+    };
+
+    // Idempotency: already released is a silent success
+    if dep_state == "RELEASED" {
+        return StatusCode::NO_CONTENT.into_response();
+    }
 
     if !force_release_validate(dep_state, is_stuck) {
         return (
             StatusCode::CONFLICT,
             "Deployment must be BIOMETRIC_PENDING and stuck > 48h",
+        )
+            .into_response();
+    }
+
+    if escrow_cents <= 0 {
+        return (
+            StatusCode::CONFLICT,
+            "Deployment has no escrow amount to release",
         )
             .into_response();
     }
@@ -333,6 +352,7 @@ pub async fn force_release_payout(
     .await;
 
     if let Err(e) = res {
+        let _ = tx.rollback().await;
         return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
     }
 
@@ -349,6 +369,7 @@ pub async fn force_release_payout(
     .await;
 
     if let Err(e) = res {
+        let _ = tx.rollback().await;
         return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
     }
 
@@ -363,6 +384,7 @@ pub async fn force_release_payout(
     .await;
 
     if let Err(e) = res {
+        let _ = tx.rollback().await;
         return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
     }
 
@@ -376,6 +398,7 @@ pub async fn force_release_payout(
     .await;
 
     if let Err(e) = res {
+        let _ = tx.rollback().await;
         return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
     }
 
@@ -392,10 +415,12 @@ pub async fn force_release_payout(
     .await;
 
     if let Err(e) = res {
+        let _ = tx.rollback().await;
         return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
     }
 
     if let Err(e) = tx.commit().await {
+        let _ = tx.rollback().await; // No-op after commit failure, but safe
         return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
     }
 
