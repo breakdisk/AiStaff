@@ -13,3 +13,5 @@ export async function requireAdmin(): Promise<{ ok: true } | NextResponse> {
 
 export const IDENTITY_URL    = process.env.IDENTITY_SERVICE_URL    ?? "http://localhost:3001";
 export const MARKETPLACE_URL = process.env.MARKETPLACE_SERVICE_URL ?? "http://localhost:3002";
+export const PAYOUT_URL     = process.env.PAYOUT_SERVICE_URL     ?? "http://localhost:3010";
+export const COMPLIANCE_URL = process.env.COMPLIANCE_SERVICE_URL ?? "http://localhost:3006";
