@@ -66,7 +66,11 @@ pub async fn list_listings(
                     })
                 })
                 .collect();
-            (StatusCode::OK, Json(serde_json::json!({ "listings": listings }))).into_response()
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({ "listings": listings })),
+            )
+                .into_response()
         }
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
@@ -173,7 +177,11 @@ pub async fn list_deployments(
                     })
                 })
                 .collect();
-            (StatusCode::OK, Json(serde_json::json!({ "deployments": deps, "limit": limit, "offset": offset }))).into_response()
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({ "deployments": deps, "limit": limit, "offset": offset })),
+            )
+                .into_response()
         }
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
@@ -225,17 +233,194 @@ pub async fn revenue_summary(State(state): State<Arc<AppState>>) -> impl IntoRes
                 })
                 .collect();
 
-            (StatusCode::OK, Json(serde_json::json!({
-                "total_deployments":   t.get::<i64, _>("total_deployments"),
-                "total_escrow_cents":  t.get::<i64, _>("total_escrow_cents"),
-                "active_escrow_cents": t.get::<i64, _>("active_escrow_cents"),
-                "released_cents":      r.get::<i64, _>("released_cents"),
-                "payout_count":        r.get::<i64, _>("payout_count"),
-                "by_state":            breakdown,
-            }))).into_response()
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({
+                    "total_deployments":   t.get::<i64, _>("total_deployments"),
+                    "total_escrow_cents":  t.get::<i64, _>("total_escrow_cents"),
+                    "active_escrow_cents": t.get::<i64, _>("active_escrow_cents"),
+                    "released_cents":      r.get::<i64, _>("released_cents"),
+                    "payout_count":        r.get::<i64, _>("payout_count"),
+                    "by_state":            breakdown,
+                })),
+            )
+                .into_response()
         }
         (Err(e), _, _) | (_, Err(e), _) | (_, _, Err(e)) => {
             (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response()
         }
+    }
+}
+
+// ── POST /admin/payouts/:id/force-release ─────────────────────────────────────
+
+/// Pure predicate for testability.
+/// Returns true only when state is BIOMETRIC_PENDING and stuck > 48h.
+pub fn force_release_validate(state: &str, is_stuck: bool) -> bool {
+    state == "BIOMETRIC_PENDING" && is_stuck
+}
+
+#[derive(Deserialize)]
+pub struct ForceReleaseBody {
+    pub reason: String,
+    /// UUID of the admin performing the action — passed from Next.js layer.
+    pub admin_id: uuid::Uuid,
+}
+
+pub async fn force_release_payout(
+    State(state): State<Arc<AppState>>,
+    Path(deployment_id): Path<Uuid>,
+    Json(body): Json<ForceReleaseBody>,
+) -> impl IntoResponse {
+    // Inline split: 15% platform, 70% of remainder to dev, 30% to talent (truncate, lossless).
+    fn split_with_commission(total_cents: u64) -> (u64, u64, u64) {
+        let platform_cents = total_cents * 15 / 100;
+        let remaining = total_cents - platform_cents;
+        let dev_cents = remaining * 70 / 100;
+        let talent_cents = remaining - dev_cents;
+        (platform_cents, dev_cents, talent_cents)
+    }
+
+    // Load deployment — deployments has developer_id (agent author) separate from freelancer_id (talent).
+    let row = sqlx::query(
+        "SELECT state::TEXT AS state, escrow_amount_cents, freelancer_id, developer_id,
+                updated_at < NOW() - INTERVAL '48 hours' AS is_stuck
+         FROM deployments WHERE id = $1",
+    )
+    .bind(deployment_id)
+    .fetch_optional(&state.db)
+    .await;
+
+    let row = match row {
+        Ok(Some(r)) => r,
+        Ok(None) => return (StatusCode::NOT_FOUND, "Deployment not found").into_response(),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    };
+
+    let dep_state: &str = row.get("state");
+    let is_stuck: bool = row.get("is_stuck");
+    let escrow_cents: i64 = row.get("escrow_amount_cents");
+    let freelancer_id: Uuid = row.get("freelancer_id");
+    let developer_id: Uuid = row.get("developer_id");
+
+    if !force_release_validate(dep_state, is_stuck) {
+        return (
+            StatusCode::CONFLICT,
+            "Deployment must be BIOMETRIC_PENDING and stuck > 48h",
+        )
+            .into_response();
+    }
+
+    let (platform_cents, dev_cents, talent_cents) = split_with_commission(escrow_cents as u64);
+
+    // All writes in one transaction
+    let tx = state.db.begin().await;
+    let mut tx = match tx {
+        Ok(t) => t,
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    };
+
+    // escrow_payouts: developer row
+    let res = sqlx::query(
+        "INSERT INTO escrow_payouts (id, deployment_id, recipient_id, amount_cents, reason)
+         VALUES ($1, $2, $3, $4, 'admin_force_release:developer')",
+    )
+    .bind(Uuid::now_v7())
+    .bind(deployment_id)
+    .bind(developer_id)
+    .bind(dev_cents as i64)
+    .execute(&mut *tx)
+    .await;
+
+    if let Err(e) = res {
+        return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
+    }
+
+    // escrow_payouts: talent row
+    let res = sqlx::query(
+        "INSERT INTO escrow_payouts (id, deployment_id, recipient_id, amount_cents, reason)
+         VALUES ($1, $2, $3, $4, 'admin_force_release:talent')",
+    )
+    .bind(Uuid::now_v7())
+    .bind(deployment_id)
+    .bind(freelancer_id)
+    .bind(talent_cents as i64)
+    .execute(&mut *tx)
+    .await;
+
+    if let Err(e) = res {
+        return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
+    }
+
+    // platform_fees row
+    let res = sqlx::query(
+        "INSERT INTO platform_fees (deployment_id, fee_cents, fee_pct)
+         VALUES ($1, $2, 15)",
+    )
+    .bind(deployment_id)
+    .bind(platform_cents as i64)
+    .execute(&mut *tx)
+    .await;
+
+    if let Err(e) = res {
+        return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
+    }
+
+    // Update deployment state
+    let res = sqlx::query(
+        "UPDATE deployments SET state = 'RELEASED'::deployment_status, updated_at = NOW()
+         WHERE id = $1",
+    )
+    .bind(deployment_id)
+    .execute(&mut *tx)
+    .await;
+
+    if let Err(e) = res {
+        return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
+    }
+
+    // Audit trail
+    let res = sqlx::query(
+        "INSERT INTO admin_payout_actions (id, deployment_id, admin_id, action, reason)
+         VALUES ($1, $2, $3, 'force_release', $4)",
+    )
+    .bind(Uuid::now_v7())
+    .bind(deployment_id)
+    .bind(body.admin_id)
+    .bind(&body.reason)
+    .execute(&mut *tx)
+    .await;
+
+    if let Err(e) = res {
+        return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
+    }
+
+    if let Err(e) = tx.commit().await {
+        return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
+    }
+
+    StatusCode::NO_CONTENT.into_response()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::force_release_validate;
+
+    #[test]
+    fn rejects_non_biometric_pending_state() {
+        assert!(!force_release_validate("VETO_WINDOW", false));
+        assert!(!force_release_validate("RELEASED", false));
+        assert!(!force_release_validate("VETOED", false));
+    }
+
+    #[test]
+    fn rejects_not_stuck() {
+        // BIOMETRIC_PENDING but not yet 48h
+        assert!(!force_release_validate("BIOMETRIC_PENDING", false));
+    }
+
+    #[test]
+    fn allows_stuck_biometric_pending() {
+        assert!(force_release_validate("BIOMETRIC_PENDING", true));
     }
 }

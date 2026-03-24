@@ -53,12 +53,18 @@ async fn main() -> Result<()> {
         .route("/deployments", post(handlers::create_deployment))
         .route("/deployments/{id}", get(handlers::get_deployment))
         .route("/deployments/mine", get(handlers::list_my_deployments))
-        .route("/deployments/{id}/complete", post(handlers::complete_deployment))
+        .route(
+            "/deployments/{id}/complete",
+            post(handlers::complete_deployment),
+        )
         .route(
             "/listings",
             get(handlers::list_listings).post(handlers::create_listing),
         )
-        .route("/listings/by-slug/{slug}", get(handlers::get_listing_by_slug))
+        .route(
+            "/listings/by-slug/{slug}",
+            get(handlers::get_listing_by_slug),
+        )
         .route("/listings/{id}", get(handlers::get_listing))
         .route("/skill-tags", get(handlers::get_skill_tags))
         .route(
@@ -67,15 +73,34 @@ async fn main() -> Result<()> {
         )
         .route("/express-interest", post(handlers::express_interest))
         .route("/talent-skills/{id}/attest", post(handlers::attest_skills))
-        .route("/listings/{listing_id}/proposals", get(proposal_handlers::list_proposals_for_job))
-        .route("/proposals/{proposal_id}/accept", post(proposal_handlers::accept_proposal))
-        .route("/proposals/{proposal_id}/reject", post(proposal_handlers::reject_proposal))
+        .route(
+            "/listings/{listing_id}/proposals",
+            get(proposal_handlers::list_proposals_for_job),
+        )
+        .route(
+            "/proposals/{proposal_id}/accept",
+            post(proposal_handlers::accept_proposal),
+        )
+        .route(
+            "/proposals/{proposal_id}/reject",
+            post(proposal_handlers::reject_proposal),
+        )
         // Admin listing/deployment/revenue (internal only)
         .route("/admin/listings", get(admin_handlers::list_listings))
-        .route("/admin/listings/{id}/approve", post(admin_handlers::approve_listing))
-        .route("/admin/listings/{id}/reject", post(admin_handlers::reject_listing))
+        .route(
+            "/admin/listings/{id}/approve",
+            post(admin_handlers::approve_listing),
+        )
+        .route(
+            "/admin/listings/{id}/reject",
+            post(admin_handlers::reject_listing),
+        )
         .route("/admin/deployments", get(admin_handlers::list_deployments))
         .route("/admin/revenue", get(admin_handlers::revenue_summary))
+        .route(
+            "/admin/payouts/{id}/force-release",
+            post(admin_handlers::force_release_payout),
+        )
         .route(
             "/enterprise/orgs/{id}/deployments",
             get(enterprise_handlers::list_org_deployments),
@@ -88,7 +113,7 @@ async fn main() -> Result<()> {
             "/collab/messages",
             get(collab_handlers::list_messages).post(collab_handlers::post_message),
         )
-        .route("/collab/read",   post(collab_handlers::mark_read))
+        .route("/collab/read", post(collab_handlers::mark_read))
         .route("/collab/unread", get(collab_handlers::unread_count))
         .route(
             "/collab/messages/:id",
@@ -96,15 +121,21 @@ async fn main() -> Result<()> {
                 .delete(collab_handlers::delete_message),
         )
         .route("/collab/reactions", post(collab_handlers::toggle_reaction))
-        .route("/collab/messages/:id/thread", get(collab_handlers::list_thread))
-        .route("/collab/files",      post(collab_handlers::upload_file))
+        .route(
+            "/collab/messages/:id/thread",
+            get(collab_handlers::list_thread),
+        )
+        .route("/collab/files", post(collab_handlers::upload_file))
         .route("/collab/files/:slug", get(collab_handlers::serve_file))
         .route(
             "/integrations",
             get(integration_handlers::list_integrations)
                 .post(integration_handlers::create_integration),
         )
-        .route("/integrations/events", post(integration_handlers::create_event))
+        .route(
+            "/integrations/events",
+            post(integration_handlers::create_event),
+        )
         .route(
             "/integrations/by-external-id",
             get(integration_handlers::get_by_external_id),
