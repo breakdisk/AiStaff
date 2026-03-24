@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Mail, CheckCircle2, XCircle, Clock, Loader2 } from "lucide-react";
+import { Mail, CheckCircle2, XCircle, Clock, Loader2, AlertTriangle } from "lucide-react";
 
 import {
   fetchReceivedInvitations, respondToInvitation,
@@ -41,11 +41,15 @@ function InvitationCard({ inv, onRespond }: {
   onRespond: (id: string, action: "accept" | "decline") => Promise<void>;
 }) {
   const [acting, setActing] = useState<"accept" | "decline" | null>(null);
+  const [error,  setError]  = useState<string | null>(null);
 
   async function handle(action: "accept" | "decline") {
     setActing(action);
+    setError(null);
     try {
       await onRespond(inv.id, action);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed — please try again.");
     } finally {
       setActing(null);
     }
@@ -97,6 +101,13 @@ function InvitationCard({ inv, onRespond }: {
             {acting === "decline" && <Loader2 className="w-3 h-3 animate-spin" />}
             Decline
           </button>
+        </div>
+      )}
+
+      {error && (
+        <div className="flex items-center gap-2 bg-red-950/40 border border-red-900 rounded-sm p-2">
+          <AlertTriangle className="w-3 h-3 text-red-400 shrink-0" />
+          <p className="font-mono text-[10px] text-red-400">{error}</p>
         </div>
       )}
 
