@@ -9,6 +9,7 @@ export const metadata = {
     url: "https://aistaffglobal.com/privacy",
     siteName: "AiStaff",
     type: "website",
+    images: [{ url: "https://aistaffglobal.com/api/og", width: 1200, height: 630, alt: "AiStaff" }],
   },
 };
 
