@@ -35,6 +35,7 @@ export default auth((req) => {
     pathname === "/terms" ||                     // Terms of Service — public
     pathname === "/privacy" ||                   // Privacy Policy — public
     pathname === "/data-deletion" ||             // Data Deletion Instructions — required by Facebook OAuth
+    pathname === "/api/announcements" ||         // Public system announcements — no auth required
     pathname === "/opengraph-image" ||           // OG image — must be public for social crawlers (Meta, Twitter, LinkedIn)
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico" ||
