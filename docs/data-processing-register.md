@@ -2,7 +2,7 @@
 
 **Controller:** AiStaffApp Ltd
 **DPO Contact:** dpo@aistaff.app
-**Last Updated:** 2026-03-10
+**Last Updated:** 2026-03-24
 
 ---
 
@@ -113,6 +113,52 @@
 | **Access Controls** | DB-level: access logged. Service-level: community_service trusts upstream auth. No direct external access. |
 | **Transfers** | No transfers outside EEA |
 | **Tables** | `wellbeing_checkins`, `burnout_signals` |
+
+### 10. Admin Financial Controls & Feature Flags
+
+#### 10a. Admin Payout Actions
+
+| Field | Detail |
+|---|---|
+| **Purpose** | Audit trail for admin escrow interventions (force_release, force_veto) |
+| **Legal Basis** | Legitimate interest (Art. 6(1)(f)) — fraud prevention and financial integrity |
+| **Data Categories** | Admin profile ID, deployment ID, action type, reason text, timestamp |
+| **Retention** | 7 years (financial regulation) |
+| **Recipients** | payout_service, admin team |
+| **Table** | `admin_payout_actions` (append-only — no DELETE/UPDATE grants) |
+
+#### 10b. Platform Fees
+
+| Field | Detail |
+|---|---|
+| **Purpose** | Platform revenue ledger — records the 15% commission retained on each escrow settlement |
+| **Legal Basis** | Contract (Art. 6(1)(b)) |
+| **Data Categories** | Deployment ID, fee amount in cents, fee percentage, settlement timestamp |
+| **Retention** | 7 years (financial regulation) |
+| **Recipients** | payout_service, analytics_service |
+| **Table** | `platform_fees` (append-only — no DELETE/UPDATE grants) |
+
+#### 10c. Announcements
+
+| Field | Detail |
+|---|---|
+| **Purpose** | System-wide operator notices displayed to users (maintenance windows, policy changes, new features) |
+| **Legal Basis** | Legitimate interest (Art. 6(1)(f)) — platform operation and user communication |
+| **Data Categories** | Title, body text, severity level, start timestamp, expiry timestamp, created_by (admin profile ID) |
+| **Retention** | Until deleted by admin. No automatic expiry of the row — `expires_at` controls display only. |
+| **Recipients** | apps/web (read-only display), admin team |
+| **Table** | `announcements` |
+
+#### 10d. Feature Flags
+
+| Field | Detail |
+|---|---|
+| **Purpose** | Runtime feature toggles for platform behaviour (e.g. biometric enforcement, experimental features) |
+| **Legal Basis** | Legitimate interest (Art. 6(1)(f)) — platform integrity and operational configuration |
+| **Data Categories** | Flag name, enabled state (boolean), description, last updated timestamp, updated_by (admin profile ID) |
+| **Retention** | Indefinite (operational configuration). Rows are updated in place; no historical log of prior values beyond `updated_at`. |
+| **Recipients** | All services that read feature flags (currently payout_service), admin team via admin UI |
+| **Table** | `feature_flags` |
 
 ---
 
