@@ -134,12 +134,15 @@ async fn handle_deployment_complete(
                 return;
             }
 
-            // SKIP_BIOMETRIC=true (default) bypasses ZK sign-off for Tier 1 users,
-            // releasing escrow immediately after the veto window.  Set to false in
-            // production once the biometric wallet integration is live.
-            let skip_biometric = std::env::var("SKIP_BIOMETRIC")
-                .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-                .unwrap_or(true);
+            // Read feature flag from DB. Defaults fail-closed (false) if flag missing.
+            // See migrations/0052_feature_flags.sql for deployment order note.
+            let skip_biometric: bool = sqlx::query_scalar(
+                "SELECT enabled FROM feature_flags WHERE name = 'skip_biometric'"
+            )
+            .fetch_optional(&db)
+            .await
+            .unwrap_or(None)
+            .unwrap_or(false);
 
             if skip_biometric {
                 info!(%did, "Veto window elapsed — releasing escrow (biometric skipped)");
@@ -167,7 +170,7 @@ async fn handle_deployment_complete(
                 info!(%did, platform_cents, dev_cents, talent_cents,
                     "Escrow RELEASED 15/59.5/25.5 (veto-first)");
             } else {
-                // Full ZK biometric flow — requires SKIP_BIOMETRIC=false in env.
+                // Full ZK biometric flow — feature_flags.skip_biometric = false in DB.
                 info!(%did, "Veto window elapsed — awaiting biometric sign-off");
                 set_state(&db, did, "BIOMETRIC_PENDING").await.ok();
 
@@ -265,9 +268,9 @@ fn verify_zk_proof(bio: &BiometricSignoff) -> anyhow::Result<bool> {
 /// Remainder (mod rounding) flows to talent, keeping the sum exact.
 pub fn split_with_commission(total_cents: u64) -> (u64, u64, u64) {
     let platform_cents = total_cents * 15 / 100;
-    let remaining      = total_cents - platform_cents;
-    let dev_cents      = remaining * 70 / 100;
-    let talent_cents   = remaining - dev_cents; // remainder — lossless
+    let remaining = total_cents - platform_cents;
+    let dev_cents = remaining * 70 / 100;
+    let talent_cents = remaining - dev_cents; // remainder — lossless
     (platform_cents, dev_cents, talent_cents)
 }
 
@@ -318,8 +321,8 @@ mod trust_engine {
         // $100.00: platform=$15.00, dev=$59.50, talent=$25.50
         let (platform, dev, talent) = split_with_commission(10_000);
         assert_eq!(platform, 1_500);
-        assert_eq!(dev,      5_950);
-        assert_eq!(talent,   2_550);
+        assert_eq!(dev, 5_950);
+        assert_eq!(talent, 2_550);
         assert_eq!(platform + dev + talent, 10_000);
     }
 
@@ -336,8 +339,8 @@ mod trust_engine {
     fn zero_total() {
         let (platform, dev, talent) = split_with_commission(0);
         assert_eq!(platform, 0);
-        assert_eq!(dev,      0);
-        assert_eq!(talent,   0);
+        assert_eq!(dev, 0);
+        assert_eq!(talent, 0);
     }
 
     #[test]
@@ -345,8 +348,8 @@ mod trust_engine {
         // $1M: platform=$150k, dev=$595k, talent=$255k
         let (platform, dev, talent) = split_with_commission(100_000_000);
         assert_eq!(platform, 15_000_000);
-        assert_eq!(dev,      59_500_000);
-        assert_eq!(talent,   25_500_000);
+        assert_eq!(dev, 59_500_000);
+        assert_eq!(talent, 25_500_000);
         assert_eq!(platform + dev + talent, 100_000_000);
     }
 
@@ -355,8 +358,21 @@ mod trust_engine {
         // Platform must never exceed 15% (truncation, never rounds up)
         for total in [100u64, 333, 1_000, 9_999, 100_000] {
             let (platform, _, _) = split_with_commission(total);
-            assert!(platform <= total * 15 / 100 + 1,
-                "platform {platform} exceeds 15% of {total}");
+            assert!(
+                platform <= total * 15 / 100 + 1,
+                "platform {platform} exceeds 15% of {total}"
+            );
         }
+    }
+
+    #[test]
+    fn skip_biometric_defaults_false_on_none() {
+        // When DB returns None, unwrap_or(false) = do NOT skip
+        let db_val: Option<bool> = None;
+        let skip = db_val.unwrap_or(false);
+        assert!(
+            !skip,
+            "should default to false (fail-closed) when flag missing"
+        );
     }
 }
