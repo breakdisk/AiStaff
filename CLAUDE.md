@@ -149,6 +149,10 @@ No hacks, no workarounds, no `TODO` in committed code.
 - `ark_serialize::SerializationError` / `SynthesisError`: use `.map_err(|e| anyhow!("msg: {e}"))` not `.context()`.
 - `split_70_30` in payout_service uses `u64` (matches `DeploymentComplete.total_cents`).
 - ZKP errors never bubble raw — always wrap with context before returning.
+- `sqlx::Transaction::commit(self)` moves the transaction — never use `tx` after `.commit().await`.
+  On commit failure just return the error; sqlx rolls back automatically on drop.
+- Docker build failures (`exit code 101`): the rustc error code (`E0XXX`) appears in the Dokploy
+  build log before the summary line. Read from that code upward to find the file/line.
 
 #### Testing
 - Unit tests: pure functions, no I/O, no DB, no Kafka.
