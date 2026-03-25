@@ -109,19 +109,21 @@ export type ListingCategory = "AiTalent" | "AiStaff" | "AiRobot";
 export type SellerType     = "Agency"   | "Freelancer";
 
 export interface AgentListing {
-  id:           string;
-  developer_id: string;
-  name:         string;
-  description:  string;
-  wasm_hash:    string;
-  price_cents:  number;
-  active:       boolean;
-  category:     ListingCategory;
-  seller_type:  SellerType;
+  id:              string;
+  developer_id:    string;
+  name:            string;
+  description:     string;
+  wasm_hash:       string;
+  price_cents:     number;
+  active:          boolean;
+  category:        ListingCategory;
+  seller_type:     SellerType;
   /** Human-readable kebab-case slug used in share URLs. */
-  slug:         string;
-  created_at:   string;
-  updated_at:   string;
+  slug:            string;
+  /** "PENDING_REVIEW" | "APPROVED" | "REJECTED" — present on all endpoints */
+  listing_status?: string;
+  created_at:      string;
+  updated_at:      string;
 }
 
 export interface CreateListingRequest {
