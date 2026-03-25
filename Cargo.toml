@@ -38,7 +38,7 @@ tower-http = { version = "0.6", features = ["trace", "cors", "request-id"] }
 
 # Database
 sqlx = { version = "0.8", features = [
-    "postgres", "runtime-tokio-rustls", "uuid", "chrono", "macros"
+    "postgres", "runtime-tokio-rustls", "uuid", "chrono", "macros", "json"
 ] }
 
 # Serialization
