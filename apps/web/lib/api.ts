@@ -160,6 +160,7 @@ export interface UpdateProfileRequest {
   hourly_rate_cents?: number;
   availability?:      "available" | "busy" | "not-available";
   role?:              "talent" | "client" | "agent-owner";
+  tos_accepted?:      boolean;
 }
 
 export function updateProfile(profileId: string, data: UpdateProfileRequest): Promise<{ ok: boolean }> {

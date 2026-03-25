@@ -12,6 +12,7 @@ import {
   Bot, Github, Linkedin, Briefcase, Code2, Building2,
   CheckCircle, ChevronRight, ArrowRight, Zap, Shield,
   Clock, Users, Check, Star, Send, SkipForward,
+  Info, X, AlertCircle,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -103,9 +104,49 @@ function ErrorBox({ msg }: { msg: string | null }) {
 
 // ── STEP 0 — Welcome ──────────────────────────────────────────────────────────
 
-function StepWelcome({ name, onNext }: { name: string | null; onNext: () => void }) {
+function StepWelcome({
+  name,
+  onNext,
+  isLinkedAccount,
+  linkedEmail,
+  linkedProvider,
+}: {
+  name:             string | null;
+  onNext:           () => void;
+  isLinkedAccount?: boolean;
+  linkedEmail?:     string;
+  linkedProvider?:  string;
+}) {
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+
   return (
     <div className="space-y-6">
+      {isLinkedAccount && !bannerDismissed && (
+        <div className="flex items-start gap-3 p-3 rounded-sm border-l-2 border-amber-400
+                        bg-zinc-900 text-zinc-50">
+          <Info className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-zinc-100">
+              {linkedProvider
+                ? `${linkedProvider} linked to your existing account`
+                : "New login method linked to your existing account"}
+            </p>
+            {linkedEmail && (
+              <p className="font-mono text-xs text-zinc-400 mt-0.5">{linkedEmail}</p>
+            )}
+            <p className="font-mono text-xs text-zinc-500 mt-0.5">
+              Your trust score has been updated.
+            </p>
+          </div>
+          <button
+            onClick={() => setBannerDismissed(true)}
+            className="text-zinc-500 hover:text-zinc-300 transition-colors"
+            aria-label="Dismiss"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
       <div className="text-center space-y-2">
         <div className="w-12 h-12 rounded-sm bg-amber-400/10 border border-amber-400/30
                         flex items-center justify-center mx-auto">
@@ -534,7 +575,43 @@ function StepFreelancerProfile({
 
 // ── STEP 2b — Client: escrow explainer + goal ─────────────────────────────────
 
-function StepClientGoal({ onDone }: { onDone: (dest: string) => void }) {
+function StepClientGoal({
+  onDone,
+  profileId,
+}: {
+  onDone:    (dest: string) => void;
+  profileId: string;
+}) {
+  const [tosChecked,  setTosChecked]  = useState(false);
+  const [tosLoading,  setTosLoading]  = useState(false);
+  const [tosError,    setTosError]    = useState<string | null>(null);
+  const [pendingDest, setPendingDest] = useState<string | null>(null);
+
+  function handleGoalClick(dest: string) {
+    if (!tosChecked) {
+      setPendingDest(dest);
+      setTosError("Please accept the Terms of Service before continuing.");
+      return;
+    }
+    onDone(dest);
+  }
+
+  async function handleTosCheck(checked: boolean) {
+    if (!checked) { setTosChecked(false); return; }
+    setTosLoading(true);
+    setTosError(null);
+    try {
+      await updateProfile(profileId, { tos_accepted: true });
+      setTosChecked(true);
+      if (pendingDest) onDone(pendingDest);
+    } catch {
+      setTosError("Could not record your acceptance — please try again.");
+      setTosChecked(false);
+    } finally {
+      setTosLoading(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="text-center space-y-1">
@@ -570,7 +647,7 @@ function StepClientGoal({ onDone }: { onDone: (dest: string) => void }) {
 
       <div className="space-y-2.5">
         <button
-          onClick={() => onDone("/marketplace")}
+          onClick={() => handleGoalClick("/marketplace")}
           className="w-full p-4 rounded-sm border border-amber-400/40 bg-amber-400/5
                      hover:bg-amber-400/10 transition-all active:scale-[0.98] text-left group"
         >
@@ -587,7 +664,7 @@ function StepClientGoal({ onDone }: { onDone: (dest: string) => void }) {
         </button>
 
         <button
-          onClick={() => onDone("/scoping")}
+          onClick={() => handleGoalClick("/scoping")}
           className="w-full p-4 rounded-sm border border-zinc-700 bg-zinc-900/60
                      hover:border-zinc-600 hover:bg-zinc-800 transition-all
                      active:scale-[0.98] text-left group"
@@ -606,7 +683,7 @@ function StepClientGoal({ onDone }: { onDone: (dest: string) => void }) {
         </button>
 
         <button
-          onClick={() => onDone("/marketplace")}
+          onClick={() => handleGoalClick("/marketplace")}
           className="w-full p-4 rounded-sm border border-zinc-700 bg-zinc-900/60
                      hover:border-zinc-600 hover:bg-zinc-800 transition-all
                      active:scale-[0.98] text-left group"
@@ -623,6 +700,39 @@ function StepClientGoal({ onDone }: { onDone: (dest: string) => void }) {
                                    shrink-0 transition-colors" />
           </div>
         </button>
+      </div>
+
+      {/* ToS acceptance */}
+      <div className="space-y-1.5">
+        <label className="flex items-start gap-2.5 cursor-pointer group">
+          <input
+            type="checkbox"
+            checked={tosChecked}
+            disabled={tosLoading}
+            onChange={(e) => handleTosCheck(e.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded-sm accent-amber-400 cursor-pointer"
+            aria-label="Accept Terms of Service and Privacy Policy"
+          />
+          <span className="font-mono text-xs text-zinc-400 leading-relaxed">
+            I agree to the{" "}
+            <a href="/terms"   target="_blank" rel="noopener noreferrer"
+               className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
+              Terms of Service
+            </a>
+            {" "}and{" "}
+            <a href="/privacy" target="_blank" rel="noopener noreferrer"
+               className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
+              Privacy Policy
+            </a>
+            {tosLoading && <span className="text-zinc-500 ml-1">saving…</span>}
+          </span>
+        </label>
+        {tosError && (
+          <p className="font-mono text-xs text-red-500 flex items-center gap-1">
+            <AlertCircle className="w-3 h-3 shrink-0" />
+            {tosError}
+          </p>
+        )}
       </div>
     </div>
   );
@@ -977,6 +1087,27 @@ export default function OnboardingPage() {
 
   // ── Completion ─────────────────────────────────────────────────────────────
   const markDone = useCallback(async (destination?: string) => {
+    // Client path: send audit batch + welcome email (non-blocking, allSettled).
+    // ToS guard enforced at button level via handleGoalClick — only reaches here after tosChecked === true.
+    if (role === "client") {
+      const provider = (session?.user as { provider?: string })?.provider ?? "unknown";
+      await Promise.allSettled([
+        fetch("/api/onboarding/audit-events", {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            events: [
+              { event_type: "ROLE_SELECTED",       event_data: { role: "client" } },
+              { event_type: "TOS_ACCEPTED",        event_data: { tos_version: "1.0" } },
+              { event_type: "ONBOARDING_COMPLETE", event_data: { role: "client", provider } },
+            ],
+          }),
+        }).catch((e: unknown) => console.error("[onboarding] audit-events failed:", e)),
+        fetch("/api/onboarding/welcome-email", { method: "POST" })
+          .catch((e: unknown) => console.error("[onboarding] welcome-email failed:", e)),
+      ]);
+    }
+
     if (typeof window !== "undefined") {
       localStorage.setItem(LS.done,  "1");
       if (role) localStorage.setItem(LS.uRole, role);
@@ -993,7 +1124,7 @@ export default function OnboardingPage() {
       }).catch(() => {});
     }
     router.push(destination ?? (role === "client" ? "/marketplace" : "/dashboard"));
-  }, [role, profileId, update, router]);
+  }, [role, profileId, session, update, router]);
 
   // ── Role selection ─────────────────────────────────────────────────────────
   function chooseRole(r: Role) {
@@ -1031,11 +1162,21 @@ export default function OnboardingPage() {
 
   function renderStep() {
     switch (step) {
-      case 0: return <StepWelcome name={name} onNext={() => setStep(1)} />;
+      case 0: return (
+        <StepWelcome
+          name={name}
+          onNext={() => setStep(1)}
+          isLinkedAccount={session?.user?.isLinkedAccount}
+          linkedEmail={session?.user?.email ?? undefined}
+          linkedProvider={session?.user?.provider
+            ? session.user.provider.charAt(0).toUpperCase() + session.user.provider.slice(1)
+            : undefined}
+        />
+      );
       case 1: return <StepRole onNext={chooseRole} />;
       case 2:
         if (role === "freelancer") return <StepFreelancerConnect onNext={() => setStep(3)} />;
-        if (role === "client")     return <StepClientGoal onDone={markDone} />;
+        if (role === "client")     return <StepClientGoal onDone={markDone} profileId={profileId} />;
         if (role === "agency")     return (
           <StepAgencyDetails onNext={handleAgencyDetails} saving={saving} externalError={apiError} />
         );
