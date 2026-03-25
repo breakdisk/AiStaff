@@ -102,7 +102,7 @@ New proposals submitted via `/proposals/draft` should set `status = 'DRAFT'` unt
 #### `GET /orgs/public/{handle}`
 - **Auth**: none (public endpoint)
 - **Frontend route**: `/agency/{handle}` (user-facing alias)
-- **Logic**: look up `organisations` WHERE `handle = $1`. JOIN `org_members` for count. JOIN `agent_listings` WHERE `org_id = org.id AND active = TRUE` for count. JOIN `deployments` WHERE `org_id = org.id AND status = 'RELEASED'` for completed count. (`deployment_status` enum has no `COMPLETE` value — the terminal success state is `RELEASED`.)
+- **Logic**: look up `organisations` WHERE `handle = $1`. JOIN `org_members` for count. JOIN `agent_listings` WHERE `org_id = org.id AND active = TRUE` for count. JOIN `deployments` WHERE `org_id = org.id AND state = 'RELEASED'` for completed count. (`deployments.state` is the column name, not `status`; `RELEASED` is the terminal success value in the `deployment_status` enum.)
 - **Response**:
 ```json
 {
