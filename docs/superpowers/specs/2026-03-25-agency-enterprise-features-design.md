@@ -9,20 +9,35 @@
 
 Four new features extending the Enterprise agency experience:
 
-1. **Public Agency Profile** — discoverable + shareable page at `/agency/{handle}`
+1. **Public Agency Profile** — discoverable + shareable page at `/agency/{handle}` (frontend) backed by `GET /orgs/public/{handle}` (backend, queries `organisations` table)
 2. **Bundle Listings** — package multiple agent listings at a fixed price
 3. **Proposal Inbox** — org-level Kanban view of team proposals
 4. **Verified Badge** — amber star auto-granted to ENTERPRISE + PLATINUM plan tiers
 
 Features 2 (Team Management) and 3 (Analytics Dashboard) already exist at `/enterprise/members` and `/enterprise`. No changes needed there.
 
+> **Two agency tables exist in the codebase:**
+> - `agencies` (migration 0019) — simple freelancer agency, has `handle` already
+> - `organisations` (migration 0028) — enterprise tier, no `handle` yet
+>
+> All 4 features target **`organisations`** only. The frontend URL `/agency/{handle}` is a user-facing alias; the backend route queries `organisations`.
+
 ---
 
 ## 1. Database
 
-### Migration 0056 — Bundle tables
+### Migration 0056 — Bundle tables + org handle + listing org FK
 
 ```sql
+-- Handle for public profile URL on organisations
+ALTER TABLE organisations ADD COLUMN handle TEXT UNIQUE;
+CREATE INDEX idx_organisations_handle ON organisations(handle);
+
+-- org_id FK on agent_listings so badge can be shown on listing cards
+ALTER TABLE agent_listings ADD COLUMN org_id UUID REFERENCES organisations(id) ON DELETE SET NULL;
+CREATE INDEX idx_agent_listings_org ON agent_listings(org_id);
+
+-- Bundle tables
 CREATE TABLE listing_bundles (
     id             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     org_id         UUID        NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
@@ -49,20 +64,33 @@ CREATE INDEX idx_bundle_items_listing ON bundle_items(listing_id);
 CREATE INDEX idx_listing_bundles_org  ON listing_bundles(org_id);
 ```
 
-### Migration 0057 — Proposal profile FK
+### Migration 0057 — Proposals: profile FK + status extension
 
 ```sql
+-- Link proposals to the submitter's profile (nullable for backward compat)
 ALTER TABLE proposals
     ADD COLUMN submitted_by_profile_id UUID REFERENCES unified_profiles(id);
 
 CREATE INDEX idx_proposals_submitted_by ON proposals(submitted_by_profile_id);
+
+-- Extend status to include DRAFT for the Kanban inbox
+-- Existing rows with status 'PENDING' / 'ACCEPTED' / 'REJECTED' are unaffected
+ALTER TABLE proposals DROP CONSTRAINT IF EXISTS proposals_status_check;
+ALTER TABLE proposals ADD CONSTRAINT proposals_status_check
+    CHECK (status IN ('DRAFT', 'PENDING', 'ACCEPTED', 'REJECTED'));
 ```
 
-Nullable — existing rows remain NULL. All new proposal submissions must populate this field.
+**Kanban status mapping** (read-only, no column rename):
 
-### No new columns for Verified Badge
+| DB `status` | Kanban column |
+|---|---|
+| `DRAFT` | Draft |
+| `PENDING`, `ACCEPTED` | Sent |
+| `REJECTED` | Closed |
 
-Badge is computed: `plan_tier IN ('ENTERPRISE', 'PLATINUM')`. No DB column required.
+New proposals submitted via `/proposals/draft` should set `status = 'DRAFT'` until officially submitted, then transition to `PENDING`. The existing proposal submit flow sets `PENDING` directly — that maps to "Sent" in the Kanban, which is correct.
+
+> **Note on `submitted_at`**: existing `proposals` table has `submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()` — it is always populated. Do NOT use `submitted_at IS NULL` to infer draft status. Use the `status` column exclusively.
 
 ---
 
@@ -70,9 +98,10 @@ Badge is computed: `plan_tier IN ('ENTERPRISE', 'PLATINUM')`. No DB column requi
 
 ### identity_service (:3001)
 
-#### `GET /agencies/public/{handle}`
+#### `GET /orgs/public/{handle}`
 - **Auth**: none (public endpoint)
-- **Logic**: look up `organisations` by `handle` (need `handle` column — see note below), join `org_members` count, join active `agent_listings` count, join completed deployments count from `deployments`
+- **Frontend route**: `/agency/{handle}` (user-facing alias)
+- **Logic**: look up `organisations` WHERE `handle = $1`. JOIN `org_members` for count. JOIN `agent_listings` WHERE `org_id = org.id AND active = TRUE` for count. JOIN `deployments` WHERE `org_id = org.id AND state = 'COMPLETE'` for completed count.
 - **Response**:
 ```json
 {
@@ -89,13 +118,8 @@ Badge is computed: `plan_tier IN ('ENTERPRISE', 'PLATINUM')`. No DB column requi
   "created_at": "..."
 }
 ```
-
-> **Note**: `organisations` table currently has no `handle` column. Add it in migration 0056 alongside the bundle tables:
-> ```sql
-> ALTER TABLE organisations ADD COLUMN handle TEXT UNIQUE;
-> CREATE INDEX idx_organisations_handle ON organisations(handle);
-> ```
-> Handle is optional initially (nullable). Org owners set it in `/enterprise` settings. Profile page only renders if handle is set.
+- `is_verified`: computed as `plan_tier IN ('ENTERPRISE', 'PLATINUM')`
+- Returns 404 if handle not found or not set
 
 ### marketplace_service (:3002)
 
@@ -106,21 +130,37 @@ Badge is computed: `plan_tier IN ('ENTERPRISE', 'PLATINUM')`. No DB column requi
 #### `POST /enterprise/orgs/{id}/bundles`
 - **Auth**: org ADMIN only
 - **Body**: `{ name, description?, price_cents, listing_ids: uuid[] }`
-- **Logic**: insert `listing_bundles` record + `bundle_items` rows in a transaction. Validates all `listing_ids` belong to `org_id`. Sets `listing_status = 'PENDING_REVIEW'`, `active = FALSE`.
+- **Logic**: validates all `listing_ids` belong to org's approved listings. Inserts `listing_bundles` + `bundle_items` in a transaction. Sets `listing_status = 'PENDING_REVIEW'`, `active = FALSE`.
 - **Response**: 201 `{ bundle_id, listing_status: "PENDING_REVIEW" }`
-- **Idempotency**: none required (not financial)
+
+#### `PATCH /enterprise/orgs/{id}/bundles/{bundle_id}`
+- **Auth**: org ADMIN only
+- **Body**: `{ name?, description?, price_cents?, listing_ids?: uuid[] }`
+- **Logic**: updates bundle fields. If `listing_ids` changes AND current `listing_status = 'APPROVED'`, resets to `PENDING_REVIEW` and `active = FALSE` (requires re-moderation). Updates `updated_at`.
+- **Response**: 200 `{ ok: true, listing_status }`
 
 #### `DELETE /enterprise/orgs/{id}/bundles/{bundle_id}`
 - **Auth**: org ADMIN only
-- **Logic**: hard delete (cascade deletes `bundle_items`). Only allowed if `listing_status != 'APPROVED'` or admin explicitly confirmed. Returns 204.
+- **Logic**: hard delete (cascade deletes `bundle_items`). Returns 204.
 
 #### `GET /enterprise/orgs/{id}/proposals`
 - **Auth**: org member
 - **Logic**:
-  - ADMIN: fetch all proposals WHERE `submitted_by_profile_id IN (SELECT profile_id FROM org_members WHERE org_id = $1)`
-  - MEMBER: fetch proposals WHERE `submitted_by_profile_id = $caller_profile_id`
-  - Returns proposals grouped by status: `DRAFT`, `SUBMITTED` (maps to "Sent"), `CLOSED`
+  - Fetch `org_members` to get all `profile_id` values for `org_id`
+  - ADMIN (`member_role = 'ADMIN'`): `WHERE submitted_by_profile_id IN (org_member_ids)`
+  - MEMBER: `WHERE submitted_by_profile_id = $caller_profile_id`
+  - JOIN `unified_profiles` ON `submitted_by_profile_id = unified_profiles.id` to get `display_name AS submitter_name`
+  - Group results by mapped Kanban status (DRAFT → draft, PENDING+ACCEPTED → sent, REJECTED → closed)
 - **Response**: `{ draft: [...], sent: [...], closed: [...] }` — each item: `{ id, job_title, freelancer_email, client_email, submitted_at, submitted_by_profile_id, submitter_name }`
+
+### Admin endpoints (marketplace_service)
+
+#### `POST /admin/bundles/{id}/approve`
+- Sets `listing_status = 'APPROVED'`, `active = TRUE`
+
+#### `POST /admin/bundles/{id}/reject`
+- **Body**: `{ reason: string }`
+- Sets `listing_status = 'REJECTED'`, `active = FALSE`, stores `rejection_reason`
 
 ---
 
@@ -136,7 +176,7 @@ Badge is computed: `plan_tier IN ('ENTERPRISE', 'PLATINUM')`. No DB column requi
 
 ### 3.1 Public Profile Page `/agency/{handle}`
 
-**Layout: Single scroll, no tabs.**
+**Layout: Single scroll, no tabs. SSR (Next.js Server Component).**
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -144,94 +184,85 @@ Badge is computed: `plan_tier IN ('ENTERPRISE', 'PLATINUM')`. No DB column requi
 │  @handle  ·  description                        │
 │                          [Hire Agency ▶]        │
 ├─────────────────────────────────────────────────┤
-│  12 Members │ 34 Listings │ 98 Deploys │ 4.9 ★  │
+│  12 Members │ 34 Listings │ 98 Deploys │ ★ Plan │
 ├─────────────────────────────────────────────────┤
-│  BUNDLES (if any)                               │
-│  ┌──────────────────────┐ ┌───────────────────┐ │
-│  │ Full Automation Stack│ │  DevOps Pack      │ │
-│  │ 3 agents · $350/mo   │ │  2 agents · $280  │ │
-│  └──────────────────────┘ └───────────────────┘ │
+│  BUNDLES (shown only if org has approved bundles)│
+│  [bundle card]  [bundle card]                   │
 ├─────────────────────────────────────────────────┤
 │  LISTINGS                                       │
-│  [listing card] [listing card] [listing card]   │
 │  [listing card] [listing card] [listing card]   │
 └─────────────────────────────────────────────────┘
 ```
 
-- "Hire Agency" CTA scrolls to listings or links to `/marketplace?org={id}`
-- Bundles section hidden if org has no approved bundles
-- Listings are the same `AgentListing` cards used in marketplace — active=TRUE only
-- Page is SSR (Next.js Server Component) for SEO + LLM crawler indexing
-- If `handle` not found or not set → 404
+- "Hire Agency" CTA links to `/marketplace?org={id}`
+- Bundles section hidden if no approved bundles exist
+- Listings: same `AgentListing` cards used in marketplace, active=TRUE only
+- If handle not found → 404
 
 ### 3.2 Bundle Management `/enterprise/bundles`
 
-**Layout: Inline table with expandable editor.**
+**Layout: Inline table with expandable row editor.**
 
 ```
 BUNDLES                                    [+ New Bundle]
-──────────────────────────────────────────────────────────
+──────────────────────────────────────────────────────
 Name             Agents  Price     Status     Actions
-──────────────────────────────────────────────────────────
-Full Auto Stack    3     $350/mo   ● APPROVED  [▼ Edit]
-DevOps Pack        2     $280/mo   ● APPROVED  [▼ Edit]
-AI SDR Bundle      0     —         ○ PENDING   [▼ Edit]
-──────────────────────────────────────────────────────────
-[new bundle row — dashed border when adding]
+──────────────────────────────────────────────────────
+Full Auto Stack    3     $350/mo   ● APPROVED  [▼]
+DevOps Pack        2     $280/mo   ● APPROVED  [▼]
+AI SDR Bundle      0     —         ○ PENDING   [▼]
+──────────────────────────────────────────────────────
 ```
 
-**Expanded editor (click row):**
-- Left: checkbox list of all org's APPROVED listings → select which are in bundle
-- Right: bundle name input, description textarea, price input
-- Save → PATCH bundle; if previously APPROVED and items change → back to PENDING_REVIEW
-- Delete button with confirmation
+**Expanded editor (click row ▼):**
+- Left: checkbox list of org's APPROVED `agent_listings` — check to include in bundle
+- Right: name input, description textarea, price input (cents stored, dollars displayed)
+- Save → calls `PATCH /enterprise/orgs/{id}/bundles/{bundle_id}`; if items changed on an APPROVED bundle, badge updates to `PENDING REVIEW`
+- Delete button with inline confirmation text ("Type DELETE to confirm")
+- "＋ New Bundle" appends a dashed blank row; filling name + selecting listings + price → calls POST
 
 ### 3.3 Proposal Inbox `/enterprise/proposals`
 
 **Layout: Kanban — 3 fixed columns.**
 
 ```
+                              [Mine ○  All ●]  ← ADMIN only toggle
+
 ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
 │  DRAFT (4)      │  │  SENT (8)       │  │  CLOSED (2)     │
 │                 │  │                 │  │                 │
 │ ┌─────────────┐ │  │ ┌─────────────┐ │  │ ┌─────────────┐ │
 │ │Data Pipeline│ │  │ │AI Automation│ │  │ │K8s Migration│ │
-│ │bob.k        │ │  │ │alice.w      │ │  │ │alice.w      │ │
-│ │Mar 23       │ │  │ │client@co.io │ │  │ │Mar 18       │ │
+│ │bob.k · Mar23│ │  │ │alice.w      │ │  │ │alice.w      │ │
+│ │client@co.io │ │  │ │client@co.io │ │  │ │Mar 18       │ │
 │ └─────────────┘ │  │ └─────────────┘ │  │ └─────────────┘ │
 └─────────────────┘  └─────────────────┘  └─────────────────┘
 ```
 
-- **Top-right toggle** (ADMIN only): "Mine / All" — defaults to All for ADMIN, Mine always for MEMBER
-- Card click → opens proposal detail (existing `/proposals` view)
-- No drag-and-drop between columns — status changes happen in the proposal detail
-- Status mapping: `proposals` table has no explicit status column today — use `submitted_at IS NULL → DRAFT`, `submitted_at IS NOT NULL AND closed_at IS NULL → SENT`, `closed_at IS NOT NULL → CLOSED`. Add `closed_at TIMESTAMPTZ` to proposals in migration 0057.
+- Card click → opens existing proposal detail view
+- No drag-and-drop — status changes happen within the proposal detail
+- ADMIN toggle "Mine / All" defaults to "All"; MEMBER sees only "Mine" (toggle hidden)
+- Status derived from `proposals.status` column (see migration 0057 mapping table)
 
 ### 3.4 Verified Badge Component
 
 ```tsx
 // apps/web/components/VerifiedBadge.tsx
-// Renders an amber filled Star icon with tooltip "Verified Agency"
 // Props: planTier: string
-// Renders only when planTier === 'ENTERPRISE' || planTier === 'PLATINUM'
+// Renders amber filled Star only when planTier === 'ENTERPRISE' || planTier === 'PLATINUM'
+// <Star className="w-4 h-4 fill-amber-400 text-amber-400" title="Verified Agency" />
 ```
 
-- Icon: Lucide `Star`, `className="w-4 h-4 fill-amber-400 text-amber-400"`
-- Tooltip: native `title="Verified Agency"` attribute (no custom tooltip library)
-- Used in: `AgencyProfilePage` hero, `AgentListingCard` top-right corner
-- `AgentListingCard` must receive `org_plan_tier?: string` prop — populated from GET /listings response (need to add `org_plan_tier` to listing response when listing belongs to an org)
+- Icon: Lucide `Star`, `fill-amber-400 text-amber-400 w-4 h-4`
+- Tooltip: native `title="Verified Agency"` (no extra library)
+- Used in: `AgencyProfilePage` hero (next to org name), `AgentListingCard` top-right corner
+- `AgentListingCard` receives new prop `orgPlanTier?: string` — populated from GET /listings which now JOINs `organisations` via `agent_listings.org_id` to return `org_plan_tier` when set
 
 ---
 
 ## 4. Navigation
 
-Add "Proposals" link to the existing `/enterprise` sidebar nav, between "Members" and "API Keys":
-
-```
-Dashboard → Members → Proposals → API Keys → SLA
-```
-
-Add "Bundles" link after "Proposals":
+Add two links to the `/enterprise` sidebar nav:
 
 ```
 Dashboard → Members → Proposals → Bundles → API Keys → SLA
@@ -242,25 +273,30 @@ Dashboard → Members → Proposals → Bundles → API Keys → SLA
 ## 5. Admin Integration
 
 Bundle listings go through the existing `/admin/listings` moderation flow:
-- `listing_bundles.listing_status` uses same `PENDING_REVIEW → APPROVED / REJECTED` states
-- Add "Bundles" tab to `/admin/listings` alongside "Agent Listings" tab
-- Admin approve/reject endpoints added: `POST /admin/bundles/{id}/approve`, `POST /admin/bundles/{id}/reject`
+- Add "Bundles" tab to `/admin/listings` alongside "Agent Listings"
+- Admin approve: sets `listing_status = 'APPROVED'` + `active = TRUE`
+- Admin reject: sets `listing_status = 'REJECTED'` + `active = FALSE` + stores `rejection_reason`
 
 ---
 
-## 6. api.ts additions
+## 6. api.ts / enterpriseApi.ts additions
 
 ```typescript
-// Bundles
+// apps/web/lib/api.ts — public profile
+fetchAgencyProfile(handle: string): Promise<AgencyProfile>
+
+// apps/web/lib/enterpriseApi.ts — bundles
 fetchOrgBundles(orgId: string): Promise<{ bundles: Bundle[] }>
-createBundle(orgId: string, req: CreateBundleRequest): Promise<{ bundle_id: string }>
+createBundle(orgId: string, req: CreateBundleRequest): Promise<{ bundle_id: string; listing_status: string }>
+updateBundle(orgId: string, bundleId: string, req: Partial<CreateBundleRequest>): Promise<{ ok: boolean; listing_status: string }>
 deleteBundle(orgId: string, bundleId: string): Promise<void>
 
-// Proposals inbox
-fetchOrgProposals(orgId: string): Promise<{ draft: Proposal[], sent: Proposal[], closed: Proposal[] }>
+// apps/web/lib/enterpriseApi.ts — proposal inbox
+fetchOrgProposals(orgId: string): Promise<{ draft: Proposal[]; sent: Proposal[]; closed: Proposal[] }>
 
-// Public profile
-fetchAgencyProfile(handle: string): Promise<AgencyProfile>
+// apps/web/lib/adminApi.ts — admin bundle moderation
+approveBundle(bundleId: string): Promise<void>
+rejectBundle(bundleId: string, reason: string): Promise<void>
 ```
 
 ---
@@ -268,14 +304,17 @@ fetchAgencyProfile(handle: string): Promise<AgencyProfile>
 ## 7. Scope Boundaries
 
 **In scope:**
-- All 4 features as described above
-- `handle` column on `organisations`
-- `closed_at` + `submitted_by_profile_id` on `proposals`
-- Bundle admin moderation endpoints
+- All 4 features as described
+- `handle` column on `organisations` (migration 0056)
+- `org_id` FK on `agent_listings` (migration 0056)
+- Bundle tables (migration 0056)
+- `submitted_by_profile_id` + extended `status` CHECK on `proposals` (migration 0057)
+- Admin bundle moderation
 
 **Out of scope (YAGNI):**
 - Drag-and-drop Kanban
-- Bundle discount pricing (fixed price only, per decision)
-- Agency search/directory page (profile is shareable link; discovery is via marketplace filters)
+- Bundle discount pricing (fixed price only)
+- Agency search/directory browse page
 - Plan upgrade flow
 - Bundle analytics
+- `closed_at` timestamp on proposals (status column is sufficient)
