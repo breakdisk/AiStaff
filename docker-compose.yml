@@ -140,6 +140,8 @@ services:
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
       KAFKA_BROKERS: kafka:9092
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@aistaff.app}
+      NOTIFICATION_SERVICE_URL: http://notification_service:3012
       RUST_LOG: info
     ports: ["3002:3002"]
     depends_on:

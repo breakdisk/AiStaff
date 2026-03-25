@@ -46,6 +46,7 @@
 | `GOOGLE_CLIENT_ID` | notification_service | Google OAuth client ID (Calendar / Meet integration) | On app rotation |
 | `GOOGLE_CLIENT_SECRET` | notification_service | Google OAuth client secret | 90 days |
 | `INTEGRATION_TOKEN_ENCRYPTION_KEY` | notification_service | AES-256-GCM key for encrypting OAuth tokens at rest (base64, 32 bytes) | Quarterly |
+| `ADMIN_EMAIL` | marketplace_service | Recipient email for new-listing review notifications | On admin team change |
 
 ---
 
