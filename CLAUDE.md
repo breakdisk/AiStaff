@@ -129,6 +129,10 @@ No hacks, no workarounds, no `TODO` in committed code.
 - SQLx offline cache committed to `.sqlx/`. Regenerate with: `cargo sqlx prepare --workspace`.
 - All financial columns are `BIGINT` (cents). No `FLOAT` or `DECIMAL` for money.
 - `deployment_status` / `contract_status` enum casts: use non-macro `sqlx::query()` with `$2::enum_type`.
+- **sqlx `json` feature required for `serde_json::Value`**: Any handler that decodes a PostgreSQL
+  JSON/JSONB column via `.try_get::<serde_json::Value, _>(col)` requires `"json"` in the sqlx
+  features list. Without it, `serde_json::Value: Decode<Postgres>` is unimplemented and the crate
+  fails to compile (`error[E0277]`). The workspace sqlx entry already includes `"json"`.
 
 #### Kafka
 - All events wrapped in `EventEnvelope<T>` with `event_id` (UUID v7), `emitted_at`, `source_service`.
