@@ -26,12 +26,13 @@ interface OAuthCallbackPayload {
 }
 
 interface OAuthCallbackResponse {
-  profile_id:    string;
-  identity_tier: "UNVERIFIED" | "SOCIAL_VERIFIED" | "BIOMETRIC_VERIFIED";
-  trust_score:   number;
-  account_type:  string;         // "individual" | "agency"
-  role:          string | null;  // "talent" | "client" | "agent-owner" | null
-  is_admin:      boolean;
+  profile_id:        string;
+  identity_tier:     "UNVERIFIED" | "SOCIAL_VERIFIED" | "BIOMETRIC_VERIFIED";
+  trust_score:       number;
+  account_type:      string;         // "individual" | "agency"
+  role:              string | null;  // "talent" | "client" | "agent-owner" | null
+  is_admin:          boolean;
+  is_linked_account: boolean;
 }
 
 async function callIdentityOAuthCallback(
@@ -74,12 +75,13 @@ async function callIdentityOAuthCallback(
 
   // Fallback: return Unverified tier so login still succeeds
   return {
-    profile_id:   account.providerAccountId,
-    identity_tier: "UNVERIFIED",
-    trust_score:  0,
-    account_type: "individual",
-    role:         null,
-    is_admin:     false,
+    profile_id:        account.providerAccountId,
+    identity_tier:     "UNVERIFIED",
+    trust_score:       0,
+    account_type:      "individual",
+    role:              null,
+    is_admin:          false,
+    is_linked_account: false,
   };
 }
 
@@ -227,6 +229,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.role         = result.role ?? null;
         token.roles        = result.role ? [result.role] : [];
         token.isAdmin      = result.is_admin ?? false;
+        token.isLinkedAccount = result.is_linked_account ?? false;
 
         // Store GitHub access token for server-side webhook registration.
         // Stored encrypted in the httpOnly session cookie — never exposed to the browser.
@@ -246,6 +249,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       session.user.role         = (token.role        as string | null) ?? null;
       session.user.roles        = (token.roles       as string[]) ?? [];
       session.user.isAdmin           = (token.isAdmin          as boolean) ?? false;
+      session.user.isLinkedAccount   = (token.isLinkedAccount  as boolean) ?? false;
       session.user.githubAccessToken = (token.githubAccessToken as string | undefined) ?? undefined;
       return session;
     },

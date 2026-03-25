@@ -11,6 +11,7 @@ declare module "next-auth" {
       role:               string | null;   // "talent" | "client" | "agent-owner" | null
       roles:              string[];
       isAdmin:            boolean;
+      isLinkedAccount:    boolean;
       githubAccessToken?: string;          // set only when signed in via GitHub
     } & DefaultSession["user"];
   }
@@ -26,6 +27,7 @@ declare module "next-auth/jwt" {
     role?:               string | null;    // "talent" | "client" | "agent-owner" | null
     roles?:              string[];
     isAdmin?:            boolean;
+    isLinkedAccount?:    boolean;
     githubAccessToken?:  string;           // set only when signed in via GitHub
   }
 }
