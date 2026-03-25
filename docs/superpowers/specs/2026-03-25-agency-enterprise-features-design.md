@@ -44,10 +44,11 @@ CREATE TABLE listing_bundles (
     name           TEXT        NOT NULL,
     description    TEXT,
     price_cents    BIGINT      NOT NULL CHECK (price_cents > 0),
-    listing_status TEXT        NOT NULL DEFAULT 'PENDING_REVIEW',
-    active         BOOLEAN     NOT NULL DEFAULT FALSE,
-    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    listing_status   TEXT        NOT NULL DEFAULT 'PENDING_REVIEW',
+    active           BOOLEAN     NOT NULL DEFAULT FALSE,
+    rejection_reason TEXT,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE bundle_items (
@@ -101,7 +102,7 @@ New proposals submitted via `/proposals/draft` should set `status = 'DRAFT'` unt
 #### `GET /orgs/public/{handle}`
 - **Auth**: none (public endpoint)
 - **Frontend route**: `/agency/{handle}` (user-facing alias)
-- **Logic**: look up `organisations` WHERE `handle = $1`. JOIN `org_members` for count. JOIN `agent_listings` WHERE `org_id = org.id AND active = TRUE` for count. JOIN `deployments` WHERE `org_id = org.id AND state = 'COMPLETE'` for completed count.
+- **Logic**: look up `organisations` WHERE `handle = $1`. JOIN `org_members` for count. JOIN `agent_listings` WHERE `org_id = org.id AND active = TRUE` for count. JOIN `deployments` WHERE `org_id = org.id AND status = 'RELEASED'` for completed count. (`deployment_status` enum has no `COMPLETE` value — the terminal success state is `RELEASED`.)
 - **Response**:
 ```json
 {
@@ -146,9 +147,10 @@ New proposals submitted via `/proposals/draft` should set `status = 'DRAFT'` unt
 #### `GET /enterprise/orgs/{id}/proposals`
 - **Auth**: org member
 - **Logic**:
-  - Fetch `org_members` to get all `profile_id` values for `org_id`
+  - Query `org_members WHERE org_id = $org_id AND profile_id = $caller_profile_id` to get caller's `member_role`. Return 403 if no row exists (caller is not a member of this org).
+  - Fetch all `profile_id` values from `org_members WHERE org_id = $org_id` for use in ADMIN filter.
   - ADMIN (`member_role = 'ADMIN'`): `WHERE submitted_by_profile_id IN (org_member_ids)`
-  - MEMBER: `WHERE submitted_by_profile_id = $caller_profile_id`
+  - MEMBER (`member_role = 'MEMBER'`): `WHERE submitted_by_profile_id = $caller_profile_id`
   - JOIN `unified_profiles` ON `submitted_by_profile_id = unified_profiles.id` to get `display_name AS submitter_name`
   - Group results by mapped Kanban status (DRAFT → draft, PENDING+ACCEPTED → sent, REJECTED → closed)
 - **Response**: `{ draft: [...], sent: [...], closed: [...] }` — each item: `{ id, job_title, freelancer_email, client_email, submitted_at, submitted_by_profile_id, submitter_name }`
@@ -283,18 +285,22 @@ Bundle listings go through the existing `/admin/listings` moderation flow:
 
 ```typescript
 // apps/web/lib/api.ts — public profile
+// Calls identity_service (:3001) via /api/identity/orgs/public/{handle} proxy
 fetchAgencyProfile(handle: string): Promise<AgencyProfile>
 
 // apps/web/lib/enterpriseApi.ts — bundles
+// All 4 calls use mktBase() → marketplace_service (:3002)
 fetchOrgBundles(orgId: string): Promise<{ bundles: Bundle[] }>
 createBundle(orgId: string, req: CreateBundleRequest): Promise<{ bundle_id: string; listing_status: string }>
 updateBundle(orgId: string, bundleId: string, req: Partial<CreateBundleRequest>): Promise<{ ok: boolean; listing_status: string }>
 deleteBundle(orgId: string, bundleId: string): Promise<void>
 
 // apps/web/lib/enterpriseApi.ts — proposal inbox
+// Calls mktBase() → marketplace_service (:3002)
 fetchOrgProposals(orgId: string): Promise<{ draft: Proposal[]; sent: Proposal[]; closed: Proposal[] }>
 
 // apps/web/lib/adminApi.ts — admin bundle moderation
+// Calls mktBase() → marketplace_service (:3002) admin routes
 approveBundle(bundleId: string): Promise<void>
 rejectBundle(bundleId: string, reason: string): Promise<void>
 ```
