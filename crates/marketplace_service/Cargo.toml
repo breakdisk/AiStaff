@@ -25,4 +25,5 @@ rdkafka.workspace      = true
 tracing.workspace      = true
 tracing-subscriber.workspace = true
 dotenvy.workspace      = true
+reqwest.workspace      = true
 infer.workspace        = true

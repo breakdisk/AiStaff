@@ -19,8 +19,11 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 pub struct AppState {
-    pub db: PgPool,
-    pub producer: KafkaProducer,
+    pub db:               PgPool,
+    pub producer:         KafkaProducer,
+    pub http_client:      reqwest::Client,
+    pub notification_url: String,
+    pub admin_email:      String,
 }
 
 pub type SharedState = Arc<AppState>;

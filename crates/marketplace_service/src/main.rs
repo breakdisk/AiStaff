@@ -43,9 +43,23 @@ async fn main() -> Result<()> {
 
     let producer = KafkaProducer::new(&brokers)?;
 
+    let http_client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+        .expect("reqwest client build failed");
+    let notification_url = std::env::var("NOTIFICATION_SERVICE_URL")
+        .unwrap_or_else(|_| "http://localhost:3012".into());
+    let admin_email = std::env::var("ADMIN_EMAIL").unwrap_or_else(|_| {
+        tracing::warn!("ADMIN_EMAIL not set — defaulting to admin@aistaff.app. Set this in production.");
+        "admin@aistaff.app".into()
+    });
+
     let state = Arc::new(AppState {
         db: pool.clone(),
         producer,
+        http_client,
+        notification_url,
+        admin_email,
     });
 
     let app = Router::new()
