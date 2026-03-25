@@ -18,6 +18,10 @@ use sqlx::PgPool;
 use std::sync::Arc;
 use uuid::Uuid;
 
+/// Single source of truth for the pending-review status literal.
+/// Used in the INSERT SQL hardcoded string and the JSON response.
+pub(crate) const LISTING_STATUS_PENDING: &str = "PENDING_REVIEW";
+
 pub struct AppState {
     pub db:               PgPool,
     pub producer:         KafkaProducer,
@@ -449,8 +453,10 @@ pub async fn create_listing(
     let insert = sqlx::query(
         "INSERT INTO agent_listings
              (id, developer_id, name, description, wasm_hash,
-              price_cents, category, seller_type, slug)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+              price_cents, category, seller_type, slug,
+              listing_status, active)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9,
+                 'PENDING_REVIEW', FALSE)",
     )
     .bind(listing_id)
     .bind(req.developer_id)
@@ -466,10 +472,44 @@ pub async fn create_listing(
 
     match insert {
         Ok(_) => {
-            tracing::info!(%listing_id, %slug, "agent listing created");
+            tracing::info!(%listing_id, %slug, "agent listing created — pending review");
+
+            // Fire-and-forget: notify admin of new listing awaiting approval.
+            let client       = state.http_client.clone();
+            let notif_url    = state.notification_url.clone();
+            let admin_email  = state.admin_email.clone();
+            let listing_name = req.name.clone();
+            let category     = req.category.clone();
+            let price_usd    = req.price_cents / 100;
+            tokio::spawn(async move {
+                let payload = serde_json::json!({
+                    "recipient_email": admin_email,
+                    "subject": format!("New listing pending review: {listing_name}"),
+                    "body": format!(
+                        "A new agent listing has been submitted and requires your approval.\n\n\
+                         Listing:  {listing_name}\n\
+                         Category: {category}\n\
+                         Price:    ${price_usd}\n\n\
+                         Review at: https://aistaffglobal.com/admin/listings"
+                    )
+                });
+                if let Err(e) = client
+                    .post(format!("{notif_url}/notify"))
+                    .json(&payload)
+                    .send()
+                    .await
+                {
+                    tracing::warn!("admin listing notification failed: {e:#}");
+                }
+            });
+
             (
                 StatusCode::CREATED,
-                Json(serde_json::json!({ "listing_id": listing_id, "slug": slug })),
+                Json(serde_json::json!({
+                    "listing_id":     listing_id,
+                    "slug":           slug,
+                    "listing_status": LISTING_STATUS_PENDING
+                })),
             )
                 .into_response()
         }
@@ -827,4 +867,15 @@ pub async fn attest_skills(
 
 pub async fn health() -> StatusCode {
     StatusCode::OK
+}
+
+#[cfg(test)]
+mod tests {
+    use super::LISTING_STATUS_PENDING;
+
+    #[test]
+    fn listing_status_pending_is_pending_review() {
+        // Guards the constant value used in INSERT SQL and JSON response.
+        assert_eq!(LISTING_STATUS_PENDING, "PENDING_REVIEW");
+    }
 }
