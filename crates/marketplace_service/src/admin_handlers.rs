@@ -420,7 +420,6 @@ pub async fn force_release_payout(
     }
 
     if let Err(e) = tx.commit().await {
-        let _ = tx.rollback().await; // No-op after commit failure, but safe
         return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
     }
 
