@@ -582,9 +582,8 @@ function StepClientGoal({
   onDone:    (dest: string) => void;
   profileId: string;
 }) {
-  const [tosChecked,  setTosChecked]  = useState(false);
-  const [tosLoading,  setTosLoading]  = useState(false);
-  const [tosError,    setTosError]    = useState<string | null>(null);
+  const [tosChecked, setTosChecked] = useState(false);
+  const [tosError,   setTosError]   = useState<string | null>(null);
   const [pendingDest, setPendingDest] = useState<string | null>(null);
 
   function handleGoalClick(dest: string) {
@@ -596,20 +595,17 @@ function StepClientGoal({
     onDone(dest);
   }
 
-  async function handleTosCheck(checked: boolean) {
-    if (!checked) { setTosChecked(false); return; }
-    setTosLoading(true);
+  function handleTosCheck(checked: boolean) {
+    setTosChecked(checked);
     setTosError(null);
-    try {
-      await updateProfile(profileId, { tos_accepted: true });
-      setTosChecked(true);
-      if (pendingDest) onDone(pendingDest);
-    } catch {
-      setTosError("Could not record your acceptance — please try again.");
-      setTosChecked(false);
-    } finally {
-      setTosLoading(false);
+    if (!checked) return;
+    // Fire-and-forget: record acceptance in background — never block the checkbox.
+    // Acceptance is also recorded during markDone via audit-events.
+    if (profileId) {
+      updateProfile(profileId, { tos_accepted: true }).catch(() => {});
     }
+    // If the user already tried to click a goal button before ticking, proceed now.
+    if (pendingDest) onDone(pendingDest);
   }
 
   return (
@@ -708,7 +704,6 @@ function StepClientGoal({
           <input
             type="checkbox"
             checked={tosChecked}
-            disabled={tosLoading}
             onChange={(e) => handleTosCheck(e.target.checked)}
             className="mt-0.5 h-4 w-4 rounded-sm accent-amber-400 cursor-pointer"
             aria-label="Accept Terms of Service and Privacy Policy"
@@ -724,7 +719,6 @@ function StepClientGoal({
                className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
               Privacy Policy
             </a>
-            {tosLoading && <span className="text-zinc-500 ml-1">saving…</span>}
           </span>
         </label>
         {tosError && (
