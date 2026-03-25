@@ -185,6 +185,7 @@ struct UpdateProfilePayload {
     hourly_rate_cents: Option<i32>,
     availability: Option<String>,
     role: Option<String>,
+    tos_accepted: Option<bool>,  // writes tos_accepted_at = NOW() if NULL
 }
 
 async fn update_profile(
@@ -198,6 +199,11 @@ async fn update_profile(
              hourly_rate_cents = COALESCE($3, hourly_rate_cents),
              availability      = COALESCE($4, availability),
              role              = COALESCE($5, role),
+             tos_accepted_at   = CASE
+                                   WHEN $6 = TRUE AND tos_accepted_at IS NULL
+                                   THEN NOW()
+                                   ELSE tos_accepted_at
+                                 END,
              updated_at        = NOW()
          WHERE id = $1",
     )
@@ -206,6 +212,7 @@ async fn update_profile(
     .bind(payload.hourly_rate_cents)
     .bind(&payload.availability)
     .bind(&payload.role)
+    .bind(payload.tos_accepted.unwrap_or(false))
     .execute(&pool)
     .await;
 
@@ -609,5 +616,19 @@ async fn create_agency(
             tracing::error!("create_agency insert: {e:#}");
             (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn tos_accepted_payload_deserialises() {
+        let with_tos: serde_json::Value =
+            serde_json::from_str(r#"{"tos_accepted": true}"#).unwrap();
+        assert_eq!(with_tos["tos_accepted"], true);
+
+        let without: serde_json::Value =
+            serde_json::from_str(r#"{"bio": "hello"}"#).unwrap();
+        assert!(without.get("tos_accepted").is_none());
     }
 }
