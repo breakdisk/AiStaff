@@ -308,14 +308,16 @@ fn tier_label(t: IdentityTier) -> String {
 // ── Link-flag helpers ─────────────────────────────────────────────────────────
 
 /// Resolution path taken during upsert — used to derive is_linked_account.
+#[cfg(test)]
 #[derive(Debug, PartialEq)]
-pub(crate) enum ResolutionPath {
+enum ResolutionPath {
     ByProvider,
     ByEmail,
     NewInsert,
 }
 
-pub(crate) fn resolve_link_flag(path: ResolutionPath) -> bool {
+#[cfg(test)]
+fn resolve_link_flag(path: ResolutionPath) -> bool {
     path == ResolutionPath::ByEmail
 }
 
@@ -328,9 +330,9 @@ mod tests {
 
     #[test]
     fn linked_account_only_on_email_match() {
-        assert_eq!(resolve_link_flag(ResolutionPath::ByProvider), false);
-        assert_eq!(resolve_link_flag(ResolutionPath::ByEmail), true);
-        assert_eq!(resolve_link_flag(ResolutionPath::NewInsert), false);
+        assert!(!resolve_link_flag(ResolutionPath::ByProvider));
+        assert!(resolve_link_flag(ResolutionPath::ByEmail));
+        assert!(!resolve_link_flag(ResolutionPath::NewInsert));
     }
 
     #[test]
