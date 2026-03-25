@@ -116,4 +116,29 @@ pub struct OAuthCallbackResponse {
     /// Platform-owner admin flag — true only for designated admins
     #[serde(default)]
     pub is_admin: bool,
+    /// True when this login resolved an existing profile by email match
+    /// (new OAuth provider linked to an existing account).
+    #[serde(default)]
+    pub is_linked_account: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn oauth_callback_response_is_linked_account_defaults_false() {
+        // Deserialising a payload that omits is_linked_account must default to false
+        // (existing callers don't send it yet — serde default is required)
+        let json = r#"{
+            "profile_id": "00000000-0000-0000-0000-000000000001",
+            "identity_tier": "UNVERIFIED",
+            "trust_score": 0,
+            "account_type": "individual",
+            "role": null,
+            "is_admin": false
+        }"#;
+        let r: OAuthCallbackResponse = serde_json::from_str(json).unwrap();
+        assert!(!r.is_linked_account);
+    }
 }
