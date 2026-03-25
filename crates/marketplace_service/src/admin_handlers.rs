@@ -13,6 +13,12 @@ use uuid::Uuid;
 
 use crate::handlers::AppState;
 
+pub(crate) const APPROVE_SQL: &str =
+    "UPDATE agent_listings
+     SET listing_status = 'APPROVED', rejection_reason = NULL,
+         active = TRUE, updated_at = NOW()
+     WHERE id = $1";
+
 // ── GET /admin/listings ───────────────────────────────────────────────────────
 
 #[derive(Deserialize)]
@@ -82,14 +88,10 @@ pub async fn approve_listing(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
-    let res = sqlx::query(
-        "UPDATE agent_listings
-         SET listing_status = 'APPROVED', rejection_reason = NULL, updated_at = NOW()
-         WHERE id = $1",
-    )
-    .bind(id)
-    .execute(&state.db)
-    .await;
+    let res = sqlx::query(APPROVE_SQL)
+        .bind(id)
+        .execute(&state.db)
+        .await;
 
     match res {
         Ok(r) if r.rows_affected() == 0 => StatusCode::NOT_FOUND.into_response(),
@@ -428,7 +430,14 @@ pub async fn force_release_payout(
 
 #[cfg(test)]
 mod tests {
-    use super::force_release_validate;
+    use super::{force_release_validate, APPROVE_SQL};
+
+    #[test]
+    fn approve_sql_sets_active_true() {
+        // Approve must re-activate the listing so it appears in GET /listings.
+        assert!(APPROVE_SQL.contains("active = TRUE"),
+            "APPROVE_SQL must set active = TRUE but got:\n{APPROVE_SQL}");
+    }
 
     #[test]
     fn rejects_non_biometric_pending_state() {
