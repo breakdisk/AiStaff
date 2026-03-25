@@ -6,7 +6,7 @@ import { useSession } from "next-auth/react";
 import Link from "next/link";
 import {
   Bot, ArrowLeft, Send, Loader2, CheckCircle, CheckCircle2,
-  DollarSign, Calendar, Tag, Plus,
+  DollarSign, Calendar, Tag, Plus, Clock,
 } from "lucide-react";
 import { createListing, type ListingCategory } from "@/lib/api";
 
@@ -188,11 +188,11 @@ export default function PostJobPage() {
     return (
       <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center px-4">
         <div className="w-full max-w-sm space-y-5 text-center">
-          <CheckCircle className="w-12 h-12 text-emerald-500 mx-auto" />
+          <Clock className="w-12 h-12 text-amber-400 mx-auto" />
           <div>
-            <h2 className="text-xl font-semibold text-zinc-100">Job posted!</h2>
+            <h2 className="text-xl font-semibold text-zinc-100">Listing submitted for review</h2>
             <p className="font-mono text-xs text-zinc-500 mt-1">
-              Our matching engine will surface vetted freelancers shortly.
+              Our team will review your listing shortly. You&apos;ll receive an email once it&apos;s approved and live.
             </p>
           </div>
           {error && (
