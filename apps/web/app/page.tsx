@@ -210,7 +210,7 @@ function Hero() {
             </div>
 
             <h1 className="text-4xl sm:text-5xl lg:text-[56px] font-semibold text-zinc-50 leading-[1.08] tracking-tight">
-              AI Agent Marketplace<br />
+              AI Workforce Marketplace<br />
               for{" "}
               <span className="bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 bg-clip-text text-transparent animate-gradient-x">
                 Business Scaling
