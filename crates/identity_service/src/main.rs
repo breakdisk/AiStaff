@@ -33,6 +33,7 @@ impl FromRef<AppState> for sqlx::PgPool {
 }
 
 mod admin_handlers;
+mod audit_handler;
 mod enterprise_handlers;
 mod handlers;
 mod oauth_handler;
@@ -87,6 +88,11 @@ async fn main() -> anyhow::Result<()> {
         .route("/identity/connect-provider", post(connect_provider))
         // ZK nonce request (migration 0018)
         .route("/identity/nonce-request", post(nonce_request))
+        // Batch audit events (client onboarding, role selection, ToS, etc.)
+        .route(
+            "/identity/audit-events",
+            post(audit_handler::batch_audit_events),
+        )
         // Freelancer profile update (migration 0017)
         .route("/profile/{id}", patch(update_profile))
         // Provider disconnect + audit log (migration 0018)
