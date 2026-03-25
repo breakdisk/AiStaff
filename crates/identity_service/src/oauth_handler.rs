@@ -39,9 +39,10 @@ pub async fn handle_oauth_callback(
     db: &PgPool,
     payload: OAuthCallbackPayload,
 ) -> Result<OAuthCallbackResponse> {
-    let profile_id = match payload.existing_profile_id {
-        // Connect-provider flow: caller already knows the profile
-        Some(id) => id,
+    let (profile_id, is_linked_account) = match payload.existing_profile_id {
+        // connect-provider flow: user is already logged in, linking a new provider.
+        // Not a "duplicate account" situation — show no warning.
+        Some(id) => (id, false),
         None => upsert_profile(db, &payload).await?,
     };
 
@@ -79,22 +80,21 @@ pub async fn handle_oauth_callback(
         account_type,
         role,
         is_admin,
+        is_linked_account,
     })
 }
 
 // ── Step 1: upsert profile row ────────────────────────────────────────────────
 
-async fn upsert_profile(db: &PgPool, p: &OAuthCallbackPayload) -> Result<Uuid> {
-    // Try existing by provider UID first
+async fn upsert_profile(db: &PgPool, p: &OAuthCallbackPayload) -> Result<(Uuid, bool)> {
     if let Some(id) = find_by_provider(db, p).await? {
-        return Ok(id);
+        return Ok((id, false)); // returning user — same provider
     }
-    // Try existing by email (cross-provider account linking)
     if let Some(id) = find_by_email(db, &p.email).await? {
-        return Ok(id);
+        return Ok((id, true)); // email match — new provider linked to existing account
     }
-    // New user — insert
-    insert_profile(db, p).await
+    let id = insert_profile(db, p).await?;
+    Ok((id, false)) // brand new profile
 }
 
 async fn find_by_provider(db: &PgPool, p: &OAuthCallbackPayload) -> Result<Option<Uuid>> {
@@ -305,12 +305,33 @@ fn tier_label(t: IdentityTier) -> String {
     }
 }
 
+// ── Link-flag helpers ─────────────────────────────────────────────────────────
+
+/// Resolution path taken during upsert — used to derive is_linked_account.
+#[derive(Debug, PartialEq)]
+pub(crate) enum ResolutionPath {
+    ByProvider,
+    ByEmail,
+    NewInsert,
+}
+
+pub(crate) fn resolve_link_flag(path: ResolutionPath) -> bool {
+    path == ResolutionPath::ByEmail
+}
+
 // ── Unit tests ────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use chrono::{Duration, Utc};
+
+    #[test]
+    fn linked_account_only_on_email_match() {
+        assert_eq!(resolve_link_flag(ResolutionPath::ByProvider), false);
+        assert_eq!(resolve_link_flag(ResolutionPath::ByEmail), true);
+        assert_eq!(resolve_link_flag(ResolutionPath::NewInsert), false);
+    }
 
     #[test]
     fn github_score_five_year_fifty_repos() {
