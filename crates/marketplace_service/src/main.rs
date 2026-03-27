@@ -140,6 +140,10 @@ async fn main() -> Result<()> {
             post(bundle_handlers::admin_reject_bundle),
         )
         .route(
+            "/enterprise/orgs/{id}/proposals",
+            get(proposal_handlers::list_org_proposals),
+        )
+        .route(
             "/enterprise/orgs/{id}/deployments",
             get(enterprise_handlers::list_org_deployments),
         )
