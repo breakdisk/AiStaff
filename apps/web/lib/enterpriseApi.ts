@@ -174,3 +174,90 @@ export function adminListOrgs(): Promise<AdminOrgRow[]> {
     : "/api/admin/enterprises";
   return req(url);
 }
+
+// ── Bundles ───────────────────────────────────────────────────────────────────
+
+export interface BundleItem {
+  listing_id:    string;
+  name:          string;
+  price_cents:   number;
+  display_order: number;
+}
+
+export interface Bundle {
+  id:             string;
+  name:           string;
+  description:    string | null;
+  price_cents:    number;
+  listing_status: string;
+  active:         boolean;
+  item_count:     number;
+  items:          BundleItem[];
+  created_at:     string;
+}
+
+export interface CreateBundleRequest {
+  name:         string;
+  description?: string;
+  price_cents:  number;
+  listing_ids:  string[];
+}
+
+export function fetchOrgBundles(orgId: string): Promise<{ bundles: Bundle[] }> {
+  return req(`${mktBase()}/orgs/${orgId}/bundles`);
+}
+
+export function createBundle(
+  orgId: string,
+  body: CreateBundleRequest,
+): Promise<{ bundle_id: string; listing_status: string }> {
+  return req(`${mktBase()}/orgs/${orgId}/bundles`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+export function updateBundle(
+  orgId: string,
+  bundleId: string,
+  body: Partial<CreateBundleRequest>,
+): Promise<{ ok: boolean; listing_status: string }> {
+  return req(`${mktBase()}/orgs/${orgId}/bundles/${bundleId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+export function deleteBundle(orgId: string, bundleId: string): Promise<void> {
+  return req(`${mktBase()}/orgs/${orgId}/bundles/${bundleId}`, { method: "DELETE" });
+}
+
+// ── Proposal Inbox ────────────────────────────────────────────────────────────
+
+export interface OrgProposalItem {
+  id:                      string;
+  job_title:               string;
+  freelancer_email:        string;
+  client_email:            string;
+  submitted_at:            string;
+  submitted_by_profile_id: string | null;
+  submitter_name:          string | null;
+  status:                  string;
+}
+
+export interface OrgProposalsResponse {
+  draft:  OrgProposalItem[];
+  sent:   OrgProposalItem[];
+  closed: OrgProposalItem[];
+}
+
+export function fetchOrgProposals(
+  orgId: string,
+  callerProfileId: string,
+): Promise<OrgProposalsResponse> {
+  return req(
+    `${mktBase()}/orgs/${orgId}/proposals?caller_profile_id=${encodeURIComponent(callerProfileId)}`,
+  );
+}

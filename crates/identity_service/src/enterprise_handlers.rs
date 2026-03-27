@@ -585,6 +585,112 @@ pub async fn admin_list_orgs(
     Ok(Json(orgs))
 }
 
+// ── Public org profile (no auth) ─────────────────────────────────────────────
+
+/// Pure predicate — ENTERPRISE or PLATINUM plans earn a verified badge.
+pub fn is_verified_plan(plan_tier: &str) -> bool {
+    plan_tier == "ENTERPRISE" || plan_tier == "PLATINUM"
+}
+
+#[derive(Serialize)]
+pub struct PublicOrgProfile {
+    pub id:                          String,
+    pub name:                        String,
+    pub handle:                      String,
+    pub description:                 Option<String>,
+    pub website_url:                 Option<String>,
+    pub plan_tier:                   String,
+    pub is_verified:                 bool,
+    pub member_count:                i64,
+    pub active_listing_count:        i64,
+    pub completed_deployment_count:  i64,
+    pub created_at:                  String,
+}
+
+/// GET /orgs/public/:handle — no auth required (public endpoint)
+pub async fn public_org_profile(
+    State(pool): State<sqlx::PgPool>,
+    Path(handle): Path<String>,
+) -> Result<Json<PublicOrgProfile>, StatusCode> {
+    use sqlx::Row;
+
+    let org = sqlx::query(
+        "SELECT id, name, handle, description, website_url,
+                plan_tier::TEXT AS plan_tier, created_at
+         FROM organisations
+         WHERE handle = $1",
+    )
+    .bind(&handle)
+    .fetch_optional(&pool)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    .ok_or(StatusCode::NOT_FOUND)?;
+
+    let org_id: uuid::Uuid = org.get("id");
+
+    let member_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM org_members WHERE org_id = $1",
+    )
+    .bind(org_id)
+    .fetch_one(&pool)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let active_listing_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM agent_listings WHERE org_id = $1 AND active = TRUE",
+    )
+    .bind(org_id)
+    .fetch_one(&pool)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let completed_deployment_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM deployments WHERE org_id = $1 AND state::TEXT = 'RELEASED'",
+    )
+    .bind(org_id)
+    .fetch_one(&pool)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let plan_tier: String = org.get("plan_tier");
+    let is_verified = is_verified_plan(&plan_tier);
+
+    Ok(Json(PublicOrgProfile {
+        id:                         org_id.to_string(),
+        name:                       org.get("name"),
+        handle:                     org.get("handle"),
+        description:                org.get("description"),
+        website_url:                org.get("website_url"),
+        plan_tier,
+        is_verified,
+        member_count,
+        active_listing_count,
+        completed_deployment_count,
+        created_at:                 org.get::<chrono::DateTime<chrono::Utc>, _>("created_at")
+                                       .to_rfc3339(),
+    }))
+}
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::is_verified_plan;
+
+    #[test]
+    fn enterprise_and_platinum_are_verified() {
+        assert!(is_verified_plan("ENTERPRISE"));
+        assert!(is_verified_plan("PLATINUM"));
+    }
+
+    #[test]
+    fn growth_is_not_verified() {
+        assert!(!is_verified_plan("GROWTH"));
+        assert!(!is_verified_plan(""));
+        assert!(!is_verified_plan("UNKNOWN"));
+    }
+}
+
 // ── Internal helper ────────────────────────────────────────────────────────
 
 async fn fetch_org_response(pool: &PgPool, org_id: Uuid) -> Result<OrgResponse, sqlx::Error> {

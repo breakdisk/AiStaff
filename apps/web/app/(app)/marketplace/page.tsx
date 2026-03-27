@@ -14,6 +14,7 @@ import {
 } from "@/lib/api";
 
 import { VettingBadge }        from "@/components/VettingBadge";
+import { VerifiedBadge }       from "@/components/VerifiedBadge";
 import { ShareButton }         from "@/components/ShareSheet";
 import { AnnouncementBanner }  from "@/components/AnnouncementBanner";
 import type { VettingTier } from "@/components/VettingBadge";
@@ -614,13 +615,16 @@ function ListingCard({ listing, userTier, profileId, marketView, devTierMap, hig
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 space-y-1">
             {/* Clickable name → opens detail sheet */}
-            <button
-              onClick={() => setShowDetail(true)}
-              className="font-mono text-sm font-medium text-zinc-100 hover:text-amber-400
-                         transition-colors text-left w-full truncate"
-            >
-              {listing.name}
-            </button>
+            <div className="flex items-start justify-between gap-2">
+              <button
+                onClick={() => setShowDetail(true)}
+                className="font-mono text-sm font-medium text-zinc-100 hover:text-amber-400
+                           transition-colors text-left truncate"
+              >
+                {listing.name}
+              </button>
+              <VerifiedBadge planTier={listing.org_plan_tier} />
+            </div>
             <div className="flex items-center gap-1.5 flex-wrap">
               <CategoryBadge category={listing.category} />
               <SellerBadge sellerType={listing.seller_type} />
@@ -703,13 +707,16 @@ function TableRow({ listing, userTier, profileId, marketView, devTierMap, highli
         <td className="px-3 py-2">
           <div className="space-y-1">
             {/* Clickable name → opens detail sheet */}
-            <button
-              onClick={() => setShowDetail(true)}
-              className="font-mono text-xs font-medium text-zinc-200 hover:text-amber-400
-                         transition-colors text-left"
-            >
-              {listing.name}
-            </button>
+            <div className="flex items-start justify-between gap-2">
+              <button
+                onClick={() => setShowDetail(true)}
+                className="font-mono text-xs font-medium text-zinc-200 hover:text-amber-400
+                           transition-colors text-left"
+              >
+                {listing.name}
+              </button>
+              <VerifiedBadge planTier={listing.org_plan_tier} />
+            </div>
             <p className="font-mono text-[10px] text-zinc-600 flex items-center gap-1">
               <Cpu className="w-2.5 h-2.5" />{shortHash(listing.wasm_hash)}
             </p>

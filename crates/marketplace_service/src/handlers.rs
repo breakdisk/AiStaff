@@ -519,15 +519,23 @@ pub async fn create_listing(
 
 // ── GET /listings ─────────────────────────────────────────────────────────────
 
+/// Pure function — determines if an org plan tier qualifies for Verified badge.
+pub fn is_enterprise_or_platinum(plan_tier: Option<&str>) -> bool {
+    matches!(plan_tier, Some("ENTERPRISE") | Some("PLATINUM"))
+}
+
 pub async fn list_listings(State(state): State<SharedState>) -> impl IntoResponse {
     use sqlx::Row;
 
     let rows = sqlx::query(
-        "SELECT id, developer_id, name, description, wasm_hash,
-                price_cents, active, category, seller_type, slug, created_at, updated_at
-         FROM agent_listings
-         WHERE active = TRUE
-         ORDER BY created_at DESC
+        "SELECT al.id, al.developer_id, al.name, al.description, al.wasm_hash,
+                al.price_cents, al.active, al.category, al.seller_type, al.slug,
+                al.created_at, al.updated_at,
+                o.plan_tier::TEXT AS org_plan_tier
+         FROM agent_listings al
+         LEFT JOIN organisations o ON o.id = al.org_id
+         WHERE al.active = TRUE
+         ORDER BY al.created_at DESC
          LIMIT 100",
     )
     .fetch_all(&state.db)
@@ -552,18 +560,19 @@ pub async fn list_listings(State(state): State<SharedState>) -> impl IntoRespons
                     let updated: chrono::DateTime<chrono::Utc> = r.get("updated_at");
 
                     serde_json::json!({
-                        "id":           id,
-                        "developer_id": developer_id,
-                        "name":         name,
-                        "description":  description,
-                        "wasm_hash":    wasm_hash,
-                        "price_cents":  price_cents,
-                        "active":       active,
-                        "category":     category,
-                        "seller_type":  seller_type,
-                        "slug":         slug,
-                        "created_at":   created.to_rfc3339(),
-                        "updated_at":   updated.to_rfc3339(),
+                        "id":             id,
+                        "developer_id":   developer_id,
+                        "name":           name,
+                        "description":    description,
+                        "wasm_hash":      wasm_hash,
+                        "price_cents":    price_cents,
+                        "active":         active,
+                        "category":       category,
+                        "seller_type":    seller_type,
+                        "slug":           slug,
+                        "created_at":     created.to_rfc3339(),
+                        "updated_at":     updated.to_rfc3339(),
+                        "org_plan_tier":  r.get::<Option<String>, _>("org_plan_tier"),
                     })
                 })
                 .collect();
@@ -871,11 +880,24 @@ pub async fn health() -> StatusCode {
 
 #[cfg(test)]
 mod tests {
+    use super::is_enterprise_or_platinum;
     use super::LISTING_STATUS_PENDING;
 
     #[test]
     fn listing_status_pending_is_pending_review() {
         // Guards the constant value used in INSERT SQL and JSON response.
         assert_eq!(LISTING_STATUS_PENDING, "PENDING_REVIEW");
+    }
+
+    #[test]
+    fn enterprise_plan_is_verified() {
+        assert!(is_enterprise_or_platinum(Some("ENTERPRISE")));
+        assert!(is_enterprise_or_platinum(Some("PLATINUM")));
+    }
+
+    #[test]
+    fn growth_and_none_are_not_verified() {
+        assert!(!is_enterprise_or_platinum(Some("GROWTH")));
+        assert!(!is_enterprise_or_platinum(None));
     }
 }

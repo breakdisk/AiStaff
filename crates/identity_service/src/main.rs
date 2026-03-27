@@ -152,6 +152,11 @@ async fn main() -> anyhow::Result<()> {
             "/enterprise/invites/{token}/accept",
             post(enterprise_handlers::accept_invite),
         )
+        // Public org profile — no auth (for /agency/{handle} frontend page)
+        .route(
+            "/orgs/public/{handle}",
+            get(enterprise_handlers::public_org_profile),
+        )
         // Admin enterprise route
         .route(
             "/admin/enterprises",

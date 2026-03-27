@@ -7,6 +7,7 @@
 use axum::{
     extract::{Path, State},
     http::StatusCode,
+    response::IntoResponse,
     Json,
 };
 use chrono::Utc;
@@ -249,4 +250,161 @@ pub async fn reject_proposal(
     }
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// Pure function — maps DB `status` value to Kanban column name.
+pub fn proposal_kanban_group(status: &str) -> &'static str {
+    match status {
+        "DRAFT"              => "draft",
+        "PENDING" | "ACCEPTED" => "sent",
+        _                    => "closed",
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct OrgProposalItem {
+    pub id:                       String,
+    pub job_title:                String,
+    pub freelancer_email:         String,
+    pub client_email:             String,
+    pub submitted_at:             String,
+    pub submitted_by_profile_id:  Option<String>,
+    pub submitter_name:           Option<String>,
+    pub status:                   String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct OrgProposalsResponse {
+    pub draft:  Vec<OrgProposalItem>,
+    pub sent:   Vec<OrgProposalItem>,
+    pub closed: Vec<OrgProposalItem>,
+}
+
+/// GET /enterprise/orgs/:id/proposals
+///
+/// ADMIN sees all proposals from any org member.
+/// MEMBER sees only their own proposals.
+/// Returns 403 if caller is not a member of the org.
+///
+/// The `caller_profile_id` query parameter is the profile UUID of the
+/// authenticated user (passed from the Next.js proxy layer).
+pub async fn list_org_proposals(
+    State(state): State<SharedState>,
+    Path(org_id): Path<Uuid>,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> impl IntoResponse {
+    let caller_profile_id_str = match params.get("caller_profile_id") {
+        Some(s) => s.clone(),
+        None => return (StatusCode::BAD_REQUEST, "caller_profile_id required").into_response(),
+    };
+    let caller_id: Uuid = match caller_profile_id_str.parse() {
+        Ok(id) => id,
+        Err(_) => return (StatusCode::BAD_REQUEST, "invalid caller_profile_id").into_response(),
+    };
+
+    // Resolve caller's membership role — 403 if not a member
+    let membership = sqlx::query(
+        "SELECT member_role FROM org_members WHERE org_id = $1 AND profile_id = $2",
+    )
+    .bind(org_id)
+    .bind(caller_id)
+    .fetch_optional(&state.db)
+    .await;
+
+    let member_role: String = match membership {
+        Ok(Some(r)) => r.get("member_role"),
+        Ok(None)    => return StatusCode::FORBIDDEN.into_response(),
+        Err(e)      => return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    };
+
+    // Build query: ADMIN sees all org members' proposals, MEMBER sees own only
+    let rows = if member_role == "ADMIN" {
+        sqlx::query(
+            "SELECT p.id, p.job_title, p.freelancer_email, p.client_email,
+                    p.submitted_at, p.status,
+                    p.submitted_by_profile_id,
+                    up.display_name AS submitter_name
+             FROM proposals p
+             LEFT JOIN unified_profiles up ON up.id = p.submitted_by_profile_id
+             WHERE p.submitted_by_profile_id IN (
+                 SELECT profile_id FROM org_members WHERE org_id = $1
+             )
+             ORDER BY p.submitted_at DESC",
+        )
+        .bind(org_id)
+        .fetch_all(&state.db)
+        .await
+    } else {
+        sqlx::query(
+            "SELECT p.id, p.job_title, p.freelancer_email, p.client_email,
+                    p.submitted_at, p.status,
+                    p.submitted_by_profile_id,
+                    up.display_name AS submitter_name
+             FROM proposals p
+             LEFT JOIN unified_profiles up ON up.id = p.submitted_by_profile_id
+             WHERE p.submitted_by_profile_id = $1
+             ORDER BY p.submitted_at DESC",
+        )
+        .bind(caller_id)
+        .fetch_all(&state.db)
+        .await
+    };
+
+    let rows = match rows {
+        Ok(r) => r,
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    };
+
+    let mut draft:  Vec<OrgProposalItem> = Vec::new();
+    let mut sent:   Vec<OrgProposalItem> = Vec::new();
+    let mut closed: Vec<OrgProposalItem> = Vec::new();
+
+    for r in &rows {
+        let status: String = r.get("status");
+        let item = OrgProposalItem {
+            id:                      r.get::<Uuid, _>("id").to_string(),
+            job_title:               r.get("job_title"),
+            freelancer_email:        r.get("freelancer_email"),
+            client_email:            r.get("client_email"),
+            submitted_at:            r.get::<chrono::DateTime<chrono::Utc>, _>("submitted_at")
+                                      .to_rfc3339(),
+            submitted_by_profile_id: r.get::<Option<Uuid>, _>("submitted_by_profile_id")
+                                      .map(|u| u.to_string()),
+            submitter_name:          r.get("submitter_name"),
+            status:                  status.clone(),
+        };
+
+        match proposal_kanban_group(&status) {
+            "draft"  => draft.push(item),
+            "sent"   => sent.push(item),
+            _        => closed.push(item),
+        }
+    }
+
+    (
+        StatusCode::OK,
+        Json(OrgProposalsResponse { draft, sent, closed }),
+    )
+        .into_response()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::proposal_kanban_group;
+
+    #[test]
+    fn draft_maps_to_draft() {
+        assert_eq!(proposal_kanban_group("DRAFT"), "draft");
+    }
+
+    #[test]
+    fn pending_and_accepted_map_to_sent() {
+        assert_eq!(proposal_kanban_group("PENDING"),  "sent");
+        assert_eq!(proposal_kanban_group("ACCEPTED"), "sent");
+    }
+
+    #[test]
+    fn rejected_maps_to_closed() {
+        assert_eq!(proposal_kanban_group("REJECTED"), "closed");
+    }
 }

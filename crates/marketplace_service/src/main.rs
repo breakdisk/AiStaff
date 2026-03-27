@@ -2,6 +2,7 @@
 //! HTTP on :3002 | Kafka consumer on escrow.commands
 
 mod admin_handlers;
+mod bundle_handlers;
 mod collab_handlers;
 mod enterprise_handlers;
 mod escrow_consumer;
@@ -114,6 +115,33 @@ async fn main() -> Result<()> {
         .route(
             "/admin/payouts/{id}/force-release",
             post(admin_handlers::force_release_payout),
+        )
+        // Bundle management
+        .route(
+            "/enterprise/orgs/{id}/bundles",
+            get(bundle_handlers::list_org_bundles).post(bundle_handlers::create_bundle),
+        )
+        .route(
+            "/enterprise/orgs/{id}/bundles/{bundle_id}",
+            axum::routing::patch(bundle_handlers::update_bundle)
+                .delete(bundle_handlers::delete_bundle),
+        )
+        // Admin bundle moderation
+        .route(
+            "/admin/bundles",
+            get(bundle_handlers::admin_list_bundles),
+        )
+        .route(
+            "/admin/bundles/{id}/approve",
+            post(bundle_handlers::admin_approve_bundle),
+        )
+        .route(
+            "/admin/bundles/{id}/reject",
+            post(bundle_handlers::admin_reject_bundle),
+        )
+        .route(
+            "/enterprise/orgs/{id}/proposals",
+            get(proposal_handlers::list_org_proposals),
         )
         .route(
             "/enterprise/orgs/{id}/deployments",

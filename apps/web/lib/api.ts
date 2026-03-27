@@ -124,6 +124,8 @@ export interface AgentListing {
   listing_status?: string;
   created_at:      string;
   updated_at:      string;
+  org_plan_tier?:  string | null;
+  org_id?:         string | null;
 }
 
 export interface CreateListingRequest {
@@ -1105,4 +1107,25 @@ export async function createReminder(
 
 export async function deleteReminder(id: string): Promise<void> {
   await fetch(`/api/reminders/${id}`, { method: "DELETE" });
+}
+
+// ── Agency public profile ──────────────────────────────────────────────────
+
+export interface AgencyProfile {
+  id:                         string;
+  name:                       string;
+  handle:                     string;
+  description:                string | null;
+  website_url:                string | null;
+  plan_tier:                  string;
+  is_verified:                boolean;
+  member_count:               number;
+  active_listing_count:       number;
+  completed_deployment_count: number;
+  created_at:                 string;
+}
+
+/** Public — no auth required. Calls identity_service via /api/identity rewrite. */
+export function fetchAgencyProfile(handle: string): Promise<AgencyProfile> {
+  return apiFetch(`/api/identity/orgs/public/${encodeURIComponent(handle)}`);
 }

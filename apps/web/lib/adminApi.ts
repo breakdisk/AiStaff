@@ -142,3 +142,35 @@ export interface RevenueData {
 export function fetchRevenueSummary(): Promise<RevenueData> {
   return adminFetch(`${marketBase()}/revenue`);
 }
+
+// ── Bundles ───────────────────────────────────────────────────────────────────
+
+export interface AdminBundle {
+  id:               string;
+  org_id:           string;
+  name:             string;
+  description:      string | null;
+  price_cents:      number;
+  listing_status:   string;
+  active:           boolean;
+  rejection_reason: string | null;
+  item_count:       number;
+  created_at:       string;
+}
+
+export function fetchAdminBundles(status?: string): Promise<{ bundles: AdminBundle[] }> {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+  return adminFetch(`${marketBase()}/bundles${qs}`);
+}
+
+export function approveBundle(id: string): Promise<{ ok: boolean }> {
+  return adminFetch(`${marketBase()}/bundles/${id}/approve`, { method: "POST" });
+}
+
+export function rejectBundle(id: string, reason: string): Promise<{ ok: boolean }> {
+  return adminFetch(`${marketBase()}/bundles/${id}/reject`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ reason }),
+  });
+}
