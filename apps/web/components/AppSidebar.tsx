@@ -67,11 +67,14 @@ const SECTION_NAV: { heading: string; items: { label: string; href: string }[] }
   {
     heading: "Enterprise",
     items: [
-      { label: "Industry Suites", href: "/vertical"                },
-      { label: "Enterprise Hub",  href: "/enterprise"              },
-      { label: "Talent Pools",    href: "/enterprise/talent-pools" },
-      { label: "SLA Dashboard",   href: "/enterprise/sla"          },
-      { label: "Global & Access", href: "/global"                  },
+      { label: "Industry Suites", href: "/vertical"                  },
+      { label: "Enterprise Hub",  href: "/enterprise"                },
+      { label: "Members",         href: "/enterprise/members"        },
+      { label: "Proposals",       href: "/enterprise/proposals"      },
+      { label: "Bundles",         href: "/enterprise/bundles"        },
+      { label: "Talent Pools",    href: "/enterprise/talent-pools"   },
+      { label: "SLA Dashboard",   href: "/enterprise/sla"            },
+      { label: "Global & Access", href: "/global"                    },
     ],
   },
   {
