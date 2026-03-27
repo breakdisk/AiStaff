@@ -10,10 +10,11 @@ interface VerifiedBadgeProps {
 export function VerifiedBadge({ planTier }: VerifiedBadgeProps) {
   if (planTier !== "ENTERPRISE" && planTier !== "PLATINUM") return null;
   return (
-    <Star
-      className="w-4 h-4 fill-amber-400 text-amber-400 shrink-0"
-      title="Verified Agency"
-      aria-label="Verified Agency"
-    />
+    <span title="Verified Agency">
+      <Star
+        className="w-4 h-4 fill-amber-400 text-amber-400 shrink-0"
+        aria-label="Verified Agency"
+      />
+    </span>
   );
 }
