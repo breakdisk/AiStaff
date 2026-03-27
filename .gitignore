@@ -56,3 +56,4 @@ docs/pentest/*
 # ── Windows batch dev scripts (local only) ────────────────────────────────────
 run_build.bat
 build.bat
+.worktrees/
