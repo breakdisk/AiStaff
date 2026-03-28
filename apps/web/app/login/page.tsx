@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Github, Loader2, Linkedin, Mail, CheckCircle2 } from "lucide-react";
+import { sendMagicLink } from "./actions";
 
 // ── Google icon (Lucide does not include it) ──────────────────────────────────
 
@@ -88,50 +89,11 @@ function MagicLinkForm({ callbackUrl }: { callbackUrl: string }) {
     setError(null);
 
     try {
-      // Fetch CSRF token first — same pattern as /api/auth/login route.
-      const csrfRes = await fetch("/api/auth/csrf", { cache: "no-store" });
-      const { csrfToken } = (await csrfRes.json()) as { csrfToken?: string };
-
-      // Build and auto-submit a hidden form so the browser handles Set-Cookie
-      // before following the redirect — avoids fetch() race condition.
-      const form = document.createElement("form");
-      form.method = "POST";
-      form.action = `/api/auth/signin/nodemailer`;
-
-      const addField = (name: string, value: string) => {
-        const input = document.createElement("input");
-        input.type = "hidden";
-        input.name = name;
-        input.value = value;
-        form.appendChild(input);
-      };
-
-      addField("csrfToken",   csrfToken ?? "");
-      addField("email",       email.trim());
-      addField("callbackUrl", callbackUrl);
-      addField("redirect",    "false");
-
-      document.body.appendChild(form);
-
-      // Submit via fetch to check the response — nodemailer provider returns
-      // a redirect to /auth/verify-request on success (status 200 with URL).
-      const submitRes = await fetch(`/api/auth/signin/nodemailer`, {
-        method:  "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          csrfToken:   csrfToken ?? "",
-          email:       email.trim(),
-          callbackUrl: callbackUrl,
-          redirect:    "false",
-        }),
-        redirect: "follow",
-      });
-
-      document.body.removeChild(form);
-
-      if (submitRes.ok || submitRes.status === 200) {
+      const result = await sendMagicLink(email.trim(), callbackUrl);
+      if (result.ok) {
         setSent(true);
       } else {
+        console.error("[magic-link] server error:", result.error);
         setError("Could not send sign-in link. Please try again.");
       }
     } catch {
