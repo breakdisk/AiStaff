@@ -18,7 +18,6 @@ export default auth((req) => {
     pathname.startsWith("/login") ||
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/magic-verify") ||       // magic link landing page
-    pathname.startsWith("/api/diag/") ||          // temporary diagnostics — remove after debugging
     pathname.startsWith("/api/og") ||
     pathname.startsWith("/api/stripe/webhook") ||
     pathname.startsWith("/api/network-intl/webhook") ||
