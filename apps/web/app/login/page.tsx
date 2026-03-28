@@ -93,8 +93,8 @@ function MagicLinkForm({ callbackUrl }: { callbackUrl: string }) {
       if (result.ok) {
         setSent(true);
       } else {
-        console.error("[magic-link] server error:", result.error);
-        setError("Could not send sign-in link. Please try again.");
+        // Show the real server error so SMTP misconfigurations are visible.
+        setError(result.error ?? "Could not send sign-in link. Please try again.");
       }
     } catch {
       setError("Network error — please check your connection and try again.");

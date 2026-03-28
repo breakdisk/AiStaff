@@ -81,7 +81,10 @@ export async function sendMagicLink(
 
     return { ok: true };
   } catch (err: unknown) {
-    console.error("[magic-link] sendMagicLink error:", err);
-    return { ok: false, error: String(err) };
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[magic-link] sendMagicLink error:", msg);
+    // Return the real error so it surfaces in the UI during debugging.
+    // In production this is only visible in Dokploy web service logs.
+    return { ok: false, error: msg };
   }
 }
