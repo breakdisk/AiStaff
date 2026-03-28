@@ -191,7 +191,7 @@ function LoginForm() {
   const callbackUrl  = searchParams.get("next") ?? "/dashboard";
 
   return (
-    <div className="rounded-sm border border-zinc-800 bg-zinc-900/60 backdrop-blur-sm p-6 space-y-4">
+    <div className="rounded-sm border border-zinc-800 bg-zinc-900/60 backdrop-blur-sm p-6 space-y-3">
       <div>
         <h1 className="font-semibold text-zinc-100 text-lg">Sign in</h1>
         <p className="font-mono text-xs text-zinc-500 mt-0.5">
@@ -199,7 +199,23 @@ function LoginForm() {
         </p>
       </div>
 
-      <div className="space-y-2.5">
+      {/* Magic link — shown first so corporate users see it immediately */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <Mail className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+          <p className="font-mono text-xs text-zinc-500">Sign in with email link</p>
+        </div>
+        <MagicLinkForm callbackUrl={callbackUrl} />
+      </div>
+
+      {/* Divider */}
+      <div className="flex items-center gap-3">
+        <div className="flex-1 border-t border-zinc-800" />
+        <span className="font-mono text-[10px] text-zinc-600 uppercase tracking-widest">or continue with</span>
+        <div className="flex-1 border-t border-zinc-800" />
+      </div>
+
+      <div className="space-y-2">
         <OAuthButton
           provider="microsoft-entra-id"
           label="Continue with Microsoft"
@@ -230,22 +246,6 @@ function LoginForm() {
           callbackUrl={callbackUrl}
           icon={<Github className="w-4 h-4 text-zinc-400" />}
         />
-      </div>
-
-      {/* Magic link divider */}
-      <div className="flex items-center gap-3 py-0.5">
-        <div className="flex-1 border-t border-zinc-800" />
-        <span className="font-mono text-[10px] text-zinc-600 uppercase tracking-widest">or</span>
-        <div className="flex-1 border-t border-zinc-800" />
-      </div>
-
-      {/* Magic link section */}
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <Mail className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
-          <p className="font-mono text-xs text-zinc-500">Sign in with email link</p>
-        </div>
-        <MagicLinkForm callbackUrl={callbackUrl} />
       </div>
 
       {/* Tier info */}
