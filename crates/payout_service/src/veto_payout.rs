@@ -319,9 +319,9 @@ fn verify_zk_proof(bio: &BiometricSignoff) -> anyhow::Result<bool> {
 /// Remainder flows to talent, keeping the sum exact.
 pub fn split_with_commission(total_cents: u64) -> (u64, u64, u64) {
     let platform_cents = total_cents * 15 / 100;
-    let remaining      = total_cents - platform_cents;
-    let dev_cents      = remaining * 70 / 100;
-    let talent_cents   = remaining - dev_cents; // remainder — lossless
+    let remaining = total_cents - platform_cents;
+    let dev_cents = remaining * 70 / 100;
+    let talent_cents = remaining - dev_cents; // remainder — lossless
     (platform_cents, dev_cents, talent_cents)
 }
 
@@ -331,11 +331,11 @@ pub fn split_with_commission(total_cents: u64) -> (u64, u64, u64) {
 /// Uses integer truncation — never rounds up. Sum always equals total_cents.
 pub fn split_agency(total_cents: u64, agency_pct: u32) -> (u64, u64, u64, u64) {
     let platform_cents = total_cents * 12 / 100;
-    let remaining      = total_cents - platform_cents;
-    let agency_cents   = remaining * (agency_pct as u64) / 100;
-    let post_agency    = remaining - agency_cents;
-    let dev_cents      = post_agency * 70 / 100;
-    let talent_cents   = post_agency - dev_cents; // remainder — lossless
+    let remaining = total_cents - platform_cents;
+    let agency_cents = remaining * (agency_pct as u64) / 100;
+    let post_agency = remaining - agency_cents;
+    let dev_cents = post_agency * 70 / 100;
+    let talent_cents = post_agency - dev_cents; // remainder — lossless
     (platform_cents, agency_cents, dev_cents, talent_cents)
 }
 
@@ -447,10 +447,10 @@ mod trust_engine {
     fn agency_split_10pct() {
         // $100: platform=$12, agency=$8.80, dev=$55.44, talent=$23.76
         let (platform, agency, dev, talent) = split_agency(10_000, 10);
-        assert_eq!(platform, 1_200);  // 12% of 10_000
-        assert_eq!(agency,   880);    // 10% of 8_800 remainder
-        assert_eq!(dev,      5_544);  // 70% of 7_920 post-agency
-        assert_eq!(talent,   2_376);  // 30% of 7_920 (remainder — lossless)
+        assert_eq!(platform, 1_200); // 12% of 10_000
+        assert_eq!(agency, 880); // 10% of 8_800 remainder
+        assert_eq!(dev, 5_544); // 70% of 7_920 post-agency
+        assert_eq!(talent, 2_376); // 30% of 7_920 (remainder — lossless)
         assert_eq!(platform + agency + dev + talent, 10_000);
     }
 
@@ -459,9 +459,9 @@ mod trust_engine {
         // agency_pct=0: same as freelancer but with 12% platform (not 15%)
         let (platform, agency, dev, talent) = split_agency(10_000, 0);
         assert_eq!(platform, 1_200);
-        assert_eq!(agency,   0);
-        assert_eq!(dev,      6_160); // 70% of 8_800
-        assert_eq!(talent,   2_640); // 30% of 8_800
+        assert_eq!(agency, 0);
+        assert_eq!(dev, 6_160); // 70% of 8_800
+        assert_eq!(talent, 2_640); // 30% of 8_800
         assert_eq!(platform + agency + dev + talent, 10_000);
     }
 
@@ -472,7 +472,8 @@ mod trust_engine {
             for apct in [0u32, 5, 10, 15, 20, 30] {
                 let (p, a, d, t) = split_agency(total, apct);
                 assert_eq!(
-                    p + a + d + t, total,
+                    p + a + d + t,
+                    total,
                     "lossless for total={total} agency_pct={apct}"
                 );
             }

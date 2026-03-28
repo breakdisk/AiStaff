@@ -255,28 +255,28 @@ pub async fn reject_proposal(
 /// Pure function — maps DB `status` value to Kanban column name.
 pub fn proposal_kanban_group(status: &str) -> &'static str {
     match status {
-        "DRAFT"              => "draft",
+        "DRAFT" => "draft",
         "PENDING" | "ACCEPTED" => "sent",
-        _                    => "closed",
+        _ => "closed",
     }
 }
 
 #[derive(Debug, Serialize)]
 pub struct OrgProposalItem {
-    pub id:                       String,
-    pub job_title:                String,
-    pub freelancer_email:         String,
-    pub client_email:             String,
-    pub submitted_at:             String,
-    pub submitted_by_profile_id:  Option<String>,
-    pub submitter_name:           Option<String>,
-    pub status:                   String,
+    pub id: String,
+    pub job_title: String,
+    pub freelancer_email: String,
+    pub client_email: String,
+    pub submitted_at: String,
+    pub submitted_by_profile_id: Option<String>,
+    pub submitter_name: Option<String>,
+    pub status: String,
 }
 
 #[derive(Debug, Serialize)]
 pub struct OrgProposalsResponse {
-    pub draft:  Vec<OrgProposalItem>,
-    pub sent:   Vec<OrgProposalItem>,
+    pub draft: Vec<OrgProposalItem>,
+    pub sent: Vec<OrgProposalItem>,
     pub closed: Vec<OrgProposalItem>,
 }
 
@@ -303,18 +303,17 @@ pub async fn list_org_proposals(
     };
 
     // Resolve caller's membership role — 403 if not a member
-    let membership = sqlx::query(
-        "SELECT member_role FROM org_members WHERE org_id = $1 AND profile_id = $2",
-    )
-    .bind(org_id)
-    .bind(caller_id)
-    .fetch_optional(&state.db)
-    .await;
+    let membership =
+        sqlx::query("SELECT member_role FROM org_members WHERE org_id = $1 AND profile_id = $2")
+            .bind(org_id)
+            .bind(caller_id)
+            .fetch_optional(&state.db)
+            .await;
 
     let member_role: String = match membership {
         Ok(Some(r)) => r.get("member_role"),
-        Ok(None)    => return StatusCode::FORBIDDEN.into_response(),
-        Err(e)      => return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Ok(None) => return StatusCode::FORBIDDEN.into_response(),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     };
 
     // Build query: ADMIN sees all org members' proposals, MEMBER sees own only
@@ -355,35 +354,41 @@ pub async fn list_org_proposals(
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     };
 
-    let mut draft:  Vec<OrgProposalItem> = Vec::new();
-    let mut sent:   Vec<OrgProposalItem> = Vec::new();
+    let mut draft: Vec<OrgProposalItem> = Vec::new();
+    let mut sent: Vec<OrgProposalItem> = Vec::new();
     let mut closed: Vec<OrgProposalItem> = Vec::new();
 
     for r in &rows {
         let status: String = r.get("status");
         let item = OrgProposalItem {
-            id:                      r.get::<Uuid, _>("id").to_string(),
-            job_title:               r.get("job_title"),
-            freelancer_email:        r.get("freelancer_email"),
-            client_email:            r.get("client_email"),
-            submitted_at:            r.get::<chrono::DateTime<chrono::Utc>, _>("submitted_at")
-                                      .to_rfc3339(),
-            submitted_by_profile_id: r.get::<Option<Uuid>, _>("submitted_by_profile_id")
-                                      .map(|u| u.to_string()),
-            submitter_name:          r.get("submitter_name"),
-            status:                  status.clone(),
+            id: r.get::<Uuid, _>("id").to_string(),
+            job_title: r.get("job_title"),
+            freelancer_email: r.get("freelancer_email"),
+            client_email: r.get("client_email"),
+            submitted_at: r
+                .get::<chrono::DateTime<chrono::Utc>, _>("submitted_at")
+                .to_rfc3339(),
+            submitted_by_profile_id: r
+                .get::<Option<Uuid>, _>("submitted_by_profile_id")
+                .map(|u| u.to_string()),
+            submitter_name: r.get("submitter_name"),
+            status: status.clone(),
         };
 
         match proposal_kanban_group(&status) {
-            "draft"  => draft.push(item),
-            "sent"   => sent.push(item),
-            _        => closed.push(item),
+            "draft" => draft.push(item),
+            "sent" => sent.push(item),
+            _ => closed.push(item),
         }
     }
 
     (
         StatusCode::OK,
-        Json(OrgProposalsResponse { draft, sent, closed }),
+        Json(OrgProposalsResponse {
+            draft,
+            sent,
+            closed,
+        }),
     )
         .into_response()
 }
@@ -399,7 +404,7 @@ mod tests {
 
     #[test]
     fn pending_and_accepted_map_to_sent() {
-        assert_eq!(proposal_kanban_group("PENDING"),  "sent");
+        assert_eq!(proposal_kanban_group("PENDING"), "sent");
         assert_eq!(proposal_kanban_group("ACCEPTED"), "sent");
     }
 

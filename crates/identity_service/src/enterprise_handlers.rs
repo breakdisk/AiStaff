@@ -594,17 +594,17 @@ pub fn is_verified_plan(plan_tier: &str) -> bool {
 
 #[derive(Serialize)]
 pub struct PublicOrgProfile {
-    pub id:                          String,
-    pub name:                        String,
-    pub handle:                      String,
-    pub description:                 Option<String>,
-    pub website_url:                 Option<String>,
-    pub plan_tier:                   String,
-    pub is_verified:                 bool,
-    pub member_count:                i64,
-    pub active_listing_count:        i64,
-    pub completed_deployment_count:  i64,
-    pub created_at:                  String,
+    pub id: String,
+    pub name: String,
+    pub handle: String,
+    pub description: Option<String>,
+    pub website_url: Option<String>,
+    pub plan_tier: String,
+    pub is_verified: bool,
+    pub member_count: i64,
+    pub active_listing_count: i64,
+    pub completed_deployment_count: i64,
+    pub created_at: String,
 }
 
 /// GET /orgs/public/:handle — no auth required (public endpoint)
@@ -628,13 +628,12 @@ pub async fn public_org_profile(
 
     let org_id: uuid::Uuid = org.get("id");
 
-    let member_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM org_members WHERE org_id = $1",
-    )
-    .bind(org_id)
-    .fetch_one(&pool)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let member_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM org_members WHERE org_id = $1")
+            .bind(org_id)
+            .fetch_one(&pool)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let active_listing_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM agent_listings WHERE org_id = $1 AND active = TRUE",
@@ -656,18 +655,19 @@ pub async fn public_org_profile(
     let is_verified = is_verified_plan(&plan_tier);
 
     Ok(Json(PublicOrgProfile {
-        id:                         org_id.to_string(),
-        name:                       org.get("name"),
-        handle:                     org.get("handle"),
-        description:                org.get("description"),
-        website_url:                org.get("website_url"),
+        id: org_id.to_string(),
+        name: org.get("name"),
+        handle: org.get("handle"),
+        description: org.get("description"),
+        website_url: org.get("website_url"),
         plan_tier,
         is_verified,
         member_count,
         active_listing_count,
         completed_deployment_count,
-        created_at:                 org.get::<chrono::DateTime<chrono::Utc>, _>("created_at")
-                                       .to_rfc3339(),
+        created_at: org
+            .get::<chrono::DateTime<chrono::Utc>, _>("created_at")
+            .to_rfc3339(),
     }))
 }
 

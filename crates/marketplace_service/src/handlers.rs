@@ -23,11 +23,11 @@ use uuid::Uuid;
 pub(crate) const LISTING_STATUS_PENDING: &str = "PENDING_REVIEW";
 
 pub struct AppState {
-    pub db:               PgPool,
-    pub producer:         KafkaProducer,
-    pub http_client:      reqwest::Client,
+    pub db: PgPool,
+    pub producer: KafkaProducer,
+    pub http_client: reqwest::Client,
     pub notification_url: String,
-    pub admin_email:      String,
+    pub admin_email: String,
 }
 
 pub type SharedState = Arc<AppState>;
@@ -475,12 +475,12 @@ pub async fn create_listing(
             tracing::info!(%listing_id, %slug, "agent listing created — pending review");
 
             // Fire-and-forget: notify admin of new listing awaiting approval.
-            let client       = state.http_client.clone();
-            let notif_url    = state.notification_url.clone();
-            let admin_email  = state.admin_email.clone();
+            let client = state.http_client.clone();
+            let notif_url = state.notification_url.clone();
+            let admin_email = state.admin_email.clone();
             let listing_name = req.name.clone();
-            let category     = req.category.clone();
-            let price_usd    = req.price_cents / 100;
+            let category = req.category.clone();
+            let price_usd = req.price_cents / 100;
             tokio::spawn(async move {
                 let payload = serde_json::json!({
                     "recipient_email": admin_email,

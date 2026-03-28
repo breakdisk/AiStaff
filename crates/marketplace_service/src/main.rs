@@ -51,7 +51,9 @@ async fn main() -> Result<()> {
     let notification_url = std::env::var("NOTIFICATION_SERVICE_URL")
         .unwrap_or_else(|_| "http://localhost:3012".into());
     let admin_email = std::env::var("ADMIN_EMAIL").unwrap_or_else(|_| {
-        tracing::warn!("ADMIN_EMAIL not set — defaulting to admin@aistaff.app. Set this in production.");
+        tracing::warn!(
+            "ADMIN_EMAIL not set — defaulting to admin@aistaff.app. Set this in production."
+        );
         "admin@aistaff.app".into()
     });
 
@@ -127,10 +129,7 @@ async fn main() -> Result<()> {
                 .delete(bundle_handlers::delete_bundle),
         )
         // Admin bundle moderation
-        .route(
-            "/admin/bundles",
-            get(bundle_handlers::admin_list_bundles),
-        )
+        .route("/admin/bundles", get(bundle_handlers::admin_list_bundles))
         .route(
             "/admin/bundles/{id}/approve",
             post(bundle_handlers::admin_approve_bundle),

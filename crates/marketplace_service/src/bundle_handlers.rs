@@ -18,14 +18,12 @@ use crate::handlers::AppState;
 
 // ── SQL constants (extracted for unit-testability) ─────────────────────────
 
-pub(crate) const BUNDLE_APPROVE_SQL: &str =
-    "UPDATE listing_bundles
+pub(crate) const BUNDLE_APPROVE_SQL: &str = "UPDATE listing_bundles
      SET listing_status = 'APPROVED', rejection_reason = NULL,
          active = TRUE, updated_at = NOW()
      WHERE id = $1";
 
-pub(crate) const BUNDLE_REJECT_SQL: &str =
-    "UPDATE listing_bundles
+pub(crate) const BUNDLE_REJECT_SQL: &str = "UPDATE listing_bundles
      SET listing_status = 'REJECTED', rejection_reason = $2,
          active = FALSE, updated_at = NOW()
      WHERE id = $1";
@@ -34,7 +32,7 @@ pub(crate) const BUNDLE_REJECT_SQL: &str =
 
 #[derive(Debug, Deserialize)]
 pub struct CreateBundleBody {
-    pub name:        String,
+    pub name: String,
     pub description: Option<String>,
     pub price_cents: i64,
     pub listing_ids: Vec<Uuid>,
@@ -42,7 +40,7 @@ pub struct CreateBundleBody {
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateBundleBody {
-    pub name:        Option<String>,
+    pub name: Option<String>,
     pub description: Option<String>,
     pub price_cents: Option<i64>,
     pub listing_ids: Option<Vec<Uuid>>,
@@ -55,23 +53,23 @@ pub struct RejectBundleBody {
 
 #[derive(Debug, Serialize)]
 pub struct BundleItem {
-    pub listing_id:    String,
-    pub name:          String,
-    pub price_cents:   i64,
+    pub listing_id: String,
+    pub name: String,
+    pub price_cents: i64,
     pub display_order: i32,
 }
 
 #[derive(Debug, Serialize)]
 pub struct BundleRow {
-    pub id:             String,
-    pub name:           String,
-    pub description:    Option<String>,
-    pub price_cents:    i64,
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub price_cents: i64,
     pub listing_status: String,
-    pub active:         bool,
-    pub item_count:     i64,
-    pub items:          Vec<BundleItem>,
-    pub created_at:     String,
+    pub active: bool,
+    pub item_count: i64,
+    pub items: Vec<BundleItem>,
+    pub created_at: String,
 }
 
 // ── GET /enterprise/orgs/:id/bundles ─────────────────────────────────────────
@@ -118,9 +116,9 @@ pub async fn list_org_bundles(
         let bundle_items: Vec<BundleItem> = items
             .iter()
             .map(|r| BundleItem {
-                listing_id:    r.get::<Uuid, _>("listing_id").to_string(),
-                name:          r.get("name"),
-                price_cents:   r.get("price_cents"),
+                listing_id: r.get::<Uuid, _>("listing_id").to_string(),
+                name: r.get("name"),
+                price_cents: r.get("price_cents"),
                 display_order: r.get("display_order"),
             })
             .collect();
@@ -128,21 +126,25 @@ pub async fn list_org_bundles(
         let item_count = bundle_items.len() as i64;
 
         result.push(BundleRow {
-            id:             bundle_id.to_string(),
-            name:           b.get("name"),
-            description:    b.get("description"),
-            price_cents:    b.get("price_cents"),
+            id: bundle_id.to_string(),
+            name: b.get("name"),
+            description: b.get("description"),
+            price_cents: b.get("price_cents"),
             listing_status: b.get("listing_status"),
-            active:         b.get("active"),
+            active: b.get("active"),
             item_count,
-            items:          bundle_items,
-            created_at:     b
+            items: bundle_items,
+            created_at: b
                 .get::<chrono::DateTime<chrono::Utc>, _>("created_at")
                 .to_rfc3339(),
         });
     }
 
-    (StatusCode::OK, Json(serde_json::json!({ "bundles": result }))).into_response()
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({ "bundles": result })),
+    )
+        .into_response()
 }
 
 // ── POST /enterprise/orgs/:id/bundles ────────────────────────────────────────
@@ -248,13 +250,12 @@ pub async fn update_bundle(
     Json(body): Json<UpdateBundleBody>,
 ) -> impl IntoResponse {
     // Load current status (also verifies bundle belongs to org)
-    let current = sqlx::query(
-        "SELECT listing_status FROM listing_bundles WHERE id = $1 AND org_id = $2",
-    )
-    .bind(bundle_id)
-    .bind(org_id)
-    .fetch_optional(&state.db)
-    .await;
+    let current =
+        sqlx::query("SELECT listing_status FROM listing_bundles WHERE id = $1 AND org_id = $2")
+            .bind(bundle_id)
+            .bind(org_id)
+            .fetch_optional(&state.db)
+            .await;
 
     let current = match current {
         Ok(Some(r)) => r,
@@ -475,7 +476,11 @@ pub async fn admin_list_bundles(
                     })
                 })
                 .collect();
-            (StatusCode::OK, Json(serde_json::json!({ "bundles": bundles }))).into_response()
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({ "bundles": bundles })),
+            )
+                .into_response()
         }
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }

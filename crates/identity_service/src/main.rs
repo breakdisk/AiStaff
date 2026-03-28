@@ -196,7 +196,7 @@ struct UpdateProfilePayload {
     hourly_rate_cents: Option<i32>,
     availability: Option<String>,
     role: Option<String>,
-    tos_accepted: Option<bool>,  // writes tos_accepted_at = NOW() if NULL
+    tos_accepted: Option<bool>, // writes tos_accepted_at = NOW() if NULL
 }
 
 async fn update_profile(
@@ -638,8 +638,7 @@ mod tests {
             serde_json::from_str(r#"{"tos_accepted": true}"#).unwrap();
         assert_eq!(with_tos["tos_accepted"], true);
 
-        let without: serde_json::Value =
-            serde_json::from_str(r#"{"bio": "hello"}"#).unwrap();
+        let without: serde_json::Value = serde_json::from_str(r#"{"bio": "hello"}"#).unwrap();
         assert!(without.get("tos_accepted").is_none());
     }
 }
