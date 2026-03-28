@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import FacebookMessengerChat from "@/components/FacebookMessengerChat";
 
 export const metadata: Metadata = {
   robots: { index: true, follow: true },
@@ -26,6 +27,7 @@ export default function MarketingLayout({
         </Link>
       </nav>
       {children}
+      <FacebookMessengerChat />
     </>
   );
 }
