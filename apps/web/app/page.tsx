@@ -95,11 +95,21 @@ const TESTIMONIALS = [
   },
 ];
 
-const PRICING_ROWS: { label: string; client: string; developer: string; talent: string }[] = [
-  { label: "Joining",          client: "Free",                developer: "Free",              talent: "Free"                  },
-  { label: "Posting / Listing",client: "Free",                developer: "Free",              talent: "Free"                  },
-  { label: "Platform fee",     client: "15% of contract",     developer: "Nothing extra",     talent: "Nothing extra"         },
-  { label: "You receive",      client: "Product / Service result", developer: "59.5% per sale", talent: "25.5% per deployment" },
+const PRICING_ROWS: {
+  label:  string;
+  client: string;
+  devtal: string;
+  robot:  string;
+  devtalHighlight?: boolean;
+  clientHighlight?: boolean;
+}[] = [
+  { label: "Joining",              client: "Free",                  devtal: "Free",                            robot: "Free"                   },
+  { label: "Posting / Listing",    client: "Free",                  devtal: "Free",                            robot: "Free"                   },
+  { label: "Platform fee",         client: "15% of contract",       devtal: "Nothing extra",                   robot: "Custom",                clientHighlight: true  },
+  { label: "Solo (build + deploy)",client: "—",                     devtal: "85% of net",                      robot: "—",                     devtalHighlight: true  },
+  { label: "Team split",           client: "—",                     devtal: "Dev 59.5% · Talent 25.5%",        robot: "—"                      },
+  { label: "You receive",          client: "Product / Service result", devtal: "Your agent running for client", robot: "Physical robot deployed", devtalHighlight: true },
+  { label: "Pricing model",        client: "Per deployment",        devtal: "Per deployment",                  robot: "Contact for pricing"    },
 ];
 
 // ── Nav ───────────────────────────────────────────────────────────────────────
@@ -524,15 +534,9 @@ function Testimonials() {
 // ── Pricing ───────────────────────────────────────────────────────────────────
 
 function Pricing() {
-  const cols: { key: "client" | "developer" | "talent"; label: string; sub: string; highlight: boolean }[] = [
-    { key: "client",    label: "Client",        sub: "Hire AI talent or agents", highlight: false },
-    { key: "developer", label: "AI Developer",  sub: "Build & sell AI agents",   highlight: true  },
-    { key: "talent",    label: "AI Talent",     sub: "Deploy & configure agents", highlight: false },
-  ];
-
   return (
     <section className="py-20 sm:py-28 border-t border-zinc-900">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6">
 
         {/* Header */}
         <div className="text-center mb-10">
@@ -544,59 +548,72 @@ function Pricing() {
         </div>
 
         {/* Table */}
-        <div className="border border-zinc-800 rounded-sm overflow-hidden">
-
-          {/* Column headers */}
-          <div className="grid grid-cols-4 border-b border-zinc-800">
-            <div className="p-4 border-r border-zinc-800" />
-            {cols.map((col) => (
-              <div key={col.key}
-                className={`p-4 text-center border-r last:border-r-0 border-zinc-800 ${col.highlight ? "bg-amber-500/5" : ""}`}>
-                {col.highlight && (
-                  <span className="inline-block mb-2 px-2 py-0.5 bg-amber-500 rounded-sm font-mono text-[10px] text-zinc-950 font-semibold uppercase tracking-widest">
+        <div className="border border-zinc-800 rounded-sm overflow-x-auto">
+          <table className="w-full min-w-[560px]">
+            <thead>
+              <tr className="border-b border-zinc-800">
+                <th className="p-4 text-left w-[26%]" />
+                {/* Client */}
+                <th className="p-4 text-center border-l border-zinc-800 w-[22%]">
+                  <p className="font-semibold text-sm text-zinc-100">Client</p>
+                  <p className="font-mono text-[10px] text-zinc-500 mt-0.5 font-normal">Hire AI talent or agents</p>
+                </th>
+                {/* AI Developer / AI Talent */}
+                <th className="p-4 text-center border-l border-zinc-800 w-[30%] bg-amber-500/5">
+                  <span className="inline-block mb-1.5 px-2 py-0.5 bg-amber-500 rounded-sm font-mono text-[10px] text-zinc-950 font-semibold uppercase tracking-widest">
                     Most common
                   </span>
-                )}
-                <p className={`font-semibold text-sm ${col.highlight ? "text-amber-400" : "text-zinc-100"}`}>
-                  {col.label}
-                </p>
-                <p className="font-mono text-[10px] text-zinc-500 mt-0.5">{col.sub}</p>
-              </div>
-            ))}
-          </div>
+                  <p className="font-semibold text-sm text-amber-400">AI Developer / AI Talent</p>
+                  <p className="font-mono text-[10px] text-zinc-500 mt-0.5 font-normal">Build, sell &amp; deploy agents</p>
+                </th>
+                {/* AI Robot Rental */}
+                <th className="p-4 text-center border-l border-zinc-800 w-[22%]">
+                  <p className="font-semibold text-sm text-zinc-100">AI Robot Rental</p>
+                  <p className="font-mono text-[10px] text-zinc-500 mt-0.5 font-normal">Physical hardware + logistics</p>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {PRICING_ROWS.map((row, i) => (
+                <tr key={row.label} className={`border-b last:border-b-0 border-zinc-800 ${i % 2 === 1 ? "bg-zinc-900/20" : ""}`}>
+                  {/* Label */}
+                  <td className="p-4 border-r border-zinc-800">
+                    <span className="font-mono text-xs text-zinc-400">{row.label}</span>
+                  </td>
+                  {/* Client */}
+                  <td className="p-4 text-center border-r border-zinc-800">
+                    <span className={`font-mono text-xs ${row.clientHighlight ? "text-amber-400 font-semibold" : row.client === "—" ? "text-zinc-700" : row.label === "You receive" || row.label === "Pricing model" ? "text-zinc-300 font-medium" : "text-emerald-400"}`}>
+                      {row.client}
+                    </span>
+                  </td>
+                  {/* AI Developer / AI Talent */}
+                  <td className="p-4 text-center border-r border-zinc-800 bg-amber-500/[0.03]">
+                    <span className={`font-mono text-xs ${row.devtalHighlight ? "text-amber-400 font-semibold" : row.devtal === "Nothing extra" ? "text-emerald-400" : row.devtal === "—" ? "text-zinc-700" : "text-zinc-300"}`}>
+                      {row.devtal}
+                    </span>
+                  </td>
+                  {/* AI Robot Rental */}
+                  <td className="p-4 text-center">
+                    <span className={`font-mono text-xs ${row.robot === "Contact for pricing" ? "text-amber-400 font-semibold" : row.robot === "—" ? "text-zinc-700" : row.robot === "Custom" ? "text-amber-400 font-semibold" : "text-emerald-400"}`}>
+                      {row.robot}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
 
-          {/* Rows */}
-          {PRICING_ROWS.map((row, i) => (
-            <div key={row.label}
-              className={`grid grid-cols-4 border-b last:border-b-0 border-zinc-800 ${i % 2 === 1 ? "bg-zinc-900/20" : ""}`}>
-              {/* Row label */}
-              <div className="p-4 border-r border-zinc-800 flex items-center">
-                <span className="font-mono text-xs text-zinc-400">{row.label}</span>
-              </div>
-              {/* Client */}
-              <div className="p-4 border-r border-zinc-800 flex items-center justify-center">
-                <span className={`font-mono text-xs text-center ${row.label === "Platform fee" ? "text-amber-400 font-semibold" : row.label === "You receive" ? "text-zinc-200 font-medium" : "text-emerald-400"}`}>
-                  {row.client}
-                </span>
-              </div>
-              {/* Developer */}
-              <div className="p-4 border-r border-zinc-800 flex items-center justify-center bg-amber-500/[0.03]">
-                <span className={`font-mono text-xs text-center ${row.label === "You receive" ? "text-amber-400 font-semibold" : row.label === "Platform fee" ? "text-emerald-400" : "text-emerald-400"}`}>
-                  {row.developer}
-                </span>
-              </div>
-              {/* Talent */}
-              <div className="p-4 flex items-center justify-center">
-                <span className={`font-mono text-xs text-center ${row.label === "You receive" ? "text-amber-400 font-semibold" : row.label === "Platform fee" ? "text-emerald-400" : "text-emerald-400"}`}>
-                  {row.talent}
-                </span>
-              </div>
-            </div>
-          ))}
+        {/* Solo note */}
+        <div className="mt-4 flex items-start gap-2 px-1">
+          <span className="font-mono text-[10px] text-amber-400 mt-0.5 flex-shrink-0">★</span>
+          <p className="font-mono text-[11px] text-zinc-500">
+            <span className="text-zinc-300">Solo operator?</span> If you build the agent AND do the installation yourself, you earn both shares — <span className="text-amber-400 font-semibold">85% of net</span> ($85 on every $100 paid). The 15% platform fee is the only deduction.
+          </p>
         </div>
 
         {/* Commission explainer */}
-        <div className="mt-6 border border-zinc-800 rounded-sm p-5 bg-zinc-900/30">
+        <div className="mt-5 border border-zinc-800 rounded-sm p-5 bg-zinc-900/30">
           <p className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest mb-3">How the 15% works</p>
           <div className="flex flex-wrap gap-4 items-center">
             <div className="flex items-center gap-2">
@@ -613,6 +630,17 @@ function Pricing() {
           <p className="font-mono text-[10px] text-zinc-600 mt-3">
             Funds held in escrow. Released only after work is verified, identity confirmed, and the 30-second human veto window clears.
           </p>
+        </div>
+
+        {/* Robot rental note */}
+        <div className="mt-4 border border-zinc-800/60 rounded-sm p-4 bg-zinc-900/20 flex items-start gap-3">
+          <Cpu size={14} className="text-zinc-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="font-mono text-xs text-zinc-300 font-medium mb-1">AI Robot Rental — Custom Pricing</p>
+            <p className="font-mono text-[11px] text-zinc-500">
+              Robot rentals involve logistics, insurance, maintenance, and variable rental durations. Pricing is negotiated per engagement. <Link href="/marketplace" className="text-amber-400 hover:text-amber-300 transition-colors">Contact us</Link> for a custom quote.
+            </p>
+          </div>
         </div>
 
         {/* CTA row */}
