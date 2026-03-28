@@ -46,14 +46,26 @@ export async function sendMagicLink(
       `&next=${encodeURIComponent(callbackUrl || "/dashboard")}`;
 
     // ── Send via Amazon SES SMTP ───────────────────────────────────────────
+    const smtpHost = process.env.SMTP_HOST;
+    const smtpPort = Number(process.env.SMTP_PORT ?? 587);
+    const smtpUser = process.env.SMTP_USER;
+
+    // Surface missing config immediately rather than letting nodemailer fail
+    // with a cryptic ECONNREFUSED against 127.0.0.1.
+    if (!smtpHost) {
+      const msg = "SMTP_HOST env var is not set on this service. Add it in Dokploy → web → Environment Variables and redeploy.";
+      console.error("[magic-link]", msg);
+      return { ok: false, error: msg };
+    }
+
     // Dynamic import keeps nodemailer out of the Edge runtime bundle.
     const nodemailer = await import("nodemailer");
     const transport  = nodemailer.createTransport({
-      host:   process.env.SMTP_HOST   ?? "localhost",
-      port:   Number(process.env.SMTP_PORT ?? 587),
-      secure: Number(process.env.SMTP_PORT ?? 587) === 465,
-      auth:   process.env.SMTP_USER
-        ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+      host:   smtpHost,
+      port:   smtpPort,
+      secure: smtpPort === 465,
+      auth:   smtpUser
+        ? { user: smtpUser, pass: process.env.SMTP_PASS }
         : undefined,
     });
 
