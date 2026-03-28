@@ -119,7 +119,7 @@ function Nav() {
       <nav className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
         {/* Logo */}
         <Link href="/" className="flex items-center group">
-          <img src="/logo.png" alt="AiStaff" className="h-24 w-auto" />
+          <img src="/logo.png" alt="AiStaff" className="h-10 w-auto" />
         </Link>
 
         {/* Desktop links */}
@@ -705,13 +705,8 @@ function Footer() {
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-8 mb-10">
           {/* Brand */}
           <div className="col-span-2 sm:col-span-3 lg:col-span-1">
-            <Link href="/" className="flex items-center gap-2 mb-3">
-              <div className="w-6 h-6 rounded-sm bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center">
-                <Bot className="w-3.5 h-3.5 text-zinc-950" />
-              </div>
-              <span className="font-mono text-sm font-medium text-zinc-100">
-                AiStaff<span className="text-amber-400">App</span>
-              </span>
+            <Link href="/" className="flex items-center mb-3">
+              <img src="/logo.png" alt="AiStaff" className="h-10 w-auto" />
             </Link>
             <p className="text-xs text-zinc-500 leading-relaxed mb-4">
               Human-on-the-Loop AI deployment marketplace. Trust built in.
