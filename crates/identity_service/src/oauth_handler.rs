@@ -234,6 +234,7 @@ async fn fetch_and_score(
     current: &OAuthCallbackPayload,
 ) -> Result<(i16, IdentityTier)> {
     // Fetch what providers are now connected to this profile
+    #[allow(clippy::type_complexity)]
     let row: (
         Option<String>,
         Option<String>,

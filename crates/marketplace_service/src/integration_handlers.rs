@@ -15,6 +15,7 @@ use crate::handlers::AppState;
 /// `deployment_id` is optional — integrations can be workspace-level
 /// (no deployment) or scoped to a specific deployment.
 #[derive(Deserialize)]
+#[allow(dead_code)]
 pub struct ListIntegrationsQuery {
     pub deployment_id: Option<Uuid>,
     pub profile_id: Option<Uuid>,

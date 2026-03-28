@@ -38,6 +38,7 @@ pub async fn list_org_deployments(
     Path(org_id): Path<Uuid>,
 ) -> Result<Json<Vec<OrgDeploymentRow>>, StatusCode> {
     // Column is `state` (deployment_status enum), aliased as `status`
+    #[allow(clippy::type_complexity)]
     let rows: Vec<(
         Uuid,
         Option<String>,

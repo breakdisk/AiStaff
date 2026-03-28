@@ -520,6 +520,7 @@ pub async fn create_listing(
 // ── GET /listings ─────────────────────────────────────────────────────────────
 
 /// Pure function — determines if an org plan tier qualifies for Verified badge.
+#[allow(dead_code)]
 pub fn is_enterprise_or_platinum(plan_tier: Option<&str>) -> bool {
     matches!(plan_tier, Some("ENTERPRISE") | Some("PLATINUM"))
 }

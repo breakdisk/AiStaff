@@ -363,6 +363,7 @@ pub async fn list_members(
     State(pool): State<PgPool>,
     Path(org_id): Path<Uuid>,
 ) -> Result<Json<Vec<MemberResponse>>, StatusCode> {
+    #[allow(clippy::type_complexity)]
     let rows: Vec<(
         Uuid,
         String,
@@ -440,6 +441,7 @@ pub async fn list_api_keys(
     State(pool): State<PgPool>,
     Path(org_id): Path<Uuid>,
 ) -> Result<Json<Vec<ApiKeyResponse>>, StatusCode> {
+    #[allow(clippy::type_complexity)]
     let rows: Vec<(
         Uuid,
         String,
@@ -543,6 +545,7 @@ pub struct AdminOrgRow {
 pub async fn admin_list_orgs(
     State(pool): State<PgPool>,
 ) -> Result<Json<Vec<AdminOrgRow>>, StatusCode> {
+    #[allow(clippy::type_complexity)]
     let rows: Vec<(
         Uuid,
         String,
@@ -694,6 +697,7 @@ mod tests {
 // ── Internal helper ────────────────────────────────────────────────────────
 
 async fn fetch_org_response(pool: &PgPool, org_id: Uuid) -> Result<OrgResponse, sqlx::Error> {
+    #[allow(clippy::type_complexity)]
     let row: (
         Uuid,
         String,

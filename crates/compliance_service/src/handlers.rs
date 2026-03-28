@@ -378,6 +378,7 @@ pub async fn health() -> StatusCode {
 // ── POST /admin/contracts/:id/revoke ─────────────────────────────────────────
 
 /// Returns true if the contract state allows revocation.
+#[allow(dead_code)]
 pub fn revoke_allowed_states(status: &str) -> bool {
     matches!(status, "DRAFT" | "PENDING_SIGNATURE")
 }

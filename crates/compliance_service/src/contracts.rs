@@ -15,6 +15,7 @@ impl ContractService {
 
     /// Creates a DRAFT contract. Party A is auto-signed at creation (implicit agreement).
     /// Returns `(contract_id, document_hash)`.
+    #[allow(clippy::too_many_arguments)]
     pub async fn create_draft(
         &self,
         contract_type: &str,

@@ -73,15 +73,18 @@ async fn process_release_escrow(db: &PgPool, ev: &ReleaseEscrow) -> anyhow::Resu
 }
 
 /// Handles the escrow release from VetoFirst payout service.
+///
 /// Freelancer path (agency_id = None):
 ///   1. Developer payout  (~59.5% — 70% of post-15%-commission remainder)
 ///   2. Talent payout     (~25.5% — 30% of post-15%-commission remainder)
 ///   3. Platform fee      (15% — recorded in platform_fees)
+///
 /// Agency path (agency_id = Some):
 ///   1. Developer payout  (70% of post-agency remainder)
 ///   2. Talent payout     (30% of post-agency remainder)
 ///   3. Agency management fee (agency_pct% of post-12%-commission remainder)
 ///   4. Platform fee      (12% — recorded in platform_fees)
+///
 /// All rows inserted atomically in one transaction.
 async fn process_escrow_release(db: &PgPool, ev: &EscrowRelease) -> anyhow::Result<()> {
     let mut tx = db.begin().await?;
