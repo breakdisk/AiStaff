@@ -1,42 +1,14 @@
-/**
- * middleware.ts — Edge-compatible session guard.
- *
- * WHY getToken instead of NextAuth(authConfig).auth:
- *   auth.ts creates sessions using a NextAuth instance that includes an
- *   adapter + Nodemailer provider. A *second* NextAuth(authConfig) instance
- *   in middleware (without adapter) can diverge in internal state, causing
- *   JWT decryption mismatches — sessions set by auth.ts become unreadable
- *   here. Using getToken() from @auth/core/jwt reads the cookie directly
- *   with the same secret + salt (= cookie name) that auth.ts uses, with
- *   no second instance involved. @auth/core/jwt uses only `jose` and
- *   `@panva/hkdf` — fully Edge-compatible, no Node.js built-ins.
- */
-
-import { getToken } from "@auth/core/jwt";
-import { type NextRequest, NextResponse } from "next/server";
-
-// Cookie name must match authConfig.cookies.sessionToken.name.
-// In production our explicit config sets "authjs.session-token" (no __Secure-
-// prefix) so Traefik SSL termination doesn't cause a mismatch.
-// In dev (HTTP) Auth.js also defaults to "authjs.session-token".
-const SESSION_COOKIE = "authjs.session-token";
-
-async function readToken(req: NextRequest) {
-  return getToken({
-    req:        req as unknown as Parameters<typeof getToken>[0]["req"],
-    secret:     process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET ?? "",
-    cookieName: SESSION_COOKIE,
-    // salt defaults to cookieName automatically — matches auth.ts encode
-  });
-}
+// Single auth instance — auth.ts is now fully Edge-compatible (no nodemailer,
+// no pg) so we can import directly here without a second NextAuth() instance.
+import { auth } from "@/auth";
+import { NextResponse } from "next/server";
 
 // Routes only accessible to unauthenticated users
 const AUTH_ONLY = ["/login"];
 
-export default async function middleware(req: NextRequest) {
+export default auth((req) => {
   const { pathname } = req.nextUrl;
-  const token = await readToken(req);
-  const isAuthenticated = !!token;
+  const isAuthenticated = !!req.auth;
 
   // Public paths — no session required.
   // NOTE: /listings/* is excluded from the matcher entirely so it never
@@ -45,6 +17,7 @@ export default async function middleware(req: NextRequest) {
     pathname === "/" ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/magic-verify") ||       // magic link landing page
     pathname.startsWith("/api/og") ||
     pathname.startsWith("/api/stripe/webhook") ||
     pathname.startsWith("/api/network-intl/webhook") ||
@@ -71,6 +44,7 @@ export default async function middleware(req: NextRequest) {
     /\.(?:png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|otf)$/i.test(pathname);
 
   if (!isAuthenticated && !isPublic) {
+    // API routes must return 401 — never redirect to login.
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -80,9 +54,10 @@ export default async function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Admin gate — /admin/* requires isAdmin: true in JWT
+  // Admin gate — /admin/* requires isAdmin: true in session
   if (isAuthenticated && pathname.startsWith("/admin")) {
-    if (!token?.isAdmin) {
+    const user = req.auth?.user as { isAdmin?: boolean } | undefined;
+    if (!user?.isAdmin) {
       if (pathname.startsWith("/api/admin")) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
@@ -92,11 +67,15 @@ export default async function middleware(req: NextRequest) {
     }
   }
 
-  // Authenticated users are redirected away from /login
   if (isAuthenticated && AUTH_ONLY.some((p) => pathname.startsWith(p))) {
-    const url         = req.nextUrl.clone();
-    const accountType = token?.accountType as string | undefined;
-    const role        = token?.role        as string | null | undefined;
+    const url   = req.nextUrl.clone();
+    const token = req.auth?.user as {
+      accountType?: string;
+      role?:        string | null;
+    } | undefined;
+
+    const accountType = token?.accountType;
+    const role        = token?.role;
 
     if (!role) {
       url.pathname = "/onboarding";
@@ -113,7 +92,7 @@ export default async function middleware(req: NextRequest) {
   }
 
   return NextResponse.next();
-}
+});
 
 export const config = {
   matcher: [

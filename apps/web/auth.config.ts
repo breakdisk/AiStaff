@@ -175,8 +175,9 @@ export const authConfig: NextAuthConfig = {
         return token;
       }
 
-      // Magic link (email/nodemailer provider)
-      if (account?.type === "email") {
+      // Magic link — Credentials("magic") provider sets account.provider = "magic"
+      // Legacy nodemailer provider path kept as fallback (account.type === "email")
+      if (account?.provider === "magic" || account?.type === "email") {
         const emailAddr = user?.email ?? String(account.providerAccountId);
         try {
           const res = await fetch(`${IDENTITY_URL}/identity/oauth-callback`, {
