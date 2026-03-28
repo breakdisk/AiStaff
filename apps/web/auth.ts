@@ -3,17 +3,28 @@ import GitHub from "next-auth/providers/github";
 import Google from "next-auth/providers/google";
 import LinkedIn from "next-auth/providers/linkedin";
 import Facebook from "next-auth/providers/facebook";
+import MicrosoftEntraId from "next-auth/providers/microsoft-entra-id";
+import Nodemailer from "next-auth/providers/nodemailer";
 import type { Account, Profile } from "next-auth";
+import type { Adapter, AdapterUser } from "next-auth/adapters";
+import { Pool } from "pg";
 
 // ── identity_service base URL ─────────────────────────────────────────────────
 
 const IDENTITY_URL =
   process.env.IDENTITY_SERVICE_URL ?? "http://localhost:3001";
 
+// ── PostgreSQL pool for magic link verification token storage ─────────────────
+// Shared with proposals/submit route — same DATABASE_URL, keep pool small.
+const pgPool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: 3,
+});
+
 // ── Payload builder — maps NextAuth provider data → identity_service format ───
 
 interface OAuthCallbackPayload {
-  provider: "github" | "google" | "linkedin" | "facebook";
+  provider: "github" | "google" | "linkedin" | "facebook" | "microsoft-entra-id" | "nodemailer";
   provider_uid: string;
   email: string;
   display_name: string;
@@ -41,7 +52,8 @@ async function callIdentityOAuthCallback(
   githubExtra?: { public_repos: number; created_at: string; followers: number }
 ): Promise<OAuthCallbackResponse> {
   const payload: OAuthCallbackPayload = {
-    provider: account.provider as "github" | "google" | "linkedin" | "facebook",
+    provider: account.provider as
+      "github" | "google" | "linkedin" | "facebook" | "microsoft-entra-id" | "nodemailer",
     provider_uid: String(account.providerAccountId),
     email: (profile as { email?: string }).email ?? "",
     display_name: (profile as { name?: string }).name ?? "",
@@ -85,6 +97,50 @@ async function callIdentityOAuthCallback(
   };
 }
 
+// ── Minimal Auth.js adapter — only implements verification token methods ──────
+// We use JWT sessions; this adapter only exists to store one-time magic link
+// tokens in `verification_tokens`. All other methods are stubs.
+const authAdapter: Adapter = {
+  createVerificationToken: async (vt) => {
+    await pgPool.query(
+      `INSERT INTO verification_tokens (identifier, token, expires)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (identifier, token) DO UPDATE SET expires = EXCLUDED.expires`,
+      [vt.identifier, vt.token, vt.expires],
+    );
+    return vt;
+  },
+  useVerificationToken: async ({ identifier, token }) => {
+    const res = await pgPool.query(
+      `DELETE FROM verification_tokens
+       WHERE identifier = $1 AND token = $2 AND expires > NOW()
+       RETURNING identifier, token, expires`,
+      [identifier, token],
+    );
+    if (!res.rows[0]) return null;
+    return {
+      identifier: res.rows[0].identifier as string,
+      token: res.rows[0].token as string,
+      expires: new Date(res.rows[0].expires as string),
+    };
+  },
+  // Stub user methods — Auth.js email provider requires these.
+  // Identity is managed by identity_service, not Auth.js user tables.
+  createUser: async (user) => ({ id: user.email ?? "", ...user } as AdapterUser),
+  getUser: async () => null,
+  getUserByEmail: async (email) =>
+    ({ id: email, email, emailVerified: new Date(), name: email.split("@")[0] }) as AdapterUser,
+  getUserByAccount: async () => null,
+  updateUser: async (user) => user as AdapterUser,
+  linkAccount: async () => undefined,
+  createSession: async (session) => session,
+  getSessionAndUser: async () => null,
+  updateSession: async () => null,
+  deleteSession: async () => {},
+  deleteUser: async () => {},
+  unlinkAccount: async () => undefined,
+};
+
 // ── NextAuth config ───────────────────────────────────────────────────────────
 
 // Detect production: AUTH_URL is set to https:// in production (Dokploy env).
@@ -93,6 +149,8 @@ const isProduction = (process.env.AUTH_URL ?? process.env.NEXTAUTH_URL ?? "")
   .startsWith("https://");
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  adapter: authAdapter,
+
   // Required behind any reverse proxy (Traefik, Cloudflare, etc.).
   // Instructs Auth.js to trust X-Forwarded-Host / X-Forwarded-Proto headers
   // so AUTH_URL inference and redirect_uri generation use the public hostname.
@@ -180,12 +238,56 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       // proxies — see full diagnosis in docs/adr/ (auth cookie fix).
       checks: ["state"],
     }),
+    MicrosoftEntraId({
+      clientId:     process.env.AZURE_AD_CLIENT_ID     ?? "",
+      clientSecret: process.env.AZURE_AD_CLIENT_SECRET ?? "",
+      // Tenant restriction: set AZURE_AD_TENANT_ID for single-tenant apps.
+      // Auth.js also reads AUTH_MICROSOFT_ENTRA_ID_TENANT_ID automatically.
+      // Omit issuer for multi-tenant (common) — default Auth.js behaviour.
+      ...(process.env.AZURE_AD_TENANT_ID
+        ? { issuer: `https://login.microsoftonline.com/${process.env.AZURE_AD_TENANT_ID}/v2.0` }
+        : {}),
+    }),
+    Nodemailer({
+      server: {
+        host:   process.env.SMTP_HOST ?? "localhost",
+        port:   Number(process.env.SMTP_PORT ?? 587),
+        secure: Number(process.env.SMTP_PORT ?? 587) === 465,
+        auth: process.env.SMTP_USER
+          ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+          : undefined,
+      },
+      from: process.env.SMTP_FROM ?? "noreply@aistaffglobal.com",
+      sendVerificationRequest: async ({ identifier: email, url }) => {
+        const nodemailer = await import("nodemailer");
+        const transport = nodemailer.createTransport({
+          host:   process.env.SMTP_HOST ?? "localhost",
+          port:   Number(process.env.SMTP_PORT ?? 587),
+          secure: Number(process.env.SMTP_PORT ?? 587) === 465,
+          auth: process.env.SMTP_USER
+            ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+            : undefined,
+        });
+        await transport.sendMail({
+          to:      email,
+          from:    process.env.SMTP_FROM ?? "noreply@aistaffglobal.com",
+          subject: "Sign in to AiStaff",
+          html: `
+<div style="background:#09090b;color:#fafafa;font-family:ui-sans-serif,system-ui,sans-serif;padding:40px;max-width:480px;margin:0 auto;border-radius:4px;">
+  <h1 style="font-size:18px;font-weight:600;margin:0 0 8px;">Sign in to AiStaff</h1>
+  <p style="color:#a1a1aa;font-size:13px;margin:0 0 24px;">Click the button below to sign in. This link expires in 10 minutes.</p>
+  <a href="${url}" style="display:inline-block;background:#fbbf24;color:#09090b;font-weight:600;font-size:13px;padding:10px 20px;border-radius:2px;text-decoration:none;">Sign in</a>
+  <p style="color:#52525b;font-size:11px;margin:24px 0 0;">If you did not request this email, you can ignore it.</p>
+</div>`,
+        });
+      },
+    }),
   ],
 
   session: { strategy: "jwt" },
 
   callbacks: {
-    async jwt({ token, account, profile, trigger, session }) {
+    async jwt({ token, account, profile, trigger, session, user }) {
       // ── Session update: client called update({ role, accountType }) ──────────
       // Fired after onboarding writes a new role to the backend.
       // We trust the client payload here because it only updates non-privileged
@@ -198,6 +300,39 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         return token;
       }
 
+      // ── Magic link (email/nodemailer provider) ────────────────────────────────
+      if (account?.type === "email") {
+        const emailAddr = (user?.email ?? String(account.providerAccountId));
+        try {
+          const res = await fetch(`${IDENTITY_URL}/identity/oauth-callback`, {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body:    JSON.stringify({
+              provider:     "nodemailer",
+              provider_uid: emailAddr,
+              email:        emailAddr,
+              display_name: emailAddr.split("@")[0],
+            }),
+          });
+          if (res.ok) {
+            const result = await res.json() as OAuthCallbackResponse;
+            token.profileId        = result.profile_id;
+            token.identityTier     = result.identity_tier;
+            token.trustScore       = result.trust_score;
+            token.provider         = "email";
+            token.accountType      = result.account_type;
+            token.role             = result.role ?? null;
+            token.roles            = result.role ? [result.role] : [];
+            token.isAdmin          = result.is_admin ?? false;
+            token.isLinkedAccount  = result.is_linked_account ?? false;
+          }
+        } catch (err) {
+          console.warn("[auth] identity_service unreachable (magic link):", err);
+        }
+        return token;
+      }
+
+      // ── Standard OAuth providers (GitHub, Google, LinkedIn, Facebook, Microsoft) ──
       if (account && profile) {
         // Fetch extra GitHub data (public_repos, created_at) for trust scoring
         let githubExtra: { public_repos: number; created_at: string; followers: number } | undefined;
@@ -255,5 +390,5 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
   },
 
-  pages: { signIn: "/login" },
+  pages: { signIn: "/login", verifyRequest: "/auth/verify-request" },
 });

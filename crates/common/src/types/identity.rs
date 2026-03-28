@@ -72,12 +72,21 @@ pub struct UnifiedProfile {
 
 /// Which OAuth provider initiated the login or connect request.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
 pub enum OAuthProvider {
+    #[serde(rename = "github")]
     GitHub,
+    #[serde(rename = "google")]
     Google,
+    #[serde(rename = "linkedin")]
     LinkedIn,
+    #[serde(rename = "facebook")]
     Facebook,
+    /// Azure Active Directory / Microsoft Entra ID
+    #[serde(rename = "microsoft-entra-id")]
+    MicrosoftEntraId,
+    /// Email magic link (NextAuth nodemailer provider)
+    #[serde(rename = "nodemailer")]
+    Email,
 }
 
 /// Payload sent from Next.js → identity_service after any OAuth callback.

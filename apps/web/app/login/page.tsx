@@ -1,9 +1,9 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Github, Loader2, Linkedin } from "lucide-react";
+import { Github, Loader2, Linkedin, Mail, CheckCircle2 } from "lucide-react";
 
 // ── Google icon (Lucide does not include it) ──────────────────────────────────
 
@@ -26,6 +26,17 @@ function GoogleIcon({ className }: { className?: string }) {
   );
 }
 
+function MicrosoftIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none">
+      <path d="M11.4 2H2v9.4h9.4V2z" fill="#F25022"/>
+      <path d="M22 2h-9.4v9.4H22V2z" fill="#7FBA00"/>
+      <path d="M11.4 12.6H2V22h9.4v-9.4z" fill="#00A4EF"/>
+      <path d="M22 12.6h-9.4V22H22v-9.4z" fill="#FFB900"/>
+    </svg>
+  );
+}
+
 // ── OAuth button ──────────────────────────────────────────────────────────────
 
 function OAuthButton({
@@ -34,7 +45,7 @@ function OAuthButton({
   icon,
   callbackUrl,
 }: {
-  provider:    "github" | "google" | "linkedin" | "facebook";
+  provider:    "github" | "google" | "linkedin" | "facebook" | "microsoft-entra-id";
   label:       string;
   icon:        React.ReactNode;
   callbackUrl: string;
@@ -62,6 +73,117 @@ function OAuthButton({
   );
 }
 
+// ── Magic link form ───────────────────────────────────────────────────────────
+
+function MagicLinkForm({ callbackUrl }: { callbackUrl: string }) {
+  const [email, setEmail]   = useState("");
+  const [loading, setLoading] = useState(false);
+  const [sent, setSent]     = useState(false);
+  const [error, setError]   = useState<string | null>(null);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email.trim()) return;
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Fetch CSRF token first — same pattern as /api/auth/login route.
+      const csrfRes = await fetch("/api/auth/csrf", { cache: "no-store" });
+      const { csrfToken } = (await csrfRes.json()) as { csrfToken?: string };
+
+      // Build and auto-submit a hidden form so the browser handles Set-Cookie
+      // before following the redirect — avoids fetch() race condition.
+      const form = document.createElement("form");
+      form.method = "POST";
+      form.action = `/api/auth/signin/nodemailer`;
+
+      const addField = (name: string, value: string) => {
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = name;
+        input.value = value;
+        form.appendChild(input);
+      };
+
+      addField("csrfToken",   csrfToken ?? "");
+      addField("email",       email.trim());
+      addField("callbackUrl", callbackUrl);
+      addField("redirect",    "false");
+
+      document.body.appendChild(form);
+
+      // Submit via fetch to check the response — nodemailer provider returns
+      // a redirect to /auth/verify-request on success (status 200 with URL).
+      const submitRes = await fetch(`/api/auth/signin/nodemailer`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          csrfToken:   csrfToken ?? "",
+          email:       email.trim(),
+          callbackUrl: callbackUrl,
+          redirect:    "false",
+        }),
+        redirect: "follow",
+      });
+
+      document.body.removeChild(form);
+
+      if (submitRes.ok || submitRes.status === 200) {
+        setSent(true);
+      } else {
+        setError("Could not send sign-in link. Please try again.");
+      }
+    } catch {
+      setError("Network error — please check your connection and try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (sent) {
+    return (
+      <div className="flex items-center gap-2.5 px-4 py-3 rounded-sm border border-emerald-800/60 bg-emerald-950/40">
+        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+        <p className="font-mono text-xs text-emerald-300">
+          Sign-in link sent — check your inbox. Expires in 10 minutes.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-2">
+      <div className="flex gap-2">
+        <input
+          type="email"
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="you@example.com"
+          className="flex-1 h-11 px-3 rounded-sm border border-zinc-700 bg-zinc-900
+                     text-zinc-200 font-mono text-sm placeholder:text-zinc-600
+                     focus:outline-none focus:border-amber-400/60 focus:ring-0
+                     transition-colors"
+        />
+        <button
+          type="submit"
+          disabled={loading || !email.trim()}
+          className="h-11 px-4 rounded-sm bg-amber-400 hover:bg-amber-300
+                     text-zinc-950 font-mono text-sm font-semibold
+                     disabled:opacity-40 disabled:cursor-not-allowed
+                     transition-all active:scale-[0.98] shrink-0"
+        >
+          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Send link"}
+        </button>
+      </div>
+      {error && (
+        <p className="font-mono text-[11px] text-red-400">{error}</p>
+      )}
+    </form>
+  );
+}
+
 // ── Inner form (useSearchParams requires Suspense boundary) ───────────────────
 
 function LoginForm() {
@@ -78,6 +200,12 @@ function LoginForm() {
       </div>
 
       <div className="space-y-2.5">
+        <OAuthButton
+          provider="microsoft-entra-id"
+          label="Continue with Microsoft"
+          callbackUrl={callbackUrl}
+          icon={<MicrosoftIcon className="w-4 h-4" />}
+        />
         <OAuthButton
           provider="linkedin"
           label="Continue with LinkedIn"
@@ -102,6 +230,22 @@ function LoginForm() {
           callbackUrl={callbackUrl}
           icon={<Github className="w-4 h-4 text-zinc-400" />}
         />
+      </div>
+
+      {/* Magic link divider */}
+      <div className="flex items-center gap-3 py-0.5">
+        <div className="flex-1 border-t border-zinc-800" />
+        <span className="font-mono text-[10px] text-zinc-600 uppercase tracking-widest">or</span>
+        <div className="flex-1 border-t border-zinc-800" />
+      </div>
+
+      {/* Magic link section */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <Mail className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+          <p className="font-mono text-xs text-zinc-500">Sign in with email link</p>
+        </div>
+        <MagicLinkForm callbackUrl={callbackUrl} />
       </div>
 
       {/* Tier info */}
