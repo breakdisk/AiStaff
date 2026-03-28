@@ -47,10 +47,10 @@ pub async fn list_org_deployments(
         chrono::DateTime<chrono::Utc>,
         Uuid,
     )> = sqlx::query_as(
-        "SELECT d.id, al.title, d.deployment_type::TEXT,
+        "SELECT d.id, al.name, d.deployment_type::TEXT,
                     d.state::TEXT AS status, d.escrow_amount_cents, d.created_at, d.org_id
              FROM deployments d
-             LEFT JOIN agent_listings al ON al.id = d.listing_id
+             LEFT JOIN agent_listings al ON al.id = d.agent_id
              WHERE d.org_id = $1
              ORDER BY d.created_at DESC
              LIMIT 100",
