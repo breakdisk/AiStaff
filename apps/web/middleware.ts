@@ -1,5 +1,10 @@
-import { auth } from "@/auth";
+// Import from auth.config (edge-safe) NOT from auth.ts (Node.js only).
+// auth.ts imports nodemailer which uses Node.js `stream` — banned in Edge runtime.
+import NextAuth from "next-auth";
+import { authConfig } from "@/auth.config";
 import { NextResponse } from "next/server";
+
+const { auth } = NextAuth(authConfig);
 
 // Routes only accessible to unauthenticated users
 const AUTH_ONLY = ["/login"];
