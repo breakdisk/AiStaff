@@ -408,6 +408,14 @@ services:
       NETWORK_INTL_API_BASE:   ${NETWORK_INTL_API_BASE:-https://api-gateway.sandbox.ngenius-payments.com}
       # Custom webhook auth header value — must match Header Value in N-Genius portal
       NETWORK_INTL_WEBHOOK_SECRET: ${NETWORK_INTL_WEBHOOK_SECRET:-}
+      # SMTP — magic link email delivery (Amazon SES or any SMTP relay).
+      # Same vars used by notification_service; must be forwarded explicitly here
+      # because docker-compose environment: lists are not inherited across services.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_FROM: ${SMTP_FROM:-noreply@aistaffglobal.com}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
       # Direct DB access — used by Next.js API routes that query postgres via pg Pool
       # (e.g. /api/reputation/*/export, /api/transparency/missed-jobs, /api/proposals/submit)
       DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
