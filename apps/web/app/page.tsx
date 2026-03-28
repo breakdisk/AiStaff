@@ -118,8 +118,8 @@ function Nav() {
     <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? "bg-zinc-950/90 backdrop-blur-md border-b border-zinc-800/80" : "bg-transparent"}`}>
       <nav className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
         {/* Logo */}
-        <Link href="/" className="flex items-center group">
-          <img src="/logo.png" alt="AiStaff" className="h-40 w-auto" />
+        <Link href="/" className="flex items-center self-center group">
+          <img src="/logo.png" alt="AiStaff" className="h-28 w-auto" />
         </Link>
 
         {/* Desktop links */}
@@ -706,7 +706,7 @@ function Footer() {
           {/* Brand */}
           <div className="col-span-2 sm:col-span-3 lg:col-span-1">
             <Link href="/" className="flex items-center mb-3">
-              <img src="/logo.png" alt="AiStaff" className="h-40 w-auto" />
+              <img src="/logo.png" alt="AiStaff" className="h-28 w-auto" />
             </Link>
             <p className="text-xs text-zinc-500 leading-relaxed mb-4">
               Human-on-the-Loop AI deployment marketplace. Trust built in.
