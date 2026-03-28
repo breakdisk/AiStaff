@@ -48,7 +48,8 @@ export async function sendMagicLink(
     // ── Send via Amazon SES SMTP ───────────────────────────────────────────
     const smtpHost = process.env.SMTP_HOST;
     const smtpPort = Number(process.env.SMTP_PORT ?? 587);
-    const smtpUser = process.env.SMTP_USER;
+    // Support both SMTP_USER (our convention) and SMTP_USERNAME (notification_service convention)
+    const smtpUser = process.env.SMTP_USER || process.env.SMTP_USERNAME || "";
 
     // Surface missing config immediately rather than letting nodemailer fail
     // with a cryptic ECONNREFUSED against 127.0.0.1.
@@ -65,7 +66,7 @@ export async function sendMagicLink(
       port:   smtpPort,
       secure: smtpPort === 465,
       auth:   smtpUser
-        ? { user: smtpUser, pass: process.env.SMTP_PASS }
+        ? { user: smtpUser, pass: process.env.SMTP_PASS || process.env.SMTP_PASSWORD || "" }
         : undefined,
     });
 

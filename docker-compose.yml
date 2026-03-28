@@ -414,8 +414,12 @@ services:
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_FROM: ${SMTP_FROM:-noreply@aistaffglobal.com}
-      SMTP_USER: ${SMTP_USER:-}
-      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_USER:     ${SMTP_USER:-}
+      SMTP_PASS:     ${SMTP_PASS:-}
+      # Aliases used by notification_service — forward both so actions.ts can
+      # fall back to whichever naming convention is set in Dokploy.
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       # Direct DB access — used by Next.js API routes that query postgres via pg Pool
       # (e.g. /api/reputation/*/export, /api/transparency/missed-jobs, /api/proposals/submit)
       DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
