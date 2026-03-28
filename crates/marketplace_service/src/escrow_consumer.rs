@@ -73,14 +73,20 @@ async fn process_release_escrow(db: &PgPool, ev: &ReleaseEscrow) -> anyhow::Resu
 }
 
 /// Handles the escrow release from VetoFirst payout service.
-/// Inserts three rows atomically in one transaction:
-///   1. Developer payout  (~59.5% of total — 70% of post-commission remainder)
-///   2. Talent payout     (~25.5% of total — 30% of post-commission remainder)
-///   3. Platform fee      (15% of total — recorded in platform_fees)
+/// Freelancer path (agency_id = None):
+///   1. Developer payout  (~59.5% — 70% of post-15%-commission remainder)
+///   2. Talent payout     (~25.5% — 30% of post-15%-commission remainder)
+///   3. Platform fee      (15% — recorded in platform_fees)
+/// Agency path (agency_id = Some):
+///   1. Developer payout  (70% of post-agency remainder)
+///   2. Talent payout     (30% of post-agency remainder)
+///   3. Agency management fee (agency_pct% of post-12%-commission remainder)
+///   4. Platform fee      (12% — recorded in platform_fees)
+/// All rows inserted atomically in one transaction.
 async fn process_escrow_release(db: &PgPool, ev: &EscrowRelease) -> anyhow::Result<()> {
     let mut tx = db.begin().await?;
 
-    // Developer payout — non-macro: new query string not yet in .sqlx/ cache
+    // Developer payout
     sqlx::query(
         "INSERT INTO escrow_payouts (deployment_id, recipient_id, amount_cents, reason, created_at)
          VALUES ($1, $2, $3, 'developer_pct', NOW())",
@@ -91,7 +97,7 @@ async fn process_escrow_release(db: &PgPool, ev: &EscrowRelease) -> anyhow::Resu
     .execute(&mut *tx)
     .await?;
 
-    // Talent payout — non-macro: new query string not yet in .sqlx/ cache
+    // Talent payout
     sqlx::query(
         "INSERT INTO escrow_payouts (deployment_id, recipient_id, amount_cents, reason, created_at)
          VALUES ($1, $2, $3, 'talent_pct', NOW())",
@@ -102,24 +108,43 @@ async fn process_escrow_release(db: &PgPool, ev: &EscrowRelease) -> anyhow::Resu
     .execute(&mut *tx)
     .await?;
 
-    // Platform commission (15%) — separate append-only ledger; non-macro (new table)
+    // Agency management fee — Option B: platform distributes directly to agency owner
+    if let Some(agency_id) = ev.agency_id {
+        if ev.agency_cents > 0 {
+            sqlx::query(
+                "INSERT INTO escrow_payouts (deployment_id, recipient_id, amount_cents, reason, created_at)
+                 VALUES ($1, $2, $3, 'agency_mgmt_fee', NOW())",
+            )
+            .bind(ev.deployment_id)
+            .bind(agency_id)
+            .bind(ev.agency_cents as i64)
+            .execute(&mut *tx)
+            .await?;
+        }
+    }
+
+    // Platform commission — 12% for agency deployments, 15% for freelancer
+    let fee_pct: i16 = if ev.agency_id.is_some() { 12 } else { 15 };
     sqlx::query(
         "INSERT INTO platform_fees (deployment_id, fee_cents, fee_pct, created_at)
-         VALUES ($1, $2, 15, NOW())",
+         VALUES ($1, $2, $3, NOW())",
     )
     .bind(ev.deployment_id)
     .bind(ev.platform_cents as i64)
+    .bind(fee_pct)
     .execute(&mut *tx)
     .await?;
 
     tx.commit().await?;
 
     info!(
-        deployment_id = %ev.deployment_id,
+        deployment_id  = %ev.deployment_id,
         platform_cents = ev.platform_cents,
         dev_cents      = ev.developer_cents,
         talent_cents   = ev.talent_cents,
-        "Escrow split recorded: 15% platform + 70/30 of remainder"
+        agency_cents   = ev.agency_cents,
+        is_agency      = ev.agency_id.is_some(),
+        "Escrow split recorded"
     );
     Ok(())
 }

@@ -146,8 +146,32 @@ async fn handle_deployment_complete(
 
             if skip_biometric {
                 info!(%did, "Veto window elapsed — releasing escrow (biometric skipped)");
-                let (platform_cents, dev_cents, talent_cents) =
-                    split_with_commission(event.total_cents);
+
+                // Look up agency context — determines split path (12% vs 15%)
+                let agency_row = sqlx::query(
+                    "SELECT agency_id, agency_pct FROM deployments WHERE id = $1"
+                )
+                .bind(did)
+                .fetch_optional(&db)
+                .await
+                .unwrap_or(None);
+
+                let (agency_id, platform_cents, agency_cents, dev_cents, talent_cents) =
+                    if let Some(row) = agency_row {
+                        use sqlx::Row;
+                        let aid: Option<Uuid> = row.get("agency_id");
+                        let apct: i16        = row.get("agency_pct");
+                        if aid.is_some() && apct > 0 {
+                            let (p, a, d, t) = split_agency(event.total_cents, apct as u32);
+                            (aid, p, a, d, t)
+                        } else {
+                            let (p, d, t) = split_with_commission(event.total_cents);
+                            (None, p, 0, d, t)
+                        }
+                    } else {
+                        let (p, d, t) = split_with_commission(event.total_cents);
+                        (None, p, 0, d, t)
+                    };
 
                 let release = EscrowRelease {
                     deployment_id:   did,
@@ -156,6 +180,8 @@ async fn handle_deployment_complete(
                     talent_id:       event.talent_id,
                     talent_cents,
                     platform_cents,
+                    agency_id,
+                    agency_cents,
                 };
 
                 let env = EventEnvelope::new("EscrowRelease", &release);
@@ -167,8 +193,8 @@ async fn handle_deployment_complete(
                 }
 
                 set_state(&db, did, "RELEASED").await.ok();
-                info!(%did, platform_cents, dev_cents, talent_cents,
-                    "Escrow RELEASED 15/59.5/25.5 (veto-first)");
+                info!(%did, platform_cents, agency_cents, dev_cents, talent_cents,
+                    "Escrow RELEASED (veto-first)");
             } else {
                 // Full ZK biometric flow — feature_flags.skip_biometric = false in DB.
                 info!(%did, "Veto window elapsed — awaiting biometric sign-off");
@@ -190,8 +216,31 @@ async fn handle_deployment_complete(
                                 return;
                             }
 
-                            let (platform_cents, dev_cents, talent_cents) =
-                                split_with_commission(event.total_cents);
+                            // Look up agency context — same logic as skip_biometric path
+                            let agency_row = sqlx::query(
+                                "SELECT agency_id, agency_pct FROM deployments WHERE id = $1"
+                            )
+                            .bind(did)
+                            .fetch_optional(&db)
+                            .await
+                            .unwrap_or(None);
+
+                            let (agency_id, platform_cents, agency_cents, dev_cents, talent_cents) =
+                                if let Some(row) = agency_row {
+                                    use sqlx::Row;
+                                    let aid: Option<Uuid> = row.get("agency_id");
+                                    let apct: i16        = row.get("agency_pct");
+                                    if aid.is_some() && apct > 0 {
+                                        let (p, a, d, t) = split_agency(event.total_cents, apct as u32);
+                                        (aid, p, a, d, t)
+                                    } else {
+                                        let (p, d, t) = split_with_commission(event.total_cents);
+                                        (None, p, 0, d, t)
+                                    }
+                                } else {
+                                    let (p, d, t) = split_with_commission(event.total_cents);
+                                    (None, p, 0, d, t)
+                                };
 
                             let release = EscrowRelease {
                                 deployment_id:   did,
@@ -200,6 +249,8 @@ async fn handle_deployment_complete(
                                 talent_id:       event.talent_id,
                                 talent_cents,
                                 platform_cents,
+                                agency_id,
+                                agency_cents,
                             };
 
                             let env = EventEnvelope::new("EscrowRelease", &release);
@@ -211,8 +262,8 @@ async fn handle_deployment_complete(
                             }
 
                             set_state(&db, did, "RELEASED").await.ok();
-                            info!(%did, platform_cents, dev_cents, talent_cents,
-                                "Escrow RELEASED 15/59.5/25.5 (ZK verified)");
+                            info!(%did, platform_cents, agency_cents, dev_cents, talent_cents,
+                                "Escrow RELEASED (ZK verified)");
                         }
                         Ok(false) => {
                             error!(%did, "ZK proof invalid — marking FAILED");
@@ -262,16 +313,30 @@ fn verify_zk_proof(bio: &BiometricSignoff) -> anyhow::Result<bool> {
     Ok(valid)
 }
 
-/// Three-way escrow split: 15% platform commission, then 70/30 of remainder.
+/// Three-way freelancer split: 15% platform, then 70/30 of remainder.
 /// Returns `(platform_cents, dev_cents, talent_cents)`.
-/// Uses integer truncation throughout — never rounds up (CLAUDE.md §2).
-/// Remainder (mod rounding) flows to talent, keeping the sum exact.
+/// Uses integer truncation — never rounds up (CLAUDE.md §2).
+/// Remainder flows to talent, keeping the sum exact.
 pub fn split_with_commission(total_cents: u64) -> (u64, u64, u64) {
     let platform_cents = total_cents * 15 / 100;
-    let remaining = total_cents - platform_cents;
-    let dev_cents = remaining * 70 / 100;
-    let talent_cents = remaining - dev_cents; // remainder — lossless
+    let remaining      = total_cents - platform_cents;
+    let dev_cents      = remaining * 70 / 100;
+    let talent_cents   = remaining - dev_cents; // remainder — lossless
     (platform_cents, dev_cents, talent_cents)
+}
+
+/// Four-way agency split: 12% platform, agency management fee, then 70/30 of remainder.
+/// Returns `(platform_cents, agency_cents, dev_cents, talent_cents)`.
+/// `agency_pct` is the agency's cut of the post-platform remainder (0–100).
+/// Uses integer truncation — never rounds up. Sum always equals total_cents.
+pub fn split_agency(total_cents: u64, agency_pct: u32) -> (u64, u64, u64, u64) {
+    let platform_cents = total_cents * 12 / 100;
+    let remaining      = total_cents - platform_cents;
+    let agency_cents   = remaining * (agency_pct as u64) / 100;
+    let post_agency    = remaining - agency_cents;
+    let dev_cents      = post_agency * 70 / 100;
+    let talent_cents   = post_agency - dev_cents; // remainder — lossless
+    (platform_cents, agency_cents, dev_cents, talent_cents)
 }
 
 /// Returns true if any quality gate scan for this deployment has
@@ -314,7 +379,7 @@ async fn set_state(db: &PgPool, id: Uuid, state: &str) -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod trust_engine {
-    use super::split_with_commission;
+    use super::{split_agency, split_with_commission};
 
     #[test]
     fn standard_split() {
@@ -374,5 +439,43 @@ mod trust_engine {
             !skip,
             "should default to false (fail-closed) when flag missing"
         );
+    }
+
+    // ── Agency split tests ────────────────────────────────────────────────────
+
+    #[test]
+    fn agency_split_10pct() {
+        // $100: platform=$12, agency=$8.80, dev=$55.44, talent=$23.76
+        let (platform, agency, dev, talent) = split_agency(10_000, 10);
+        assert_eq!(platform, 1_200);  // 12% of 10_000
+        assert_eq!(agency,   880);    // 10% of 8_800 remainder
+        assert_eq!(dev,      5_544);  // 70% of 7_920 post-agency
+        assert_eq!(talent,   2_376);  // 30% of 7_920 (remainder — lossless)
+        assert_eq!(platform + agency + dev + talent, 10_000);
+    }
+
+    #[test]
+    fn agency_split_zero_pct() {
+        // agency_pct=0: same as freelancer but with 12% platform (not 15%)
+        let (platform, agency, dev, talent) = split_agency(10_000, 0);
+        assert_eq!(platform, 1_200);
+        assert_eq!(agency,   0);
+        assert_eq!(dev,      6_160); // 70% of 8_800
+        assert_eq!(talent,   2_640); // 30% of 8_800
+        assert_eq!(platform + agency + dev + talent, 10_000);
+    }
+
+    #[test]
+    fn agency_no_penny_lost() {
+        // Lossless across all amounts and agency percentages
+        for total in [1u64, 7, 99, 101, 999, 10_001, 1_000_003] {
+            for apct in [0u32, 5, 10, 15, 20, 30] {
+                let (p, a, d, t) = split_agency(total, apct);
+                assert_eq!(
+                    p + a + d + t, total,
+                    "lossless for total={total} agency_pct={apct}"
+                );
+            }
+        }
     }
 }

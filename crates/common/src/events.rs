@@ -94,16 +94,24 @@ pub struct ReleaseEscrow {
     pub reason: String,
 }
 
-/// Full escrow split release event: 15% platform commission + 70/30 of remainder.
+/// Full escrow split release event.
+/// Freelancer path: 15% platform + 70/30 of remainder (agency_id = None).
+/// Agency path:     12% platform + agency_pct% of remainder + 70/30 of rest.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EscrowRelease {
-    pub deployment_id: Uuid,
-    pub developer_id: Uuid,
+    pub deployment_id:   Uuid,
+    pub developer_id:    Uuid,
     pub developer_cents: u64,
-    pub talent_id: Uuid,
-    pub talent_cents: u64,
-    /// Platform's 15% commission. Recorded in `platform_fees` table.
-    pub platform_cents: u64,
+    pub talent_id:       Uuid,
+    pub talent_cents:    u64,
+    /// Platform commission — 15% (freelancer) or 12% (agency).
+    pub platform_cents:  u64,
+    /// Agency owner profile ID. None for direct freelancer deployments.
+    #[serde(default)]
+    pub agency_id:       Option<Uuid>,
+    /// Agency management fee in cents. Zero when agency_id is None.
+    #[serde(default)]
+    pub agency_cents:    u64,
 }
 
 // ── v2 Topic constants ────────────────────────────────────────────────────────

@@ -96,20 +96,23 @@ const TESTIMONIALS = [
 ];
 
 const PRICING_ROWS: {
-  label:  string;
-  client: string;
-  devtal: string;
-  robot:  string;
-  devtalHighlight?: boolean;
-  clientHighlight?: boolean;
+  label:              string;
+  client:             string;
+  freelancer:         string;
+  agency:             string;
+  robot:              string;
+  freelancerHighlight?: boolean;
+  agencyHighlight?:     boolean;
+  clientHighlight?:     boolean;
 }[] = [
-  { label: "Joining",              client: "Free",                  devtal: "Free",                            robot: "Free"                   },
-  { label: "Posting / Listing",    client: "Free",                  devtal: "Free",                            robot: "Free"                   },
-  { label: "Platform fee",         client: "15% of contract",       devtal: "Nothing extra",                   robot: "10% of contract",       clientHighlight: true  },
-  { label: "Solo (build + deploy)",client: "—",                     devtal: "85% of net",                      robot: "—",                     devtalHighlight: true  },
-  { label: "Team split",           client: "—",                     devtal: "Dev 59.5% · Talent 25.5%",        robot: "—"                      },
-  { label: "You receive",          client: "Product / Service result", devtal: "Compensation for every Develop and Deploy", robot: "Physical robot deployed", devtalHighlight: true },
-  { label: "Pricing model",        client: "Per deployment",        devtal: "Per deployment",                  robot: "Contact for pricing"    },
+  { label: "Joining",              client: "Free",                     freelancer: "Free",                               agency: "Free",                          robot: "Free"                   },
+  { label: "Posting / Listing",    client: "Free",                     freelancer: "Free",                               agency: "Free",                          robot: "Free"                   },
+  { label: "Platform fee",         client: "15% of contract",          freelancer: "Nothing extra",                      agency: "12% of contract",               robot: "10% of contract",       clientHighlight: true },
+  { label: "Solo (build + deploy)",client: "—",                        freelancer: "85% of net",                         agency: "—",                             robot: "—",                     freelancerHighlight: true },
+  { label: "Agency management fee",client: "—",                        freelancer: "—",                                  agency: "Configurable %",                robot: "—",                     agencyHighlight: true },
+  { label: "Team split",           client: "—",                        freelancer: "Dev 59.5% · Talent 25.5%",           agency: "Dev 70% · Talent 30% of net",   robot: "—"                      },
+  { label: "You receive",          client: "Product / Service result", freelancer: "Compensation for every Develop and Deploy", agency: "Agency margin + team payouts", robot: "Physical robot deployed", freelancerHighlight: true, agencyHighlight: true },
+  { label: "Pricing model",        client: "Per deployment",           freelancer: "Per deployment",                     agency: "Per deployment",                robot: "Contact for pricing"    },
 ];
 
 // ── Nav ───────────────────────────────────────────────────────────────────────
@@ -549,22 +552,27 @@ function Pricing() {
 
         {/* Table */}
         <div className="border border-zinc-800 rounded-sm overflow-x-auto">
-          <table className="w-full min-w-[560px]">
+          <table className="w-full min-w-[680px]">
             <thead>
               <tr className="border-b border-zinc-800">
-                <th className="p-4 text-left w-[26%]" />
+                <th className="p-4 text-left w-[20%]" />
                 {/* Client */}
-                <th className="p-4 text-center border-l border-zinc-800 w-[22%]">
+                <th className="p-4 text-center border-l border-zinc-800 w-[18%]">
                   <p className="font-semibold text-sm text-zinc-100">Client</p>
                   <p className="font-mono text-[10px] text-zinc-500 mt-0.5 font-normal">Hire AI talent or agents</p>
                 </th>
-                {/* AI Developer / AI Talent */}
-                <th className="p-4 text-center border-l border-zinc-800 w-[30%] bg-amber-500/5">
+                {/* Freelancers */}
+                <th className="p-4 text-center border-l border-zinc-800 w-[20%] bg-amber-500/5">
                   <span className="inline-block mb-1.5 px-2 py-0.5 bg-amber-500 rounded-sm font-mono text-[10px] text-zinc-950 font-semibold uppercase tracking-widest">
                     Most common
                   </span>
-                  <p className="font-semibold text-sm text-amber-400">AI Developer / AI Talent</p>
+                  <p className="font-semibold text-sm text-amber-400">Freelancers</p>
                   <p className="font-mono text-[10px] text-zinc-500 mt-0.5 font-normal">Build, sell &amp; deploy agents</p>
+                </th>
+                {/* Agency */}
+                <th className="p-4 text-center border-l border-zinc-800 w-[20%]">
+                  <p className="font-semibold text-sm text-zinc-100">Agency</p>
+                  <p className="font-mono text-[10px] text-zinc-500 mt-0.5 font-normal">Manage teams of AI workers</p>
                 </th>
                 {/* AI Robot Rental */}
                 <th className="p-4 text-center border-l border-zinc-800 w-[22%]">
@@ -586,15 +594,21 @@ function Pricing() {
                       {row.client}
                     </span>
                   </td>
-                  {/* AI Developer / AI Talent */}
+                  {/* Freelancers */}
                   <td className="p-4 text-center border-r border-zinc-800 bg-amber-500/[0.03]">
-                    <span className={`font-mono text-xs ${row.devtalHighlight ? "text-amber-400 font-semibold" : row.devtal === "Nothing extra" ? "text-emerald-400" : row.devtal === "—" ? "text-zinc-700" : "text-zinc-300"}`}>
-                      {row.devtal}
+                    <span className={`font-mono text-xs ${row.freelancerHighlight ? "text-amber-400 font-semibold" : row.freelancer === "Nothing extra" ? "text-emerald-400" : row.freelancer === "—" ? "text-zinc-700" : "text-zinc-300"}`}>
+                      {row.freelancer}
+                    </span>
+                  </td>
+                  {/* Agency */}
+                  <td className="p-4 text-center border-r border-zinc-800">
+                    <span className={`font-mono text-xs ${row.agencyHighlight ? "text-amber-400 font-semibold" : row.agency === "12% of contract" ? "text-amber-400 font-semibold" : row.agency === "Configurable %" ? "text-sky-400 font-semibold" : row.agency === "—" ? "text-zinc-700" : "text-zinc-300"}`}>
+                      {row.agency}
                     </span>
                   </td>
                   {/* AI Robot Rental */}
                   <td className="p-4 text-center">
-                    <span className={`font-mono text-xs ${row.robot === "Contact for pricing" ? "text-amber-400 font-semibold" : row.robot === "—" ? "text-zinc-700" : row.robot === "Custom" ? "text-amber-400 font-semibold" : "text-emerald-400"}`}>
+                    <span className={`font-mono text-xs ${row.robot === "Contact for pricing" ? "text-amber-400 font-semibold" : row.robot === "—" ? "text-zinc-700" : "text-emerald-400"}`}>
                       {row.robot}
                     </span>
                   </td>
@@ -613,22 +627,41 @@ function Pricing() {
         </div>
 
         {/* Commission explainer */}
-        <div className="mt-5 border border-zinc-800 rounded-sm p-5 bg-zinc-900/30">
-          <p className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest mb-3">How the 15% works</p>
-          <div className="flex flex-wrap gap-4 items-center">
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-sm text-zinc-300">Client pays</span>
-              <span className="font-mono text-sm font-semibold text-zinc-50">$100</span>
-            </div>
-            <ChevronRight size={14} className="text-zinc-600" />
-            <div className="flex flex-wrap gap-3">
-              <span className="px-2.5 py-1 rounded-sm border border-amber-800/60 bg-amber-950/30 font-mono text-xs text-amber-400">Platform $15</span>
-              <span className="px-2.5 py-1 rounded-sm border border-zinc-700 bg-zinc-800/40 font-mono text-xs text-zinc-300">Developer $59.50</span>
-              <span className="px-2.5 py-1 rounded-sm border border-zinc-700 bg-zinc-800/40 font-mono text-xs text-zinc-300">Talent $25.50</span>
+        <div className="mt-5 border border-zinc-800 rounded-sm p-5 bg-zinc-900/30 space-y-4">
+          {/* Freelancer path */}
+          <div>
+            <p className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest mb-2">Freelancer — 15% platform fee</p>
+            <div className="flex flex-wrap gap-4 items-center">
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-sm text-zinc-300">Client pays</span>
+                <span className="font-mono text-sm font-semibold text-zinc-50">$100</span>
+              </div>
+              <ChevronRight size={14} className="text-zinc-600" />
+              <div className="flex flex-wrap gap-3">
+                <span className="px-2.5 py-1 rounded-sm border border-amber-800/60 bg-amber-950/30 font-mono text-xs text-amber-400">Platform $15</span>
+                <span className="px-2.5 py-1 rounded-sm border border-zinc-700 bg-zinc-800/40 font-mono text-xs text-zinc-300">Developer $59.50</span>
+                <span className="px-2.5 py-1 rounded-sm border border-zinc-700 bg-zinc-800/40 font-mono text-xs text-zinc-300">Talent $25.50</span>
+              </div>
             </div>
           </div>
-          <p className="font-mono text-[10px] text-zinc-600 mt-3">
-            Funds held in escrow. Released only after work is verified, identity confirmed, and the 30-second human veto window clears.
+          {/* Agency path */}
+          <div>
+            <p className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest mb-2">Agency — 12% platform fee + configurable agency margin</p>
+            <div className="flex flex-wrap gap-4 items-center">
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-sm text-zinc-300">Client pays</span>
+                <span className="font-mono text-sm font-semibold text-zinc-50">$100</span>
+              </div>
+              <ChevronRight size={14} className="text-zinc-600" />
+              <div className="flex flex-wrap gap-3">
+                <span className="px-2.5 py-1 rounded-sm border border-amber-800/60 bg-amber-950/30 font-mono text-xs text-amber-400">Platform $12</span>
+                <span className="px-2.5 py-1 rounded-sm border border-sky-800/60 bg-sky-950/30 font-mono text-xs text-sky-400">Agency cut (e.g. 10%)</span>
+                <span className="px-2.5 py-1 rounded-sm border border-zinc-700 bg-zinc-800/40 font-mono text-xs text-zinc-300">Dev 70% · Talent 30% of net</span>
+              </div>
+            </div>
+          </div>
+          <p className="font-mono text-[10px] text-zinc-600">
+            All splits distributed atomically by the platform — workers are paid directly, never via the agency. Funds held in escrow until work is verified, identity confirmed, and the 30-second human veto window clears.
           </p>
         </div>
 
@@ -644,7 +677,7 @@ function Pricing() {
         </div>
 
         {/* CTA row */}
-        <div className="mt-6 grid sm:grid-cols-3 gap-3">
+        <div className="mt-6 grid sm:grid-cols-4 gap-3">
           <Link href="/marketplace"
             className="h-10 flex items-center justify-center rounded-sm border border-zinc-700 hover:border-zinc-500 font-mono text-xs text-zinc-300 hover:text-zinc-100 transition-all uppercase tracking-widest">
             Hire talent
@@ -656,6 +689,10 @@ function Pricing() {
           <Link href="/marketplace"
             className="h-10 flex items-center justify-center rounded-sm border border-zinc-700 hover:border-zinc-500 font-mono text-xs text-zinc-300 hover:text-zinc-100 transition-all uppercase tracking-widest">
             Apply as talent
+          </Link>
+          <Link href="/enterprise"
+            className="h-10 flex items-center justify-center rounded-sm border border-sky-800 hover:border-sky-600 font-mono text-xs text-sky-400 hover:text-sky-200 transition-all uppercase tracking-widest">
+            Register agency
           </Link>
         </div>
 
