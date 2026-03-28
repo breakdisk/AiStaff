@@ -185,11 +185,13 @@ function NetworkIntlPayForm({
   listing,
   clientId,
   amountCents,
+  country,
   onCancel,
 }: {
   listing:      AgentListing;
   clientId:     string;
   amountCents:  number;
+  country:      string;
   onCancel:     () => void;
 }) {
   const [status, setStatus] = useState<"idle" | "creating" | "error">("idle");
@@ -208,7 +210,7 @@ function NetworkIntlPayForm({
           listing_id:   listing.id,
           agent_name:   listing.name,
           client_id:    clientId,
-          currency:     "USD",
+          country,                  // lets backend confirm AED vs USD
         }),
       });
 
@@ -290,18 +292,18 @@ function NetworkIntlPayForm({
 type Gateway = "stripe" | "network_intl";
 
 function GatewayTabs({ active, onChange }: { active: Gateway; onChange: (g: Gateway) => void }) {
-  const tabs: Array<{ id: Gateway; label: string; icon: React.ElementType }> = [
-    { id: "stripe",       label: "Stripe",              icon: CreditCard },
-    { id: "network_intl", label: "Network International", icon: Globe },
+  const tabs: Array<{ id: Gateway; label: string; sub: string; icon: React.ElementType }> = [
+    { id: "stripe",       label: "Stripe",    sub: "USD",      icon: CreditCard },
+    { id: "network_intl", label: "N-Genius",  sub: "AED",      icon: Globe },
   ];
 
   return (
     <div className="flex gap-1 p-0.5 rounded-sm border border-zinc-800 bg-zinc-950">
-      {tabs.map(({ id, label, icon: Icon }) => (
+      {tabs.map(({ id, label, sub, icon: Icon }) => (
         <button
           key={id}
           onClick={() => onChange(id)}
-          className={`flex-1 flex items-center justify-center gap-1.5 h-8 rounded-sm
+          className={`flex-1 flex items-center justify-center gap-1.5 h-9 rounded-sm
                       font-mono text-[10px] uppercase tracking-widest transition-all
                       ${active === id
                         ? "bg-zinc-800 text-zinc-100"
@@ -309,8 +311,10 @@ function GatewayTabs({ active, onChange }: { active: Gateway; onChange: (g: Gate
                       }`}
         >
           <Icon className="w-3 h-3 flex-shrink-0" />
-          <span className="hidden sm:inline">{label}</span>
-          <span className="sm:hidden">{id === "stripe" ? "Stripe" : "N-Genius"}</span>
+          <span>{label}</span>
+          <span className={`text-[9px] px-1 rounded-sm ${active === id ? "bg-zinc-700 text-amber-400" : "text-zinc-600"}`}>
+            {sub}
+          </span>
         </button>
       ))}
     </div>
@@ -328,6 +332,8 @@ interface PaymentModalProps {
 
 export function PaymentModal({ listing, clientId, onSuccess, onClose }: PaymentModalProps) {
   const [gateway,           setGateway]          = useState<Gateway>("stripe");
+  const [geoLoading,        setGeoLoading]        = useState(true);
+  const [detectedCountry,   setDetectedCountry]   = useState<string>("AE");
   const [clientSecret,      setClientSecret]      = useState<string | null>(null);
   const [paymentIntentId,   setPaymentIntentId]   = useState<string>("");
   const [loadingIntent,     setLoadingIntent]     = useState(false);
@@ -365,14 +371,42 @@ export function PaymentModal({ listing, clientId, onSuccess, onClose }: PaymentM
     }
   }, [clientId]);
 
-  // Create a Stripe PaymentIntent only when Stripe gateway is active
+  // Auto-detect country on open → route AE to N-Genius, all others to Stripe.
+  // Runs whenever the modal opens (listing goes null→value).
   useEffect(() => {
     if (!listing) {
+      // Reset for next open
+      setGeoLoading(true);
+      setDetectedCountry("AE");
+      setGateway("stripe");
       setClientSecret(null);
       setPaymentIntentId("");
       setPaid(false);
       return;
     }
+
+    setGeoLoading(true);
+    fetch("/api/geo")
+      .then((r) => r.json())
+      .then(({ country }: { country: string }) => {
+        setDetectedCountry(country);
+        // AE (UAE) → N-Genius (AED), all others → Stripe (USD)
+        setGateway(country === "AE" ? "network_intl" : "stripe");
+      })
+      .catch(() => {
+        setDetectedCountry("AE");
+        setGateway("stripe"); // safe fallback on geo failure
+      })
+      .finally(() => {
+        setGeoLoading(false);
+      });
+  }, [listing]);
+
+  // Create a Stripe PaymentIntent only when Stripe gateway is active.
+  // Waits for geo detection to complete first (geoLoading guard) so we don't
+  // fire a wasted Stripe API call for UAE users before switching to N-Genius.
+  useEffect(() => {
+    if (!listing || geoLoading) return;
     if (gateway === "stripe") {
       createStripeIntent(listing).catch(() => {});
     } else {
@@ -381,12 +415,7 @@ export function PaymentModal({ listing, clientId, onSuccess, onClose }: PaymentM
       setPaymentIntentId("");
       setIntentError(null);
     }
-  }, [listing, gateway, createStripeIntent]);
-
-  // Reset gateway selection when modal closes/reopens
-  useEffect(() => {
-    if (!listing) setGateway("stripe");
-  }, [listing]);
+  }, [listing, gateway, geoLoading, createStripeIntent]);
 
   if (!listing) return null;
 
@@ -445,11 +474,18 @@ export function PaymentModal({ listing, clientId, onSuccess, onClose }: PaymentM
             {/* Escrow breakdown */}
             <EscrowSummary listing={listing} amountCents={listing.price_cents} />
 
-            {/* Gateway selector */}
-            <GatewayTabs active={gateway} onChange={setGateway} />
+            {/* Gateway selector — shown after geo detection */}
+            {geoLoading ? (
+              <div className="flex items-center justify-center gap-2 py-1 text-zinc-600">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                <span className="font-mono text-[10px]">Detecting region…</span>
+              </div>
+            ) : (
+              <GatewayTabs active={gateway} onChange={setGateway} />
+            )}
 
             {/* ── Stripe flow ─────────────────────────────────────────────── */}
-            {gateway === "stripe" && (
+            {!geoLoading && gateway === "stripe" && (
               loadingIntent ? (
                 <div className="flex items-center justify-center py-8 gap-2 text-zinc-500">
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -488,11 +524,12 @@ export function PaymentModal({ listing, clientId, onSuccess, onClose }: PaymentM
             )}
 
             {/* ── N-Genius flow ────────────────────────────────────────────── */}
-            {gateway === "network_intl" && (
+            {!geoLoading && gateway === "network_intl" && (
               <NetworkIntlPayForm
                 listing={listing}
                 clientId={clientId}
                 amountCents={listing.price_cents}
+                country={detectedCountry}
                 onCancel={onClose}
               />
             )}

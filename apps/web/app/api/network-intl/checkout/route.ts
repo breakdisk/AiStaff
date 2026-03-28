@@ -66,6 +66,7 @@ export interface NetworkIntlCheckoutRequest {
   listing_id:    string;
   agent_name:    string;
   client_id:     string;
+  country?:      string;   // ISO 3166-1 alpha-2 from /api/geo — fallback when CF header absent
 }
 
 interface NGenius_OrderResponse {
@@ -112,20 +113,25 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   // ── Currency detection ───────────────────────────────────────────────────────
-  // Cloudflare injects CF-IPCountry on every proxied request (zero cost).
-  // When Cloudflare is NOT in front (direct Traefik / Let's Encrypt), the
-  // header is absent. The N-Genius outlet is configured for AED (UAE merchant),
-  // so we default to AED whenever country cannot be determined. Only switch to
-  // USD if Cloudflare explicitly identifies a non-UAE origin AND the outlet
-  // has USD enabled (add USD in the N-Genius portal if needed).
-  const cfCountry = (req.headers.get("cf-ipcountry") ?? "").toUpperCase();
-  const useAED    = !cfCountry || cfCountry === "AE"; // default AED when header absent
-  const currency  = useAED ? "AED" : "USD";
+  // Priority:
+  //   1. CF-IPCountry header (Cloudflare — present if ever re-enabled)
+  //   2. `country` field from request body (set by /api/geo on the frontend)
+  //   3. Default AED — N-Genius outlet is configured for AED (UAE merchant)
+  //
+  // N-Genius is only shown to UAE users (auto-selected by PaymentModal via
+  // /api/geo), so this will almost always resolve to AED. Non-UAE users who
+  // manually switch to N-Genius also pay AED (outlet constraint).
+  const cfCountry   = (req.headers.get("cf-ipcountry") ?? "").toUpperCase();
+  const bodyCountry = (body.country ?? "").toUpperCase();
+  const country     = cfCountry || bodyCountry;          // CF takes priority
+  const useAED      = !country || country === "AE";      // default AED when unknown
+  const currency    = useAED ? "AED" : "USD";
   // Convert: USD cents → AED fils (pegged 3.6725, lossless integer math)
   const orderAmount = useAED ? USD_CENTS_TO_AED_FILS(amount_cents) : amount_cents;
 
   console.log(
-    `[network-intl/checkout] country=${cfCountry || "absent/unknown"} ` +
+    `[network-intl/checkout] country=${country || "absent/unknown"} ` +
+    `(cf=${cfCountry || "-"} body=${bodyCountry || "-"}) ` +
     `currency=${currency} amount=${orderAmount} (from ${amount_cents} USD cents)`,
   );
 
