@@ -95,18 +95,12 @@ const TESTIMONIALS = [
   },
 ];
 
-const PRICING = {
-  monthly: [
-    { name: "Starter", label: "Free",  sub: "",     desc: "For individuals exploring.",              highlight: false, features: ["Browse listings", "Tier 0 identity", "5 matches/mo", "Community support"],                                               cta: "Get started"    },
-    { name: "Pro",     label: "$49",   sub: "/mo",  desc: "For active talent and small agencies.",   highlight: true,  features: ["All in Starter", "Tier 1 identity", "Unlimited matches", "Escrow access", "Priority support"],                          cta: "Start free trial" },
-    { name: "Scale",   label: "$199",  sub: "/mo",  desc: "For enterprises and agencies.",           highlight: false, features: ["All in Pro", "Tier 2 ZK biometric", "Multi-seat licenses", "Dedicated CSM", "SLA guarantee", "Audit log export"],       cta: "Contact sales"  },
-  ],
-  pertask: [
-    { name: "Starter", label: "Free",  sub: "",         desc: "For individuals exploring.",              highlight: false, features: ["Browse listings", "Tier 0 identity", "5 matches/mo", "Community support"],                                           cta: "Get started"    },
-    { name: "Pro",     label: "$4.9",  sub: "/task",    desc: "Per successful deployment, no monthly.",  highlight: true,  features: ["All in Starter", "Tier 1 identity", "Unlimited matches", "Escrow access", "Priority support"],                      cta: "Pay as you go"  },
-    { name: "Scale",   label: "Custom", sub: "",        desc: "Volume pricing for high-throughput teams.", highlight: false, features: ["All in Pro", "Tier 2 ZK biometric", "Multi-seat licenses", "Dedicated CSM", "SLA guarantee", "Audit log export"], cta: "Contact sales"  },
-  ],
-};
+const PRICING_ROWS: { label: string; client: string; developer: string; talent: string }[] = [
+  { label: "Joining",          client: "Free",                developer: "Free",              talent: "Free"                  },
+  { label: "Posting / Listing",client: "Free",                developer: "Free",              talent: "Free"                  },
+  { label: "Platform fee",     client: "15% of contract",     developer: "Nothing extra",     talent: "Nothing extra"         },
+  { label: "You receive",      client: "Product / Service result", developer: "59.5% per sale", talent: "25.5% per deployment" },
+];
 
 // ── Nav ───────────────────────────────────────────────────────────────────────
 
@@ -530,71 +524,113 @@ function Testimonials() {
 // ── Pricing ───────────────────────────────────────────────────────────────────
 
 function Pricing() {
-  const [billing, setBilling] = useState<"monthly" | "pertask">("monthly");
-  const plans = PRICING[billing];
+  const cols: { key: "client" | "developer" | "talent"; label: string; sub: string; highlight: boolean }[] = [
+    { key: "client",    label: "Client",        sub: "Hire AI talent or agents", highlight: false },
+    { key: "developer", label: "AI Developer",  sub: "Build & sell AI agents",   highlight: true  },
+    { key: "talent",    label: "AI Talent",     sub: "Deploy & configure agents", highlight: false },
+  ];
 
   return (
     <section className="py-20 sm:py-28 border-t border-zinc-900">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6">
+
+        {/* Header */}
         <div className="text-center mb-10">
           <p className="font-mono text-xs text-amber-400 uppercase tracking-widest mb-3">Pricing</p>
           <h2 className="text-3xl sm:text-4xl font-semibold text-zinc-50 tracking-tight">Simple, transparent pricing</h2>
-          <p className="mt-3 text-zinc-400 text-sm sm:text-base">No hidden fees. Escrow costs covered by the 70/30 split.</p>
-
-          {/* Toggle */}
-          <div className="inline-flex mt-6 p-0.5 rounded-sm border border-zinc-800 bg-zinc-900">
-            {(["monthly", "pertask"] as const).map((mode) => (
-              <button key={mode} onClick={() => setBilling(mode)}
-                className={`px-5 py-1.5 rounded-sm font-mono text-xs uppercase tracking-widest transition-all ${billing === mode ? "bg-amber-500 text-zinc-950 font-semibold" : "text-zinc-400 hover:text-zinc-200"}`}>
-                {mode === "monthly" ? "Monthly" : "Per Task"}
-              </button>
-            ))}
-          </div>
+          <p className="mt-3 text-zinc-400 text-sm sm:text-base">
+            Free to join. No monthly fees. We only earn when you earn.
+          </p>
         </div>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {plans.map((plan) => (
-            <div key={plan.name}
-              className={`relative rounded-lg p-6 flex flex-col transition-all duration-200 ${
-                plan.highlight
-                  ? "border-2 border-amber-500/60 bg-gradient-to-b from-amber-500/5 to-transparent shadow-xl shadow-amber-500/10"
-                  : "border border-zinc-800 bg-zinc-900/30 hover:border-zinc-700 hover:bg-zinc-900/50"
-              }`}>
-              {plan.highlight && (
-                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-amber-500 rounded-sm font-mono text-xs text-zinc-950 font-semibold uppercase tracking-widest whitespace-nowrap">
-                  Most Popular
-                </div>
-              )}
+        {/* Table */}
+        <div className="border border-zinc-800 rounded-sm overflow-hidden">
 
-              <div className="mb-5">
-                <h3 className="font-semibold text-zinc-100 text-base mb-1">{plan.name}</h3>
-                <div className="flex items-baseline gap-1 mb-2">
-                  <span className="font-mono text-3xl font-semibold text-zinc-50">{plan.label}</span>
-                  {plan.sub && <span className="font-mono text-xs text-zinc-500">{plan.sub}</span>}
-                </div>
-                <p className="text-xs text-zinc-500">{plan.desc}</p>
+          {/* Column headers */}
+          <div className="grid grid-cols-4 border-b border-zinc-800">
+            <div className="p-4 border-r border-zinc-800" />
+            {cols.map((col) => (
+              <div key={col.key}
+                className={`p-4 text-center border-r last:border-r-0 border-zinc-800 ${col.highlight ? "bg-amber-500/5" : ""}`}>
+                {col.highlight && (
+                  <span className="inline-block mb-2 px-2 py-0.5 bg-amber-500 rounded-sm font-mono text-[10px] text-zinc-950 font-semibold uppercase tracking-widest">
+                    Most common
+                  </span>
+                )}
+                <p className={`font-semibold text-sm ${col.highlight ? "text-amber-400" : "text-zinc-100"}`}>
+                  {col.label}
+                </p>
+                <p className="font-mono text-[10px] text-zinc-500 mt-0.5">{col.sub}</p>
               </div>
+            ))}
+          </div>
 
-              <ul className="space-y-2.5 flex-1 mb-6">
-                {plan.features.map((f) => (
-                  <li key={f} className="flex items-start gap-2 text-xs text-zinc-400">
-                    <Check className="w-3.5 h-3.5 text-green-500 flex-shrink-0 mt-0.5" />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-
-              <Link href="/marketplace"
-                className={`w-full h-10 flex items-center justify-center rounded-sm font-mono text-xs font-medium uppercase tracking-widest transition-all ${
-                  plan.highlight
-                    ? "bg-amber-500 hover:bg-amber-400 text-zinc-950 shadow-md shadow-amber-500/20"
-                    : "border border-zinc-700 hover:border-zinc-500 text-zinc-300 hover:text-zinc-100"
-                }`}>
-                {plan.cta}
-              </Link>
+          {/* Rows */}
+          {PRICING_ROWS.map((row, i) => (
+            <div key={row.label}
+              className={`grid grid-cols-4 border-b last:border-b-0 border-zinc-800 ${i % 2 === 1 ? "bg-zinc-900/20" : ""}`}>
+              {/* Row label */}
+              <div className="p-4 border-r border-zinc-800 flex items-center">
+                <span className="font-mono text-xs text-zinc-400">{row.label}</span>
+              </div>
+              {/* Client */}
+              <div className="p-4 border-r border-zinc-800 flex items-center justify-center">
+                <span className={`font-mono text-xs text-center ${row.label === "Platform fee" ? "text-amber-400 font-semibold" : row.label === "You receive" ? "text-zinc-200 font-medium" : "text-emerald-400"}`}>
+                  {row.client}
+                </span>
+              </div>
+              {/* Developer */}
+              <div className="p-4 border-r border-zinc-800 flex items-center justify-center bg-amber-500/[0.03]">
+                <span className={`font-mono text-xs text-center ${row.label === "You receive" ? "text-amber-400 font-semibold" : row.label === "Platform fee" ? "text-emerald-400" : "text-emerald-400"}`}>
+                  {row.developer}
+                </span>
+              </div>
+              {/* Talent */}
+              <div className="p-4 flex items-center justify-center">
+                <span className={`font-mono text-xs text-center ${row.label === "You receive" ? "text-amber-400 font-semibold" : row.label === "Platform fee" ? "text-emerald-400" : "text-emerald-400"}`}>
+                  {row.talent}
+                </span>
+              </div>
             </div>
           ))}
         </div>
+
+        {/* Commission explainer */}
+        <div className="mt-6 border border-zinc-800 rounded-sm p-5 bg-zinc-900/30">
+          <p className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest mb-3">How the 15% works</p>
+          <div className="flex flex-wrap gap-4 items-center">
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-sm text-zinc-300">Client pays</span>
+              <span className="font-mono text-sm font-semibold text-zinc-50">$100</span>
+            </div>
+            <ChevronRight size={14} className="text-zinc-600" />
+            <div className="flex flex-wrap gap-3">
+              <span className="px-2.5 py-1 rounded-sm border border-amber-800/60 bg-amber-950/30 font-mono text-xs text-amber-400">Platform $15</span>
+              <span className="px-2.5 py-1 rounded-sm border border-zinc-700 bg-zinc-800/40 font-mono text-xs text-zinc-300">Developer $59.50</span>
+              <span className="px-2.5 py-1 rounded-sm border border-zinc-700 bg-zinc-800/40 font-mono text-xs text-zinc-300">Talent $25.50</span>
+            </div>
+          </div>
+          <p className="font-mono text-[10px] text-zinc-600 mt-3">
+            Funds held in escrow. Released only after work is verified, identity confirmed, and the 30-second human veto window clears.
+          </p>
+        </div>
+
+        {/* CTA row */}
+        <div className="mt-6 grid sm:grid-cols-3 gap-3">
+          <Link href="/marketplace"
+            className="h-10 flex items-center justify-center rounded-sm border border-zinc-700 hover:border-zinc-500 font-mono text-xs text-zinc-300 hover:text-zinc-100 transition-all uppercase tracking-widest">
+            Hire talent
+          </Link>
+          <Link href="/marketplace"
+            className="h-10 flex items-center justify-center rounded-sm bg-amber-500 hover:bg-amber-400 font-mono text-xs text-zinc-950 font-semibold transition-all uppercase tracking-widest">
+            List your agent
+          </Link>
+          <Link href="/marketplace"
+            className="h-10 flex items-center justify-center rounded-sm border border-zinc-700 hover:border-zinc-500 font-mono text-xs text-zinc-300 hover:text-zinc-100 transition-all uppercase tracking-widest">
+            Apply as talent
+          </Link>
+        </div>
+
       </div>
     </section>
   );
