@@ -158,17 +158,17 @@ async fn main() -> Result<()> {
         .route("/collab/read", post(collab_handlers::mark_read))
         .route("/collab/unread", get(collab_handlers::unread_count))
         .route(
-            "/collab/messages/:id",
+            "/collab/messages/{id}",
             axum::routing::patch(collab_handlers::edit_message)
                 .delete(collab_handlers::delete_message),
         )
         .route("/collab/reactions", post(collab_handlers::toggle_reaction))
         .route(
-            "/collab/messages/:id/thread",
+            "/collab/messages/{id}/thread",
             get(collab_handlers::list_thread),
         )
         .route("/collab/files", post(collab_handlers::upload_file))
-        .route("/collab/files/:slug", get(collab_handlers::serve_file))
+        .route("/collab/files/{slug}", get(collab_handlers::serve_file))
         .route(
             "/integrations",
             get(integration_handlers::list_integrations)
