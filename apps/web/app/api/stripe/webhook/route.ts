@@ -63,8 +63,7 @@ async function ensureDeploymentExists(
       { signal: AbortSignal.timeout(5_000) },
     );
     if (check.ok) {
-      console.log(`[stripe-webhook] deployment already exists for PI ${pi.id} — skipping`);
-      return;
+      return; // deployment already exists — idempotent skip
     }
     // 404 = not found → proceed to create
     if (check.status !== 404) {
@@ -97,8 +96,7 @@ async function ensureDeploymentExists(
       signal:  AbortSignal.timeout(10_000),
     });
     if (r.ok) {
-      const created = await r.json() as { deployment_id?: string };
-      console.log(`[stripe-webhook] resilience deployment created: ${created.deployment_id} for PI ${pi.id}`);
+      await r.json(); // consume body
     } else {
       const text = await r.text();
       console.error(`[stripe-webhook] POST /deployments failed (${r.status}): ${text}`);
@@ -128,20 +126,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // Resilience path: browser was closed — we create the deployment here.
   if (event.type === "payment_intent.succeeded") {
     const pi = event.data.object as Stripe.PaymentIntent;
-    const { listing_id, client_id, agent_name } = pi.metadata;
-
-    console.log(
-      `[stripe-webhook] PaymentIntent ${pi.id} confirmed — ` +
-      `$${(pi.amount / 100).toFixed(2)} USD — listing ${listing_id} — client ${client_id}`,
-    );
+    const { listing_id, client_id } = pi.metadata;
 
     if (listing_id && client_id) {
       await ensureDeploymentExists(pi, listing_id, client_id);
     } else {
       console.warn(`[stripe-webhook] PI ${pi.id} missing listing_id or client_id in metadata`);
     }
-
-    void agent_name; // referenced in log above; suppress unused-var lint
   }
 
   // ── payment_intent.payment_failed ──────────────────────────────────────

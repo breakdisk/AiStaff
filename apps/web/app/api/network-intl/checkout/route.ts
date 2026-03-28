@@ -129,12 +129,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // Convert: USD cents → AED fils (pegged 3.6725, lossless integer math)
   const orderAmount = useAED ? USD_CENTS_TO_AED_FILS(amount_cents) : amount_cents;
 
-  console.log(
-    `[network-intl/checkout] country=${country || "absent/unknown"} ` +
-    `(cf=${cfCountry || "-"} body=${bodyCountry || "-"}) ` +
-    `currency=${currency} amount=${orderAmount} (from ${amount_cents} USD cents)`,
-  );
-
   // Deterministic order reference per payment attempt for idempotency audit trail
   const merchantOrderRef = uuidv7();
 

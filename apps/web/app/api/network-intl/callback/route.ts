@@ -153,11 +153,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     const deploymentId = deployed?.deployment_id ?? "unknown";
 
-    console.log(
-      `[network-intl/callback] payment verified (${paymentState}), ` +
-      `deployment ${deploymentId} created — order ${ngeniusRef}`,
-    );
-
     return redirect(`/dashboard?payment=success&deployment_id=${deploymentId}`);
 
   } catch (err) {

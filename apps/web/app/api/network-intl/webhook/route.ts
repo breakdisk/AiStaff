@@ -89,8 +89,7 @@ async function ensureDeploymentExists(payload: NGenius_WebhookPayload): Promise<
       { signal: AbortSignal.timeout(5_000) },
     );
     if (check.ok) {
-      console.log(`[network-intl/webhook] deployment already exists for order ${orderRef} — skipping`);
-      return;
+      return; // deployment already exists — idempotent skip
     }
     if (check.status !== 404) {
       console.warn(`[network-intl/webhook] unexpected status ${check.status} checking deployment`);
@@ -136,8 +135,7 @@ async function ensureDeploymentExists(payload: NGenius_WebhookPayload): Promise<
     });
 
     if (r.ok) {
-      const created = await r.json() as { deployment_id?: string };
-      console.log(`[network-intl/webhook] resilience deployment created: ${created.deployment_id} for order ${orderRef}`);
+      await r.json(); // consume body
     } else {
       const text = await r.text();
       console.error(`[network-intl/webhook] POST /deployments failed (${r.status}): ${text}`);
@@ -177,13 +175,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const { event, order, transaction } = payload;
 
-  console.log(
-    `[network-intl/webhook] event=${event} ` +
-    `order=${order?.reference} ` +
-    `txn=${transaction?.id ?? "—"} ` +
-    `state=${transaction?.state ?? "—"}`,
-  );
-
   // CAPTURED / AUTHORISED = payment succeeded
   if (event === "CAPTURED" || event === "AUTHORISED") {
     await ensureDeploymentExists(payload);
@@ -197,14 +188,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     // No deployment to create. The user will see the failure state on return.
   }
 
-  // Refund events — log for now; full refund flow is in the roadmap
-  if (event === "REFUNDED" || event === "PARTIALLY_REFUNDED") {
-    console.log(
-      `[network-intl/webhook] refund event ${event} — order ${order?.reference} ` +
-      `— amount ${order?.amount?.value} ${order?.amount?.currencyCode}`,
-    );
-    // TODO (post-MVP): update deployment payment_status = 'refunded', emit Kafka event
-  }
+  // Refund events — post-MVP: update deployment payment_status = 'refunded', emit Kafka event
+  // No action taken yet; N-Genius will retry if we return non-200, so always ack.
 
   // Suppress unused import warning for getAccessToken — used by ensureDeploymentExists indirectly
   void getAccessToken;

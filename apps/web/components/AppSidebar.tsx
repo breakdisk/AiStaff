@@ -29,6 +29,7 @@ const SECTION_NAV: { heading: string; items: { label: string; href: string }[] }
   {
     heading: "Payments",
     items: [
+      { label: "Earnings",           href: "/earnings"           },
       { label: "Escrow",             href: "/escrow"             },
       { label: "Payouts",            href: "/payouts"            },
       { label: "Billing",            href: "/billing"            },
