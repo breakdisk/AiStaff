@@ -147,23 +147,29 @@ async fn handle_deployment_complete(
             if skip_biometric {
                 info!(%did, "Veto window elapsed — releasing escrow (biometric skipped)");
 
-                // Look up agency context — determines split path (12% vs 15%)
+                // Look up agency context — determines split path (12% vs 15%).
+                // JOIN organisations to resolve owner_id for FK-safe payment recipient.
                 let agency_row = sqlx::query(
-                    "SELECT agency_id, agency_pct FROM deployments WHERE id = $1"
+                    "SELECT d.agency_id, d.agency_pct, o.owner_id AS agency_owner_id
+                     FROM deployments d
+                     LEFT JOIN organisations o ON o.id = d.agency_id
+                     WHERE d.id = $1"
                 )
                 .bind(did)
                 .fetch_optional(&db)
                 .await
                 .unwrap_or(None);
 
-                let (agency_id, platform_cents, agency_cents, dev_cents, talent_cents) =
+                let (agency_owner_id, platform_cents, agency_cents, dev_cents, talent_cents) =
                     if let Some(row) = agency_row {
                         use sqlx::Row;
-                        let aid: Option<Uuid> = row.get("agency_id");
-                        let apct: i16        = row.get("agency_pct");
+                        let aid: Option<Uuid>   = row.get("agency_id");
+                        let apct: i16            = row.get("agency_pct");
+                        // owner_id → unified_profiles FK; use as payment recipient
+                        let owner: Option<Uuid>  = row.get("agency_owner_id");
                         if aid.is_some() && apct > 0 {
                             let (p, a, d, t) = split_agency(event.total_cents, apct as u32);
-                            (aid, p, a, d, t)
+                            (owner, p, a, d, t)
                         } else {
                             let (p, d, t) = split_with_commission(event.total_cents);
                             (None, p, 0, d, t)
@@ -180,7 +186,7 @@ async fn handle_deployment_complete(
                     talent_id:       event.talent_id,
                     talent_cents,
                     platform_cents,
-                    agency_id,
+                    agency_id:       agency_owner_id,
                     agency_cents,
                 };
 
@@ -216,23 +222,28 @@ async fn handle_deployment_complete(
                                 return;
                             }
 
-                            // Look up agency context — same logic as skip_biometric path
+                            // Look up agency context — same logic as skip_biometric path.
+                            // JOIN organisations to resolve owner_id for FK-safe recipient.
                             let agency_row = sqlx::query(
-                                "SELECT agency_id, agency_pct FROM deployments WHERE id = $1"
+                                "SELECT d.agency_id, d.agency_pct, o.owner_id AS agency_owner_id
+                                 FROM deployments d
+                                 LEFT JOIN organisations o ON o.id = d.agency_id
+                                 WHERE d.id = $1"
                             )
                             .bind(did)
                             .fetch_optional(&db)
                             .await
                             .unwrap_or(None);
 
-                            let (agency_id, platform_cents, agency_cents, dev_cents, talent_cents) =
+                            let (agency_owner_id, platform_cents, agency_cents, dev_cents, talent_cents) =
                                 if let Some(row) = agency_row {
                                     use sqlx::Row;
-                                    let aid: Option<Uuid> = row.get("agency_id");
-                                    let apct: i16        = row.get("agency_pct");
+                                    let aid: Option<Uuid>  = row.get("agency_id");
+                                    let apct: i16           = row.get("agency_pct");
+                                    let owner: Option<Uuid> = row.get("agency_owner_id");
                                     if aid.is_some() && apct > 0 {
                                         let (p, a, d, t) = split_agency(event.total_cents, apct as u32);
-                                        (aid, p, a, d, t)
+                                        (owner, p, a, d, t)
                                     } else {
                                         let (p, d, t) = split_with_commission(event.total_cents);
                                         (None, p, 0, d, t)
@@ -249,7 +260,7 @@ async fn handle_deployment_complete(
                                 talent_id:       event.talent_id,
                                 talent_cents,
                                 platform_cents,
-                                agency_id,
+                                agency_id:       agency_owner_id,
                                 agency_cents,
                             };
 

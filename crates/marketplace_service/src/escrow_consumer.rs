@@ -55,7 +55,7 @@ pub async fn run_escrow_consumer(db: PgPool, brokers: String) -> anyhow::Result<
 }
 
 /// Handles the legacy 30% freelancer release from SuccessTrigger.
-async fn process_release_escrow(db: &PgPool, ev: &ReleaseEscrow) -> anyhow::Result<()> {
+pub async fn process_release_escrow(db: &PgPool, ev: &ReleaseEscrow) -> anyhow::Result<()> {
     sqlx::query!(
         "INSERT INTO escrow_payouts (deployment_id, recipient_id, amount_cents, reason, created_at)
          VALUES ($1, $2, $3, $4, NOW())
@@ -74,6 +74,8 @@ async fn process_release_escrow(db: &PgPool, ev: &ReleaseEscrow) -> anyhow::Resu
 
 /// Handles the escrow release from VetoFirst payout service.
 ///
+/// Atomically records the full split in one transaction:
+///
 /// Freelancer path (agency_id = None):
 ///   1. Developer payout  (~59.5% — 70% of post-15%-commission remainder)
 ///   2. Talent payout     (~25.5% — 30% of post-15%-commission remainder)
@@ -86,7 +88,7 @@ async fn process_release_escrow(db: &PgPool, ev: &ReleaseEscrow) -> anyhow::Resu
 ///   4. Platform fee      (12% — recorded in platform_fees)
 ///
 /// All rows inserted atomically in one transaction.
-async fn process_escrow_release(db: &PgPool, ev: &EscrowRelease) -> anyhow::Result<()> {
+pub async fn process_escrow_release(db: &PgPool, ev: &EscrowRelease) -> anyhow::Result<()> {
     let mut tx = db.begin().await?;
 
     // Developer payout

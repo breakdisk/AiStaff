@@ -5,6 +5,10 @@ edition.workspace = true
 license.workspace = true
 publish = false
 
+[lib]
+name = "marketplace_service"
+path = "src/lib.rs"
+
 [[bin]]
 name = "marketplace_service"
 path = "src/main.rs"
@@ -27,3 +31,7 @@ tracing-subscriber.workspace = true
 dotenvy.workspace      = true
 reqwest.workspace      = true
 infer.workspace        = true
+
+[dev-dependencies]
+testcontainers          = "0.23"
+testcontainers-modules  = { version = "0.11", features = ["postgres"] }

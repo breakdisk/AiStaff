@@ -30,6 +30,8 @@ export interface OrgResponse {
   csm_response_sla: string | null;
   member_count: number;
   created_at: string;
+  /** Agency management fee % (0–50). 0 = standard freelancer split. */
+  agency_pct: number;
 }
 
 export interface OrgMember {
@@ -112,6 +114,8 @@ export function getOrg(id: string): Promise<OrgResponse> {
 export function updateOrg(id: string, body: Partial<{
   name: string; csm_name: string; csm_email: string; csm_response_sla: string;
   veto_window_seconds: number; contract_value_cents: number; renewal_date: string; plan_tier: string;
+  /** Agency management fee % (0–50). Stored on every future deployment from this org. */
+  agency_pct: number;
 }>): Promise<OrgResponse> {
   return req(`${idBase()}/orgs/${id}`, {
     method: "PATCH",

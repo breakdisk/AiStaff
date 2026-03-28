@@ -134,13 +134,44 @@ pub async fn create_deployment(
     //    Use Uuid::now_v7() for the primary key so events are time-ordered.
     let deployment_id = Uuid::now_v7();
 
+    // 2a. Auto-populate agency context from the listing's organisation (if any).
+    //     Non-fatal: if the listing has no org, proceed without agency context.
+    let (agency_id, agency_pct): (Option<Uuid>, i16) = {
+        use sqlx::Row as _;
+        match sqlx::query("SELECT org_id FROM agent_listings WHERE id = $1")
+            .bind(req.agent_id)
+            .fetch_optional(&state.db)
+            .await
+        {
+            Ok(Some(row)) => {
+                let org_id: Option<Uuid> = row.get("org_id");
+                if let Some(oid) = org_id {
+                    match sqlx::query_scalar::<_, i16>(
+                        "SELECT agency_pct FROM organisations WHERE id = $1",
+                    )
+                    .bind(oid)
+                    .fetch_optional(&state.db)
+                    .await
+                    {
+                        Ok(Some(pct)) => (Some(oid), pct),
+                        _ => (None, 0),
+                    }
+                } else {
+                    (None, 0)
+                }
+            }
+            _ => (None, 0),
+        }
+    };
+
     let insert = sqlx::query(
         "INSERT INTO deployments
              (id, agent_id, client_id, freelancer_id, developer_id,
               agent_artifact_hash, escrow_amount_cents,
               transaction_id, stripe_payment_intent_id,
+              agency_id, agency_pct,
               payment_status, state)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'PENDING'::deployment_status)",
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'PENDING'::deployment_status)",
     )
     .bind(deployment_id)
     .bind(req.agent_id)
@@ -151,6 +182,8 @@ pub async fn create_deployment(
     .bind(req.escrow_amount_cents)
     .bind(transaction_id)
     .bind(&req.stripe_payment_intent_id)
+    .bind(agency_id)
+    .bind(agency_pct)
     .bind(if req.stripe_payment_intent_id.is_some() {
         "confirmed"
     } else {

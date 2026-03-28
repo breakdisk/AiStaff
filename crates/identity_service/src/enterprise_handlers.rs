@@ -27,6 +27,9 @@ pub struct OrgResponse {
     pub csm_response_sla: Option<String>,
     pub member_count: i64,
     pub created_at: String,
+    /// Agency management fee % (0–50). Applied on every deployment this org creates.
+    /// 0 = no agency fee; standard 15% platform + 70/30 freelancer split applies.
+    pub agency_pct: i16,
 }
 
 #[derive(Deserialize)]
@@ -39,6 +42,8 @@ pub struct UpdateOrgBody {
     pub contract_value_cents: Option<i64>,
     pub renewal_date: Option<String>,
     pub plan_tier: Option<String>,
+    /// Agency management fee % (0–50). Capped at 50% to protect workers.
+    pub agency_pct: Option<i16>,
 }
 
 #[derive(Deserialize)]
@@ -271,6 +276,19 @@ pub async fn update_org(
             "UPDATE organisations SET plan_tier = $1::org_plan_tier, updated_at = NOW() WHERE id = $2",
         )
         .bind(tier)
+        .bind(id)
+        .execute(&pool)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    }
+    if let Some(v) = body.agency_pct {
+        if !(0..=50).contains(&v) {
+            return Err(StatusCode::BAD_REQUEST);
+        }
+        sqlx::query(
+            "UPDATE organisations SET agency_pct = $1, updated_at = NOW() WHERE id = $2",
+        )
+        .bind(v)
         .bind(id)
         .execute(&pool)
         .await
@@ -711,11 +729,13 @@ async fn fetch_org_response(pool: &PgPool, org_id: Uuid) -> Result<OrgResponse, 
         Option<String>,
         Option<String>,
         chrono::DateTime<chrono::Utc>,
+        i16,
     ) = sqlx::query_as(
         "SELECT o.id, o.name, o.owner_id, o.plan_tier::TEXT,
                 o.contract_value_cents, o.renewal_date,
                 o.veto_window_seconds, o.custom_escrow_platform_pct,
-                o.csm_name, o.csm_email, o.csm_response_sla, o.created_at
+                o.csm_name, o.csm_email, o.csm_response_sla, o.created_at,
+                o.agency_pct
          FROM organisations o
          WHERE o.id = $1",
     )
@@ -744,5 +764,6 @@ async fn fetch_org_response(pool: &PgPool, org_id: Uuid) -> Result<OrgResponse, 
         csm_response_sla: row.10,
         member_count,
         created_at: row.11.to_rfc3339(),
+        agency_pct: row.12,
     })
 }

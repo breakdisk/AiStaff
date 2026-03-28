@@ -5,8 +5,9 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import {
   Building2, Users, HeadphonesIcon, ChevronRight, TrendingUp, Zap, Shield, Loader2, Mail,
+  Percent,
 } from "lucide-react";
-import { getMyOrg, getOrgAnalytics, listMembers, OrgResponse, OrgAnalytics, OrgMember } from "@/lib/enterpriseApi";
+import { getMyOrg, getOrgAnalytics, listMembers, updateOrg, OrgResponse, OrgAnalytics, OrgMember } from "@/lib/enterpriseApi";
 
 type SupportTier = "GROWTH" | "ENTERPRISE" | "PLATINUM";
 type SlaHealth = "ON-TRACK" | "AT-RISK" | "BREACHED";
@@ -53,11 +54,17 @@ export default function EnterpriseDashboard() {
   const [loading, setLoading] = useState(true);
   const [noOrg, setNoOrg]     = useState(false);
 
+  // Agency management fee editor
+  const [agencyPct, setAgencyPct]       = useState<number>(0);
+  const [savingFee, setSavingFee]       = useState(false);
+  const [feeSaved, setFeeSaved]         = useState(false);
+
   useEffect(() => {
     if (!profileId) return;
     getMyOrg(profileId)
       .then(org => {
         setOrg(org);
+        setAgencyPct(org.agency_pct ?? 0);
         return Promise.all([
           getOrgAnalytics(org.id).catch(() => null),
           listMembers(org.id).catch(() => [] as OrgMember[]),
@@ -180,6 +187,87 @@ export default function EnterpriseDashboard() {
             )}
           </div>
         )}
+
+        {/* ── Agency management fee ──────────────────────────────────── */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-sm p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Percent className="text-amber-400 flex-shrink-0" size={14} />
+            <p className="text-xs font-medium text-zinc-50">Agency Management Fee</p>
+            <span className="ml-auto font-mono text-xs text-amber-400 tabular-nums">
+              {agencyPct}%
+            </span>
+          </div>
+
+          <p className="text-[11px] text-zinc-500 leading-relaxed">
+            Applied to every deployment your agency creates.
+            Platform takes <span className="text-zinc-300">12%</span>;
+            your fee is deducted from the remaining
+            {" "}<span className="text-zinc-300">{100 - 12}%</span>,
+            with developer&nbsp;70% and talent&nbsp;30% of what&apos;s left.
+          </p>
+
+          {/* Inline example: $100 contract at current pct */}
+          {(() => {
+            const platform = Math.floor(10000 * 12 / 100);
+            const rem      = 10000 - platform;
+            const agency   = Math.floor(rem * agencyPct / 100);
+            const postA    = rem - agency;
+            const dev      = Math.floor(postA * 70 / 100);
+            const talent   = postA - dev;
+            return (
+              <div className="grid grid-cols-4 gap-1 text-center">
+                {[
+                  { label: "Platform", cents: platform, color: "text-amber-400" },
+                  { label: "Agency",   cents: agency,   color: "text-violet-400" },
+                  { label: "Developer",cents: dev,      color: "text-sky-400"   },
+                  { label: "Talent",   cents: talent,   color: "text-emerald-400"},
+                ].map(({ label, cents, color }) => (
+                  <div key={label} className="bg-zinc-950 border border-zinc-800 rounded-sm py-1.5">
+                    <p className={`font-mono text-[11px] font-medium tabular-nums ${color}`}>
+                      ${(cents / 100).toFixed(2)}
+                    </p>
+                    <p className="text-[9px] text-zinc-500 mt-0.5">{label}</p>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+
+          <div className="space-y-1">
+            <input
+              type="range"
+              min={0}
+              max={50}
+              step={1}
+              value={agencyPct}
+              onChange={e => { setAgencyPct(Number(e.target.value)); setFeeSaved(false); }}
+              className="w-full accent-amber-400 h-1.5 cursor-pointer"
+              aria-label="Agency management fee percentage"
+            />
+            <div className="flex justify-between text-[9px] text-zinc-600">
+              <span>0%</span><span>25%</span><span>50%</span>
+            </div>
+          </div>
+
+          <button
+            disabled={savingFee}
+            onClick={async () => {
+              if (!org) return;
+              setSavingFee(true);
+              setFeeSaved(false);
+              try {
+                const updated = await updateOrg(org.id, { agency_pct: agencyPct });
+                setOrg(updated);
+                setFeeSaved(true);
+              } finally {
+                setSavingFee(false);
+              }
+            }}
+            className="w-full py-1.5 bg-amber-400 text-zinc-950 text-xs font-medium rounded-sm hover:bg-amber-300 disabled:opacity-50"
+          >
+            {savingFee ? "Saving…" : feeSaved ? "Saved ✓" : "Save fee"}
+          </button>
+        </div>
 
         <div className="grid grid-cols-2 gap-3">
           {[
