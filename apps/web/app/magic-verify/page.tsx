@@ -1,20 +1,17 @@
 /**
  * /magic-verify — Magic link landing page.
  *
- * The email contains a link like:
- *   https://aistaffglobal.com/magic-verify?email=...&token=...&next=/dashboard
+ * The user arrives here via a GET link from their email. We cannot call
+ * signIn() directly in a Server Component page because Next.js blocks cookie
+ * writes during page rendering (GET requests are read-only for cookies).
  *
- * This server component calls signIn("magic", {email, token}) which routes
- * through the Credentials("magic") provider in auth.ts. The provider verifies
- * the HMAC-signed JWT and, on success, Auth.js creates a session and redirects
- * to `next` (callbackUrl).
- *
- * On failure the user is sent back to /login with an error flag.
+ * Solution: render an invisible auto-submitting form whose `action` is a
+ * Server Action. Form submissions run in a mutation context where Auth.js can
+ * write the session cookie and redirect.
  */
 
-import { signIn } from "@/auth";
-import { AuthError } from "next-auth";
-import { redirect } from "next/navigation";
+import { verifyMagicLink } from "./actions";
+import { Loader2 } from "lucide-react";
 
 interface Props {
   searchParams: Promise<{
@@ -26,23 +23,38 @@ interface Props {
 
 export default async function MagicVerifyPage({ searchParams }: Props) {
   const params      = await searchParams;
-  const email       = params.email       ?? "";
-  const token       = params.token       ?? "";
-  const callbackUrl = params.next        ?? "/dashboard";
+  const email       = params.email ?? "";
+  const token       = params.token ?? "";
+  const callbackUrl = params.next  ?? "/dashboard";
 
-  if (!email || !token) {
-    redirect("/login?error=InvalidMagicLink");
-  }
+  return (
+    <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center gap-3">
+      <Loader2 className="w-6 h-6 text-amber-400 animate-spin" />
+      <p className="font-mono text-sm text-zinc-400">Signing you in…</p>
 
-  try {
-    // On success, signIn redirects to callbackUrl (throws NEXT_REDIRECT).
-    // On failure, it throws AuthError — we catch that and send back to /login.
-    await signIn("magic", { email, token, redirectTo: callbackUrl });
-  } catch (err) {
-    if (err instanceof AuthError) {
-      redirect("/login?error=InvalidMagicLink");
-    }
-    // NEXT_REDIRECT and other Next.js internals — re-throw so Next.js handles them.
-    throw err;
-  }
+      {/* Auto-submit form — Server Action handles signIn + cookie write */}
+      <form action={verifyMagicLink} id="magic-form">
+        <input type="hidden" name="email"       value={email} />
+        <input type="hidden" name="token"       value={token} />
+        <input type="hidden" name="callbackUrl" value={callbackUrl} />
+        <button type="submit" className="hidden" id="magic-btn" />
+      </form>
+
+      {/* Submit on load — works even if user has JS disabled via noscript fallback */}
+      {/* eslint-disable-next-line @next/next/no-sync-scripts */}
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `document.getElementById("magic-btn").click();`,
+        }}
+      />
+      <noscript>
+        <p style={{ color: "#a1a1aa", fontFamily: "monospace", fontSize: 13 }}>
+          JavaScript is required to complete sign-in.{" "}
+          <button form="magic-form" type="submit" style={{ color: "#fbbf24" }}>
+            Click here to continue
+          </button>
+        </p>
+      </noscript>
+    </div>
+  );
 }
