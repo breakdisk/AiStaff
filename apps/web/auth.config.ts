@@ -152,13 +152,17 @@ export const authConfig: NextAuthConfig = {
       clientSecret: process.env.GITHUB_CLIENT_SECRET!,
       checks: ["state"],
     }),
-    MicrosoftEntraId({
-      clientId:     process.env.AZURE_AD_CLIENT_ID     ?? "",
-      clientSecret: process.env.AZURE_AD_CLIENT_SECRET ?? "",
-      ...(process.env.AZURE_AD_TENANT_ID
-        ? { issuer: `https://login.microsoftonline.com/${process.env.AZURE_AD_TENANT_ID}/v2.0` }
-        : {}),
-    }),
+    // Only register when credentials are present — passing an empty clientId
+    // causes Azure to return AADSTS900144 ("client_id is required").
+    ...(process.env.AZURE_AD_CLIENT_ID
+      ? [MicrosoftEntraId({
+          clientId:     process.env.AZURE_AD_CLIENT_ID,
+          clientSecret: process.env.AZURE_AD_CLIENT_SECRET ?? "",
+          ...(process.env.AZURE_AD_TENANT_ID
+            ? { issuer: `https://login.microsoftonline.com/${process.env.AZURE_AD_TENANT_ID}/v2.0` }
+            : {}),
+        })]
+      : []),
     // Nodemailer is added in auth.ts (Node.js only — uses stream module)
   ],
 

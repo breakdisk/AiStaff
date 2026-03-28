@@ -186,7 +186,7 @@ function MagicLinkForm({ callbackUrl }: { callbackUrl: string }) {
 
 // ── Inner form (useSearchParams requires Suspense boundary) ───────────────────
 
-function LoginForm() {
+function LoginForm({ showMicrosoft }: { showMicrosoft: boolean }) {
   const searchParams = useSearchParams();
   const callbackUrl  = searchParams.get("next") ?? "/dashboard";
 
@@ -216,12 +216,14 @@ function LoginForm() {
       </div>
 
       <div className="space-y-2">
-        <OAuthButton
-          provider="microsoft-entra-id"
-          label="Continue with Microsoft"
-          callbackUrl={callbackUrl}
-          icon={<MicrosoftIcon className="w-4 h-4" />}
-        />
+        {showMicrosoft && (
+          <OAuthButton
+            provider="microsoft-entra-id"
+            label="Continue with Microsoft"
+            callbackUrl={callbackUrl}
+            icon={<MicrosoftIcon className="w-4 h-4" />}
+          />
+        )}
         <OAuthButton
           provider="linkedin"
           label="Continue with LinkedIn"
@@ -284,6 +286,10 @@ function LoginForm() {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function LoginPage() {
+  // Read server-side: only render Microsoft button when credentials are configured.
+  // Avoids AADSTS900144 ("client_id is required") when env var is absent.
+  const showMicrosoft = !!process.env.AZURE_AD_CLIENT_ID;
+
   return (
     <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center px-4">
 
@@ -310,7 +316,7 @@ export default function LoginPage() {
             <Loader2 className="w-5 h-5 text-zinc-600 animate-spin" />
           </div>
         }>
-          <LoginForm />
+          <LoginForm showMicrosoft={showMicrosoft} />
         </Suspense>
 
         <p className="text-center font-mono text-xs text-zinc-600">
