@@ -105,10 +105,10 @@ const PRICING_ROWS: {
 }[] = [
   { label: "Joining",              client: "Free",                  devtal: "Free",                            robot: "Free"                   },
   { label: "Posting / Listing",    client: "Free",                  devtal: "Free",                            robot: "Free"                   },
-  { label: "Platform fee",         client: "15% of contract",       devtal: "Nothing extra",                   robot: "Custom",                clientHighlight: true  },
+  { label: "Platform fee",         client: "15% of contract",       devtal: "Nothing extra",                   robot: "10% of contract",       clientHighlight: true  },
   { label: "Solo (build + deploy)",client: "—",                     devtal: "85% of net",                      robot: "—",                     devtalHighlight: true  },
   { label: "Team split",           client: "—",                     devtal: "Dev 59.5% · Talent 25.5%",        robot: "—"                      },
-  { label: "You receive",          client: "Product / Service result", devtal: "Your agent running for client", robot: "Physical robot deployed", devtalHighlight: true },
+  { label: "You receive",          client: "Product / Service result", devtal: "Compensation for every Develop and Deploy", robot: "Physical robot deployed", devtalHighlight: true },
   { label: "Pricing model",        client: "Per deployment",        devtal: "Per deployment",                  robot: "Contact for pricing"    },
 ];
 
