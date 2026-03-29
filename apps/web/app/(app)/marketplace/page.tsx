@@ -616,13 +616,13 @@ function ListingCard({ listing, userTier, profileId, marketView, devTierMap, hig
           <div className="min-w-0 space-y-1">
             {/* Clickable name → opens detail sheet */}
             <div className="flex items-start justify-between gap-2">
-              <button
-                onClick={() => setShowDetail(true)}
+              <a
+                href={`/marketplace/${listing.slug}`}
                 className="font-mono text-sm font-medium text-zinc-100 hover:text-amber-400
                            transition-colors text-left truncate"
               >
                 {listing.name}
-              </button>
+              </a>
               <VerifiedBadge planTier={listing.org_plan_tier} />
             </div>
             <div className="flex items-center gap-1.5 flex-wrap">
@@ -706,15 +706,15 @@ function TableRow({ listing, userTier, profileId, marketView, devTierMap, highli
       >
         <td className="px-3 py-2">
           <div className="space-y-1">
-            {/* Clickable name → opens detail sheet */}
+            {/* Clickable name → listing detail page */}
             <div className="flex items-start justify-between gap-2">
-              <button
-                onClick={() => setShowDetail(true)}
+              <a
+                href={`/marketplace/${listing.slug}`}
                 className="font-mono text-xs font-medium text-zinc-200 hover:text-amber-400
                            transition-colors text-left"
               >
                 {listing.name}
-              </button>
+              </a>
               <VerifiedBadge planTier={listing.org_plan_tier} />
             </div>
             <p className="font-mono text-[10px] text-zinc-600 flex items-center gap-1">
@@ -733,13 +733,13 @@ function TableRow({ listing, userTier, profileId, marketView, devTierMap, highli
         <td className="px-3 py-2 text-xs text-zinc-400 w-80">
           <p className="line-clamp-2 leading-relaxed">{listing.description}</p>
           {listing.description.length > 80 && (
-            <button
-              onClick={() => setShowDetail(true)}
+            <a
+              href={`/marketplace/${listing.slug}`}
               className="text-[10px] font-mono text-amber-600 hover:text-amber-400
                          transition-colors mt-0.5"
             >
-              read more
-            </button>
+              read more →
+            </a>
           )}
         </td>
         <td className="px-3 py-2 font-mono text-sm font-medium text-amber-400 tabular-nums whitespace-nowrap">
