@@ -6,7 +6,7 @@ import { useSession } from "next-auth/react";
 import Link from "next/link";
 import {
   Bot, ArrowLeft, Send, Loader2, CheckCircle, CheckCircle2,
-  DollarSign, Calendar, Tag, Plus, Clock,
+  DollarSign, Calendar, Tag, Plus,
 } from "lucide-react";
 import { createListing, type ListingCategory } from "@/lib/api";
 
@@ -130,6 +130,7 @@ export default function PostJobPage() {
   const [submitting,  setSubmitting]  = useState(false);
   const [done,        setDone]        = useState(false);
   const [error,       setError]       = useState<string | null>(null);
+  const [listingSlug, setListingSlug] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/skill-tags")
@@ -173,6 +174,7 @@ export default function PostJobPage() {
           body:    JSON.stringify({ tag_ids: Array.from(selectedIds) }),
         }).catch(() => {}); // non-blocking — listing is already created
       }
+      if (listing?.slug) setListingSlug(listing.slug);
       setDone(true);
     } catch {
       setError("Could not post job — marketplace service may be offline. Your details are saved.");
@@ -188,11 +190,12 @@ export default function PostJobPage() {
     return (
       <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center px-4">
         <div className="w-full max-w-sm space-y-5 text-center">
-          <Clock className="w-12 h-12 text-amber-400 mx-auto" />
+          <CheckCircle className="w-12 h-12 text-emerald-400 mx-auto" />
           <div>
-            <h2 className="text-xl font-semibold text-zinc-100">Listing submitted for review</h2>
+            <h2 className="text-xl font-semibold text-zinc-100">Listing is live!</h2>
             <p className="font-mono text-xs text-zinc-500 mt-1">
-              Our team will review your listing shortly. You&apos;ll receive an email once it&apos;s approved and live.
+              Your listing is published on the marketplace.
+              Add a demo video, screenshots, and requirements to convert more buyers.
             </p>
           </div>
           {error && (
@@ -200,16 +203,33 @@ export default function PostJobPage() {
                           bg-amber-400/5 rounded-sm p-2">{error}</p>
           )}
           <div className="space-y-2">
-            <Link href="/marketplace"
-              className="block w-full h-11 flex items-center justify-center gap-2 rounded-sm
-                         bg-amber-400 hover:bg-amber-300 text-zinc-950 font-mono text-sm font-medium transition-all">
-              Browse marketplace
-            </Link>
-            <Link href="/dashboard"
-              className="block w-full h-11 flex items-center justify-center gap-2 rounded-sm
-                         border border-zinc-700 hover:border-zinc-600 text-zinc-400 font-mono text-sm transition-all">
-              Go to dashboard
-            </Link>
+            {listingSlug ? (
+              <>
+                <Link href={`/marketplace/${listingSlug}/edit`}
+                  className="block w-full h-11 flex items-center justify-center gap-2 rounded-sm
+                             bg-amber-400 hover:bg-amber-300 text-zinc-950 font-mono text-sm font-medium transition-all">
+                  Add demo video + images →
+                </Link>
+                <Link href={`/marketplace/${listingSlug}`}
+                  className="block w-full h-11 flex items-center justify-center gap-2 rounded-sm
+                             border border-zinc-700 hover:border-zinc-600 text-zinc-400 font-mono text-sm transition-all">
+                  View listing
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link href="/marketplace"
+                  className="block w-full h-11 flex items-center justify-center gap-2 rounded-sm
+                             bg-amber-400 hover:bg-amber-300 text-zinc-950 font-mono text-sm font-medium transition-all">
+                  Browse marketplace
+                </Link>
+                <Link href="/dashboard"
+                  className="block w-full h-11 flex items-center justify-center gap-2 rounded-sm
+                             border border-zinc-700 hover:border-zinc-600 text-zinc-400 font-mono text-sm transition-all">
+                  Go to dashboard
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </div>

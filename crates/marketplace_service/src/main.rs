@@ -9,6 +9,7 @@ mod enterprise_handlers;
 mod escrow_consumer;
 mod handlers;
 mod integration_handlers;
+mod listing_media_handlers;
 mod pm_consumer;
 mod proposal_handlers;
 mod quality_gate_handlers;
@@ -85,6 +86,15 @@ async fn main() -> Result<()> {
             get(handlers::get_listing_by_slug),
         )
         .route("/listings/{id}", get(handlers::get_listing))
+        .route(
+            "/listings/{listing_id}/media",
+            get(listing_media_handlers::list_listing_media)
+                .post(listing_media_handlers::add_listing_media),
+        )
+        .route(
+            "/listings/{listing_id}/media/{media_id}",
+            axum::routing::delete(listing_media_handlers::delete_listing_media),
+        )
         .route("/skill-tags", get(handlers::get_skill_tags))
         .route(
             "/talent-skills/{id}",

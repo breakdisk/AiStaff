@@ -8,7 +8,10 @@ import {
   ChevronRight, Loader2, MessageSquare, Play, Users, Zap,
   FileText, Package, ClipboardList, BadgeCheck,
 } from "lucide-react";
-import { fetchListingBySlug, type AgentListing } from "@/lib/api";
+import {
+  fetchListingBySlug, fetchListingMedia,
+  type AgentListing, type ListingMedia,
+} from "@/lib/api";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -180,8 +183,18 @@ function Stars({ n, sm }: { n: number; sm?: boolean }) {
 
 // ── Section components ────────────────────────────────────────────────────────
 
-function OverviewTab({ listing }: { listing: AgentListing }) {
-  const steps = getSteps(listing);
+function OverviewTab({ listing, media }: { listing: AgentListing; media: ListingMedia[] }) {
+  const steps      = getSteps(listing);
+  const videoItem  = media.find((m) => m.media_type === "video_url");
+  const imageItems = media.filter((m) => m.media_type === "image");
+
+  function embedUrl(url: string): string | null {
+    if (url.includes("youtube.com/watch")) return url.replace("watch?v=", "embed/");
+    if (url.includes("youtu.be/"))        return url.replace("youtu.be/", "www.youtube.com/embed/");
+    if (url.includes("vimeo.com/"))       return url.replace("vimeo.com/", "player.vimeo.com/video/");
+    return null;
+  }
+
   return (
     <div className="space-y-6">
       {/* What it does */}
@@ -205,35 +218,75 @@ function OverviewTab({ listing }: { listing: AgentListing }) {
         </div>
       </div>
 
-      {/* Video demo placeholder */}
+      {/* Video demo */}
       <div>
         <p className="font-mono text-[10px] text-amber-500 uppercase tracking-widest mb-2">Demo</p>
-        <div className="aspect-video bg-zinc-900 border border-zinc-800 rounded-sm flex flex-col items-center justify-center gap-2">
-          <div className="w-10 h-10 rounded-full border border-zinc-700 flex items-center justify-center">
-            <Play className="w-4 h-4 text-zinc-500 ml-0.5" />
+        {videoItem ? (
+          <div className="aspect-video bg-zinc-900 border border-zinc-800 rounded-sm overflow-hidden">
+            {embedUrl(videoItem.content) ? (
+              <iframe
+                src={embedUrl(videoItem.content)!}
+                className="w-full h-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              />
+            ) : (
+              <a href={videoItem.content} target="_blank" rel="noopener noreferrer"
+                className="flex flex-col items-center justify-center w-full h-full gap-2 text-zinc-500 hover:text-amber-400 transition-colors">
+                <Play className="w-8 h-8" />
+                <span className="font-mono text-xs">Watch demo video ↗</span>
+              </a>
+            )}
           </div>
-          <p className="font-mono text-[10px] text-zinc-600">Demo video — seller uploads before going live</p>
-        </div>
+        ) : (
+          <div className="aspect-video bg-zinc-900 border border-zinc-800 rounded-sm flex flex-col items-center justify-center gap-2">
+            <div className="w-10 h-10 rounded-full border border-zinc-700 flex items-center justify-center">
+              <Play className="w-4 h-4 text-zinc-500 ml-0.5" />
+            </div>
+            <p className="font-mono text-[10px] text-zinc-600">Demo video — seller uploads before going live</p>
+          </div>
+        )}
       </div>
 
       {/* Proof of work */}
       <div>
         <p className="font-mono text-[10px] text-amber-500 uppercase tracking-widest mb-2">Proof of Work</p>
-        <div className="grid grid-cols-3 gap-2">
-          {[1,2,3].map(i => (
-            <div key={i} className="aspect-square bg-zinc-900 border border-zinc-800 rounded-sm flex items-center justify-center">
-              <FileText className="w-4 h-4 text-zinc-700" />
+        {imageItems.length > 0 ? (
+          <div className="grid grid-cols-3 gap-2">
+            {imageItems.map((img) => (
+              <a key={img.id} href={img.content} target="_blank" rel="noopener noreferrer">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={img.content}
+                  alt="Proof of work"
+                  className="w-full aspect-square object-cover rounded-sm border border-zinc-800 hover:border-zinc-600 transition-colors"
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                />
+              </a>
+            ))}
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-3 gap-2">
+              {[1,2,3].map(i => (
+                <div key={i} className="aspect-square bg-zinc-900 border border-zinc-800 rounded-sm flex items-center justify-center">
+                  <FileText className="w-4 h-4 text-zinc-700" />
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-        <p className="font-mono text-[10px] text-zinc-600 mt-1.5">Seller attaches sample outputs before launch</p>
+            <p className="font-mono text-[10px] text-zinc-600 mt-1.5">Seller attaches sample outputs before launch</p>
+          </>
+        )}
       </div>
     </div>
   );
 }
 
-function DeliverablesTab({ listing }: { listing: AgentListing }) {
-  const deliverables = getDeliverables(listing);
+function DeliverablesTab({ listing, media }: { listing: AgentListing; media: ListingMedia[] }) {
+  const dbDeliverables = media.filter((m) => m.media_type === "deliverable");
+  const deliverables = dbDeliverables.length > 0
+    ? dbDeliverables.map((d) => ({ label: d.content, detail: "" }))
+    : getDeliverables(listing);
   return (
     <div className="space-y-6">
       {/* What you receive */}
@@ -286,8 +339,11 @@ function DeliverablesTab({ listing }: { listing: AgentListing }) {
   );
 }
 
-function RequirementsTab({ listing }: { listing: AgentListing }) {
-  const reqs = getRequirements(listing);
+function RequirementsTab({ listing, media }: { listing: AgentListing; media: ListingMedia[] }) {
+  const dbRequirements = media.filter((m) => m.media_type === "requirement");
+  const reqs = dbRequirements.length > 0
+    ? dbRequirements.map((r) => ({ required: r.required, label: r.content, detail: "" }))
+    : getRequirements(listing);
   const required = reqs.filter(r => r.required);
   const optional = reqs.filter(r => !r.required);
   return (
@@ -542,6 +598,7 @@ export default function ListingDetailPage() {
   const userTier   = (session?.user as { identityTier?: string })?.identityTier ?? "UNVERIFIED";
 
   const [listing,     setListing]     = useState<AgentListing | null>(null);
+  const [media,       setMedia]       = useState<ListingMedia[]>([]);
   const [loading,     setLoading]     = useState(true);
   const [notFound,    setNotFound]    = useState(false);
   const [tab,         setTab]         = useState<Tab>("overview");
@@ -549,12 +606,18 @@ export default function ListingDetailPage() {
   const [deployError, setDeployError] = useState<string | null>(null);
   const [deployed,    setDeployed]    = useState<string | null>(null);
 
-  // ── Fetch listing ──────────────────────────────────────────────────────────
+  // ── Fetch listing + media ──────────────────────────────────────────────────
 
   useEffect(() => {
     if (!params.slug) return;
     fetchListingBySlug(params.slug)
-      .then(setListing)
+      .then((l) => {
+        setListing(l);
+        // Fire-and-forget: non-blocking media fetch
+        fetchListingMedia(l.id)
+          .then((m) => setMedia(m.media ?? []))
+          .catch(() => {/* fall through to demo data */});
+      })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
   }, [params.slug]);
@@ -756,9 +819,9 @@ export default function ListingDetailPage() {
 
             {/* Tab content */}
             <div className="pb-4">
-              {tab === "overview"     && <OverviewTab      listing={listing} />}
-              {tab === "deliverables" && <DeliverablesTab  listing={listing} />}
-              {tab === "requirements" && <RequirementsTab  listing={listing} />}
+              {tab === "overview"     && <OverviewTab      listing={listing} media={media} />}
+              {tab === "deliverables" && <DeliverablesTab  listing={listing} media={media} />}
+              {tab === "requirements" && <RequirementsTab  listing={listing} media={media} />}
               {tab === "reviews"      && <ReviewsTab />}
             </div>
           </div>

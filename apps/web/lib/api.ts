@@ -150,11 +150,53 @@ export function fetchListingBySlug(slug: string): Promise<AgentListing> {
   return apiFetch(`/api/marketplace/listings/by-slug/${slug}`);
 }
 
-export function createListing(req: CreateListingRequest): Promise<{ listing_id: string }> {
+export function createListing(req: CreateListingRequest): Promise<{ listing_id: string; slug?: string; listing_status?: string }> {
   return apiFetch("/api/marketplace/listings", {
     method: "POST",
     body:   JSON.stringify(req),
   });
+}
+
+// ── Listing media (:3002 /listings/:id/media) ──────────────────────────────
+
+export interface ListingMedia {
+  id:         string;
+  listing_id: string;
+  media_type: "video_url" | "image" | "requirement" | "deliverable";
+  content:    string;
+  required:   boolean;
+  sort_order: number;
+  created_at: string;
+}
+
+export function fetchListingMedia(listingId: string): Promise<{ media: ListingMedia[] }> {
+  return apiFetch(`/api/marketplace/listings/${listingId}/media`);
+}
+
+export function addListingMedia(
+  listingId: string,
+  req: {
+    media_type:  "video_url" | "image" | "requirement" | "deliverable";
+    content:     string;
+    required?:   boolean;
+    sort_order?: number;
+  },
+): Promise<{ media_id?: string; updated?: boolean }> {
+  return apiFetch(`/api/marketplace/listings/${listingId}/media`, {
+    method: "POST",
+    body:   JSON.stringify(req),
+  });
+}
+
+export async function deleteListingMedia(listingId: string, mediaId: string): Promise<void> {
+  // DELETE returns 204 No Content — cannot call .json() on an empty body.
+  const res = await fetch(`/api/marketplace/listings/${listingId}/media/${mediaId}`, {
+    method:  "DELETE",
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!res.ok) {
+    throw new Error(`API DELETE /listings/${listingId}/media/${mediaId} → ${res.status}`);
+  }
 }
 
 // ── Identity service — profile update (:3001) ────────────────────────────
