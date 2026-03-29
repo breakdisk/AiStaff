@@ -198,12 +198,13 @@ function LoginForm({ showMicrosoft }: { showMicrosoft: boolean }) {
           callbackUrl={callbackUrl}
           icon={<GoogleIcon className="w-4 h-4" />}
         />
+        {/* Facebook hidden — pending Meta app approval
         <OAuthButton
           provider="facebook"
           label="Continue with Facebook"
           callbackUrl={callbackUrl}
           icon={<FacebookIcon className="w-4 h-4" />}
-        />
+        /> */}
         <OAuthButton
           provider="github"
           label="Continue with GitHub"
