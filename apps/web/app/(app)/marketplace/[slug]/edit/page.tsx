@@ -486,8 +486,8 @@ export default function EditListingPage() {
   const params        = useParams();
   const router        = useRouter();
   const searchParams  = useSearchParams();
-  const { data: session } = useSession();
-  const slug     = typeof params.slug === "string" ? params.slug : "";
+  const { data: session, status: sessionStatus } = useSession();
+  const slug       = typeof params.slug === "string" ? params.slug : "";
   const fromCreate = searchParams.get("from") === "create";
 
   const profileId = (session?.user as { profileId?: string })?.profileId ?? "";
@@ -501,11 +501,18 @@ export default function EditListingPage() {
 
   useEffect(() => {
     if (!slug) return;
+    // Wait until NextAuth confirms the session state — avoids false owner-check
+    // failures caused by profileId being "" during initial hydration after a
+    // hard navigation (window.location.href from post-job).
+    if (sessionStatus === "loading") return;
+
     (async () => {
       try {
         const l = await fetchListingBySlug(slug);
-        // Only the listing owner can edit
-        if (l.developer_id !== profileId && profileId !== "") {
+        // When arriving from listing creation the user is guaranteed to be the
+        // owner — skip the redirect to avoid a race where developer_id in the
+        // listing hasn't been indexed yet or the session token lagged.
+        if (!fromCreate && l.developer_id !== profileId && profileId !== "") {
           router.replace(`/marketplace/${slug}`);
           return;
         }
@@ -520,7 +527,7 @@ export default function EditListingPage() {
         setLoading(false);
       }
     })();
-  }, [slug, profileId, router]);
+  }, [slug, profileId, router, sessionStatus, fromCreate]);
 
   // ── Loading / error ────────────────────────────────────────────────────────
 

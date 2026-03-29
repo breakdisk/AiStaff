@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import {
@@ -115,7 +114,6 @@ function Label({ children }: { children: React.ReactNode }) {
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function PostJobPage() {
-  const router = useRouter();
   const { data: session } = useSession();
 
   const [title,       setTitle]       = useState("");
@@ -130,7 +128,6 @@ export default function PostJobPage() {
   const [submitting,  setSubmitting]  = useState(false);
   const [done,        setDone]        = useState(false);
   const [error,       setError]       = useState<string | null>(null);
-  const [listingSlug, setListingSlug] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/skill-tags")
@@ -154,12 +151,23 @@ export default function PostJobPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!isValid || submitting) return;
+
+    // profileId must be present — if identity_service was unreachable during
+    // login the session may not carry it; fail early rather than persisting
+    // a listing with the zero UUID as developer_id (which breaks the edit
+    // wizard owner check on the subsequent hard navigation).
+    const profileId = (session?.user as { profileId?: string })?.profileId;
+    if (!profileId) {
+      setError("Session not ready — please refresh the page and try again.");
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
 
     try {
       const listing = await createListing({
-        developer_id: session?.user?.profileId ?? "00000000-0000-0000-0000-000000000000",
+        developer_id: profileId,
         name:         title.trim(),
         description:  description.trim(),
         wasm_hash:    "pending-review",
@@ -174,12 +182,11 @@ export default function PostJobPage() {
           body:    JSON.stringify({ tag_ids: Array.from(selectedIds) }),
         }).catch(() => {}); // non-blocking — listing is already created
       }
-      // Go straight into the media wizard — no success screen detour
+      // Go straight into the media wizard — hard navigation crosses route group boundary reliably
       if (listing?.slug) {
-        router.push(`/marketplace/${listing.slug}/edit?from=create`);
+        window.location.href = `/marketplace/${listing.slug}/edit?from=create`;
         return;
       }
-      if (listing?.slug) setListingSlug(listing.slug);
       setDone(true);
     } catch {
       setError("Could not post job — marketplace service may be offline. Your details are saved.");
@@ -208,33 +215,16 @@ export default function PostJobPage() {
                           bg-amber-400/5 rounded-sm p-2">{error}</p>
           )}
           <div className="space-y-2">
-            {listingSlug ? (
-              <>
-                <Link href={`/marketplace/${listingSlug}/edit`}
-                  className="block w-full h-11 flex items-center justify-center gap-2 rounded-sm
-                             bg-amber-400 hover:bg-amber-300 text-zinc-950 font-mono text-sm font-medium transition-all">
-                  Add demo video + images →
-                </Link>
-                <Link href={`/marketplace/${listingSlug}`}
-                  className="block w-full h-11 flex items-center justify-center gap-2 rounded-sm
-                             border border-zinc-700 hover:border-zinc-600 text-zinc-400 font-mono text-sm transition-all">
-                  View listing
-                </Link>
-              </>
-            ) : (
-              <>
-                <Link href="/marketplace"
-                  className="block w-full h-11 flex items-center justify-center gap-2 rounded-sm
-                             bg-amber-400 hover:bg-amber-300 text-zinc-950 font-mono text-sm font-medium transition-all">
-                  Browse marketplace
-                </Link>
-                <Link href="/dashboard"
-                  className="block w-full h-11 flex items-center justify-center gap-2 rounded-sm
-                             border border-zinc-700 hover:border-zinc-600 text-zinc-400 font-mono text-sm transition-all">
-                  Go to dashboard
-                </Link>
-              </>
-            )}
+            <Link href="/marketplace"
+              className="block w-full h-11 flex items-center justify-center gap-2 rounded-sm
+                         bg-amber-400 hover:bg-amber-300 text-zinc-950 font-mono text-sm font-medium transition-all">
+              Browse marketplace
+            </Link>
+            <Link href="/dashboard"
+              className="block w-full h-11 flex items-center justify-center gap-2 rounded-sm
+                         border border-zinc-700 hover:border-zinc-600 text-zinc-400 font-mono text-sm transition-all">
+              Go to dashboard
+            </Link>
           </div>
         </div>
       </div>
