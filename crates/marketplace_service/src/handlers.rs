@@ -489,7 +489,7 @@ pub async fn create_listing(
               price_cents, category, seller_type, slug,
               listing_status, active)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9,
-                 'PENDING_REVIEW', FALSE)",
+                 'APPROVED', TRUE)",
     )
     .bind(listing_id)
     .bind(req.developer_id)
@@ -505,9 +505,9 @@ pub async fn create_listing(
 
     match insert {
         Ok(_) => {
-            tracing::info!(%listing_id, %slug, "agent listing created — pending review");
+            tracing::info!(%listing_id, %slug, "agent listing created — auto-approved and live");
 
-            // Fire-and-forget: notify admin of new listing awaiting approval.
+            // Fire-and-forget: notify admin of new live listing.
             let client = state.http_client.clone();
             let notif_url = state.notification_url.clone();
             let admin_email = state.admin_email.clone();
@@ -517,13 +517,13 @@ pub async fn create_listing(
             tokio::spawn(async move {
                 let payload = serde_json::json!({
                     "recipient_email": admin_email,
-                    "subject": format!("New listing pending review: {listing_name}"),
+                    "subject": format!("New listing published: {listing_name}"),
                     "body": format!(
-                        "A new agent listing has been submitted and requires your approval.\n\n\
+                        "A new agent listing has been published to the marketplace.\n\n\
                          Listing:  {listing_name}\n\
                          Category: {category}\n\
                          Price:    ${price_usd}\n\n\
-                         Review at: https://aistaffglobal.com/admin/listings"
+                         View at: https://aistaffglobal.com/admin/listings"
                     )
                 });
                 if let Err(e) = client
@@ -541,7 +541,7 @@ pub async fn create_listing(
                 Json(serde_json::json!({
                     "listing_id":     listing_id,
                     "slug":           slug,
-                    "listing_status": LISTING_STATUS_PENDING
+                    "listing_status": "APPROVED"
                 })),
             )
                 .into_response()
