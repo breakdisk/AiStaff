@@ -11,7 +11,7 @@ import { useSession } from "next-auth/react";
 import Link from "next/link";
 import {
   ArrowLeft, ArrowRight, CheckCircle, Loader2, Play, Image as ImageIcon,
-  Trash2, Plus, Lock, Package, Bot,
+  Trash2, Plus, Lock, Package, Bot, X,
 } from "lucide-react";
 import {
   fetchListingBySlug, fetchListingMedia, addListingMedia, deleteListingMedia,
