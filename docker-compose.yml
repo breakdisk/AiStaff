@@ -283,6 +283,7 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
       KAFKA_BROKERS: kafka:9092
       MCP_SERVER_URL: http://mcp-server:4040
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       RUST_LOG: info
     depends_on:
       postgres:   { condition: service_healthy }
