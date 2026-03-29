@@ -336,10 +336,10 @@ function ActionButton({ listing, userTier, profileId, marketView, compact }: Act
           <CheckCircle className="w-3 h-3" /> Deployed
         </span>
         <a
-          href={`/collab?deployment_id=${done}`}
+          href={`/async-collab?deployment_id=${done}`}
           className="flex items-center gap-1 font-mono text-[10px] text-amber-400 border border-amber-900 bg-amber-950/40 px-2 h-6 rounded-sm hover:border-amber-700 transition-colors"
         >
-          <MessageSquare className="w-2.5 h-2.5" /> Collaborate
+          <MessageSquare className="w-2.5 h-2.5" /> Open Chat
         </a>
       </div>
     );

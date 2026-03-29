@@ -8,7 +8,7 @@ import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
   Video, Globe, ArrowRight, MessageSquare, Zap, Clock,
-  CheckCircle2, ChevronDown, ChevronUp, X, MicOff, Mic,
+  CheckCircle, CheckCircle2, ChevronDown, ChevronUp, X, MicOff, Mic,
   Upload, Play, AlertTriangle, Send, DollarSign,
 } from "lucide-react";
 
@@ -831,6 +831,7 @@ function AsyncCollabPageInner() {
   const { data: session } = useSession();
   const searchParams = useSearchParams();
   const deploymentId = searchParams.get("deployment_id");
+  const paymentSuccess = searchParams.get("payment") === "success";
   const profileId = (session?.user as { profileId?: string })?.profileId;
 
   const displayName = (session?.user as { name?: string })?.name ?? "You";
@@ -873,6 +874,16 @@ function AsyncCollabPageInner() {
             </div>
             <Video className="w-5 h-5 text-amber-500" />
           </div>
+
+          {/* Payment success banner */}
+          {paymentSuccess && (
+            <div className="border border-emerald-800 bg-emerald-950/20 rounded-sm p-3 flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <p className="font-mono text-xs text-emerald-300">
+                Payment captured — escrow funded. Your AI Project Manager is now monitoring this chat for scope drift.
+              </p>
+            </div>
+          )}
 
           {/* Timezone note */}
           <div className="border border-zinc-800 bg-zinc-900/40 rounded-sm p-3 flex items-center gap-3">

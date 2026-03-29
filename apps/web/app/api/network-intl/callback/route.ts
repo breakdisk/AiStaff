@@ -153,7 +153,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     const deploymentId = deployed?.deployment_id ?? "unknown";
 
-    return redirect(`/dashboard?payment=success&deployment_id=${deploymentId}`);
+    return redirect(`/async-collab?deployment_id=${deploymentId}&payment=success`);
 
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
