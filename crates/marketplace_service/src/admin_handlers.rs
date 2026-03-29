@@ -193,8 +193,8 @@ pub async fn revenue_summary(State(state): State<Arc<AppState>>) -> impl IntoRes
     let totals = sqlx::query(
         "SELECT
              COUNT(*) AS total_deployments,
-             COALESCE(SUM(escrow_amount_cents), 0) AS total_escrow_cents,
-             COALESCE(SUM(CASE WHEN state::TEXT NOT IN ('FAILED','VETOED') THEN escrow_amount_cents ELSE 0 END), 0) AS active_escrow_cents
+             COALESCE(SUM(escrow_amount_cents), 0)::BIGINT AS total_escrow_cents,
+             COALESCE(SUM(CASE WHEN state::TEXT NOT IN ('FAILED','VETOED') THEN escrow_amount_cents ELSE 0 END), 0)::BIGINT AS active_escrow_cents
          FROM deployments",
     )
     .fetch_one(&state.db)
@@ -202,7 +202,7 @@ pub async fn revenue_summary(State(state): State<Arc<AppState>>) -> impl IntoRes
 
     // Escrow released via payout
     let released = sqlx::query(
-        "SELECT COALESCE(SUM(amount_cents), 0) AS released_cents, COUNT(*) AS payout_count
+        "SELECT COALESCE(SUM(amount_cents), 0)::BIGINT AS released_cents, COUNT(*) AS payout_count
          FROM escrow_payouts",
     )
     .fetch_one(&state.db)
@@ -210,7 +210,7 @@ pub async fn revenue_summary(State(state): State<Arc<AppState>>) -> impl IntoRes
 
     // Per-state breakdown
     let by_state = sqlx::query(
-        "SELECT state::TEXT AS state, COUNT(*) AS cnt, COALESCE(SUM(escrow_amount_cents), 0) AS cents
+        "SELECT state::TEXT AS state, COUNT(*) AS cnt, COALESCE(SUM(escrow_amount_cents), 0)::BIGINT AS cents
          FROM deployments
          GROUP BY state
          ORDER BY cnt DESC",
