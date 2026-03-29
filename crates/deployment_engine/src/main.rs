@@ -1,5 +1,6 @@
 mod checklist_consumer;
 mod mcp_proxy;
+mod pm_consumer;
 mod sandbox;
 mod success_trigger;
 
@@ -26,8 +27,13 @@ async fn main() -> anyhow::Result<()> {
 
     let producer = common::kafka::producer::KafkaProducer::new(&brokers)?;
 
+    let http_client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .expect("reqwest client build failed");
+
     tracing::info!(
-        "deployment_engine starting — ChecklistConsumer (primary) + SuccessTrigger (secondary)"
+        "deployment_engine starting — ChecklistConsumer (primary) + SuccessTrigger + AI PM (secondary)"
     );
 
     // SuccessTrigger handles the external-installer path (installation.events).
@@ -47,6 +53,30 @@ async fn main() -> anyhow::Result<()> {
                 .await
                 {
                     tracing::error!("SuccessTrigger exited with error: {e:#} — restarting in 5s");
+                    tokio::time::sleep(Duration::from_secs(5)).await;
+                }
+            }
+        });
+    }
+
+    // AI PM consumer — scope drift triage on every chat message.
+    // Secondary: its failure must not kill the checklist path.
+    {
+        let pool_pm    = pool.clone();
+        let prod_pm    = producer.clone();
+        let brokers_pm = brokers.clone();
+        let http_pm    = http_client.clone();
+        tokio::spawn(async move {
+            loop {
+                if let Err(e) = pm_consumer::run_pm_consumer(
+                    pool_pm.clone(),
+                    prod_pm.clone(),
+                    brokers_pm.clone(),
+                    http_pm.clone(),
+                )
+                .await
+                {
+                    tracing::error!("AI PM consumer exited with error: {e:#} — restarting in 5s");
                     tokio::time::sleep(Duration::from_secs(5)).await;
                 }
             }

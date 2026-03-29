@@ -230,6 +230,10 @@ pub struct ReputationExported {
 
 // ── Collab / messaging events ─────────────────────────────────────────────────
 pub const TOPIC_MESSAGE_SENT: &str = "collab.message_sent";
+/// Every user-authored chat message — consumed by the AI PM in deployment_engine.
+pub const TOPIC_CHAT_MESSAGES: &str = "chat.messages";
+/// AI PM decisions (scope drift, deadline risk, etc.) — consumed by marketplace_service.
+pub const TOPIC_PM_EVENTS: &str = "pm.events";
 
 /// Emitted by marketplace_service after a chat message is persisted.
 /// Consumed by notification_service to send async email notifications.
@@ -290,4 +294,29 @@ pub struct CarbonOffsetLogged {
     pub offset_id: Uuid,
     pub offset_kg: f64,
     pub activity_type: String,
+}
+
+// ── AI PM events ──────────────────────────────────────────────────────────────
+
+/// Emitted by marketplace_service for every user-authored chat message.
+/// Consumed by deployment_engine's PM consumer for scope drift triage.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ChatMessageCreated {
+    pub message_id:    Uuid,
+    pub deployment_id: Uuid,
+    pub sender_id:     Uuid,
+    pub body:          String,
+    pub sent_at:       DateTime<Utc>,
+}
+
+/// Emitted by deployment_engine when Haiku detects a message is outside the SOW.
+/// Consumed by marketplace_service to insert an inline warning system message.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ScopeDriftDetected {
+    pub deployment_id:      Uuid,
+    pub trigger_message_id: Uuid,
+    /// One-sentence summary of the out-of-scope request.
+    pub summary:            String,
+    /// Haiku confidence score (0.0–1.0).  Only emitted when >= 0.75.
+    pub confidence:         f32,
 }

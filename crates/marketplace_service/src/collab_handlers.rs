@@ -3,7 +3,10 @@ use axum::{
     http::{HeaderMap, StatusCode},
     Json,
 };
-use common::events::{EventEnvelope, MessageSent, TOPIC_MESSAGE_SENT};
+use common::events::{
+    ChatMessageCreated, EventEnvelope, MessageSent,
+    TOPIC_CHAT_MESSAGES, TOPIC_MESSAGE_SENT,
+};
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
 use std::sync::Arc;
@@ -94,6 +97,10 @@ pub struct MessageRow {
     pub parent_msg_id: Option<Uuid>,
     pub reply_count: i64,
     pub reactions: Vec<ReactionGroup>,
+    /// 'user' | 'scope_warning' | 'system_info'
+    pub message_type: String,
+    /// Arbitrary JSON metadata for system messages (trigger_message_id, summary, confidence).
+    pub metadata: Option<serde_json::Value>,
 }
 
 #[derive(Deserialize)]
@@ -125,6 +132,8 @@ pub async fn list_messages(
              to_char(m.edited_at  AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS edited_at,
              to_char(m.deleted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS deleted_at,
              m.parent_msg_id,
+             m.message_type,
+             m.metadata,
              (SELECT COUNT(*) FROM collab_messages r
               WHERE r.parent_msg_id = m.id AND r.deleted_at IS NULL) AS reply_count,
              COALESCE(
@@ -170,6 +179,8 @@ pub async fn list_messages(
                 parent_msg_id: row.try_get::<Option<Uuid>, _>("parent_msg_id")?,
                 reply_count: row.try_get::<i64, _>("reply_count")?,
                 reactions,
+                message_type: row.try_get::<String, _>("message_type").unwrap_or_else(|_| "user".to_string()),
+                metadata: row.try_get::<Option<serde_json::Value>, _>("metadata").unwrap_or(None),
             })
         })
         .collect::<Result<Vec<MessageRow>, sqlx::Error>>()
@@ -290,6 +301,26 @@ pub async fn post_message(
             {
                 tracing::warn!(error=%e, "Failed to emit MessageSent — message saved, notification skipped");
             }
+        }
+    }
+
+    // Emit ChatMessageCreated → deployment_engine AI PM consumer for scope triage.
+    // Non-fatal: Kafka down must never block message delivery.
+    {
+        let pm_event = ChatMessageCreated {
+            message_id,
+            deployment_id: body.deployment_id,
+            sender_id:     body.sender_id,
+            body:          body.body.chars().take(2000).collect(),
+            sent_at:       chrono::Utc::now(),
+        };
+        let pm_envelope = EventEnvelope::new("ChatMessageCreated", &pm_event);
+        if let Err(e) = state
+            .producer
+            .publish(TOPIC_CHAT_MESSAGES, &body.deployment_id.to_string(), &pm_envelope)
+            .await
+        {
+            tracing::warn!(error=%e, "Failed to emit ChatMessageCreated — message saved, PM triage skipped");
         }
     }
 
@@ -813,6 +844,8 @@ pub async fn list_thread(
              to_char(m.edited_at  AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS edited_at,
              to_char(m.deleted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS deleted_at,
              m.parent_msg_id,
+             m.message_type,
+             m.metadata,
              0::bigint AS reply_count,
              COALESCE(
                json_agg(
@@ -851,6 +884,8 @@ pub async fn list_thread(
                 parent_msg_id: row.try_get::<Option<Uuid>, _>("parent_msg_id")?,
                 reply_count: row.try_get::<i64, _>("reply_count")?,
                 reactions: build_reaction_groups(raw),
+                message_type: row.try_get::<String, _>("message_type").unwrap_or_else(|_| "user".to_string()),
+                metadata: row.try_get::<Option<serde_json::Value>, _>("metadata").unwrap_or(None),
             })
         })
         .collect::<Result<Vec<MessageRow>, sqlx::Error>>()

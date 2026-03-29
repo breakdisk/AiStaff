@@ -9,7 +9,7 @@ import { useSession } from "next-auth/react";
 import {
   Video, Globe, ArrowRight, MessageSquare, Zap, Clock,
   CheckCircle2, ChevronDown, ChevronUp, X, MicOff, Mic,
-  Upload, Play,
+  Upload, Play, AlertTriangle, Send, DollarSign,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -37,6 +37,28 @@ interface HandoffEntry {
   status:       "pending" | "in_review" | "accepted";
   deliverables: string[];
   notes:        string;
+}
+
+interface ChatMessage {
+  id:            string;
+  deployment_id: string;
+  sender_id:     string;
+  sender_name:   string;
+  body:          string;
+  ts:            string;
+  message_type:  string;
+  metadata?:     { trigger_message_id?: string; summary?: string; confidence?: number } | null;
+}
+
+interface ChangeRequest {
+  id:                string;
+  deployment_id:     string;
+  trigger_message_id?: string | null;
+  description:       string;
+  price_delta_cents: number;
+  status:            "PENDING" | "APPROVED" | "REJECTED";
+  raised_by:         string;
+  created_at:        string;
 }
 
 // Kept as demo until a handoffs backend is built
@@ -513,13 +535,306 @@ function RecordTab({
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
+// ── Change Request Modal ──────────────────────────────────────────────────────
+
+function ChangeRequestModal({
+  deploymentId,
+  triggerMessageId,
+  prefillDescription,
+  onClose,
+  onCreated,
+}: {
+  deploymentId:       string;
+  triggerMessageId?:  string;
+  prefillDescription: string;
+  onClose:            () => void;
+  onCreated:          () => void;
+}) {
+  const [description, setDescription]   = useState(prefillDescription);
+  const [priceDelta, setPriceDelta]      = useState("");
+  const [submitting, setSubmitting]      = useState(false);
+  const [error, setError]               = useState<string | null>(null);
+
+  const submit = async () => {
+    if (!description.trim()) return;
+    setSubmitting(true);
+    setError(null);
+    const cents = Math.round(parseFloat(priceDelta || "0") * 100);
+    const res = await fetch("/api/change-requests", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        deployment_id:       deploymentId,
+        trigger_message_id:  triggerMessageId ?? null,
+        description:         description.trim(),
+        price_delta_cents:   isNaN(cents) ? 0 : cents,
+      }),
+    }).catch(() => null);
+    setSubmitting(false);
+    if (res?.ok) { onCreated(); onClose(); }
+    else setError("Failed to create change request. Try again.");
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-zinc-950/80">
+      <div className="w-full max-w-md bg-zinc-900 border border-zinc-700 rounded-sm p-4 space-y-4 mx-2">
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-medium text-zinc-100">Raise Change Request</p>
+          <button onClick={onClose}><X size={14} className="text-zinc-500" /></button>
+        </div>
+
+        <div className="space-y-1">
+          <label className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest">Description</label>
+          <textarea
+            rows={3}
+            value={description}
+            onChange={e => setDescription(e.target.value)}
+            className="w-full bg-zinc-950 border border-zinc-700 rounded-sm px-3 py-2 text-xs text-zinc-200 resize-none focus:outline-none focus:border-amber-600"
+            placeholder="Describe the new scope…"
+          />
+        </div>
+
+        <div className="space-y-1">
+          <label className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest">Additional fee (USD, optional)</label>
+          <div className="relative">
+            <DollarSign size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={priceDelta}
+              onChange={e => setPriceDelta(e.target.value)}
+              className="w-full bg-zinc-950 border border-zinc-700 rounded-sm pl-7 pr-3 py-2 text-xs text-zinc-200 focus:outline-none focus:border-amber-600"
+              placeholder="0.00"
+            />
+          </div>
+          <p className="font-mono text-[9px] text-zinc-600">Leave blank or 0 if scope-only with no price change.</p>
+        </div>
+
+        {error && <p className="font-mono text-[10px] text-red-400">{error}</p>}
+
+        <div className="flex gap-2">
+          <button
+            onClick={onClose}
+            className="flex-1 py-2 border border-zinc-700 rounded-sm text-xs text-zinc-400 hover:text-zinc-200"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={submit}
+            disabled={submitting || !description.trim()}
+            className="flex-1 py-2 bg-amber-400 text-zinc-950 text-xs font-medium rounded-sm hover:bg-amber-300 disabled:opacity-50"
+          >
+            {submitting ? "Submitting…" : "Submit CR"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Scope Warning Card (rendered as inline chat message) ──────────────────────
+
+function ScopeWarningCard({
+  msg,
+  deploymentId,
+  onRaiseCr,
+}: {
+  msg:          ChatMessage;
+  deploymentId: string;
+  onRaiseCr:    (triggerMsgId: string, summary: string) => void;
+}) {
+  const summary    = msg.metadata?.summary ?? msg.body.replace("⚠️ Scope Alert: ", "");
+  const confidence = msg.metadata?.confidence;
+
+  return (
+    <div className="border border-amber-800/60 bg-amber-950/20 rounded-sm p-3 space-y-2">
+      <div className="flex items-start gap-2">
+        <AlertTriangle size={13} className="text-amber-400 flex-shrink-0 mt-0.5" />
+        <div className="flex-1 min-w-0">
+          <p className="font-mono text-[10px] text-amber-400 uppercase tracking-widest mb-0.5">
+            AI PM — Scope Alert
+            {confidence !== undefined && (
+              <span className="ml-2 text-amber-600">{Math.round(confidence * 100)}% confidence</span>
+            )}
+          </p>
+          <p className="text-xs text-zinc-300 leading-relaxed">{summary}</p>
+        </div>
+      </div>
+      <div className="flex items-center gap-2 pt-1">
+        <button
+          onClick={() => onRaiseCr(msg.metadata?.trigger_message_id ?? msg.id, summary)}
+          className="px-3 py-1.5 bg-amber-400 text-zinc-950 font-mono text-[10px] font-medium rounded-sm hover:bg-amber-300"
+        >
+          Raise Change Request
+        </button>
+        <span className="font-mono text-[9px] text-zinc-600">{msg.ts}</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Chat Tab ──────────────────────────────────────────────────────────────────
+
+function ChatTab({
+  deploymentId,
+  profileId,
+  displayName,
+}: {
+  deploymentId: string;
+  profileId:    string;
+  displayName:  string;
+}) {
+  const [messages, setMessages]           = useState<ChatMessage[]>([]);
+  const [text, setText]                   = useState("");
+  const [sending, setSending]             = useState(false);
+  const [crModal, setCrModal]             = useState<{ triggerMsgId: string; summary: string } | null>(null);
+  const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>([]);
+  const bottomRef                         = useRef<HTMLDivElement>(null);
+
+  // Fetch change requests for badge counts
+  const fetchCrs = useCallback(async () => {
+    const res = await fetch(`/api/change-requests?deployment_id=${deploymentId}`).catch(() => null);
+    if (res?.ok) setChangeRequests(await res.json());
+  }, [deploymentId]);
+
+  useEffect(() => { fetchCrs(); }, [fetchCrs]);
+
+  // SSE stream — the existing /api/collab/stream polls every 1s
+  useEffect(() => {
+    const es = new EventSource(`/api/collab/stream?deployment_id=${deploymentId}`);
+    es.onmessage = (e) => {
+      try {
+        const batch = JSON.parse(e.data) as ChatMessage[];
+        if (batch.length > 0) {
+          setMessages(prev => {
+            const ids = new Set(prev.map(m => m.id));
+            const fresh = batch.filter(m => !ids.has(m.id));
+            return fresh.length > 0 ? [...prev, ...fresh] : prev;
+          });
+        }
+      } catch { /* ignore parse errors */ }
+    };
+    return () => es.close();
+  }, [deploymentId]);
+
+  // Auto-scroll to bottom on new messages
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const sendMessage = async () => {
+    const trimmed = text.trim();
+    if (!trimmed || sending) return;
+    setSending(true);
+    setText("");
+    await fetch("/api/collab/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        deployment_id: deploymentId,
+        sender_id:     profileId,
+        sender_name:   displayName,
+        body:          trimmed,
+      }),
+    }).catch(() => null);
+    setSending(false);
+  };
+
+  const pendingCrs = changeRequests.filter(cr => cr.status === "PENDING").length;
+
+  return (
+    <div className="flex flex-col h-[calc(100vh-280px)] min-h-[400px]">
+      {/* Change requests badge */}
+      {pendingCrs > 0 && (
+        <div className="mb-2 flex items-center gap-2 border border-amber-800/40 bg-amber-950/10 rounded-sm px-3 py-2">
+          <Zap size={12} className="text-amber-400" />
+          <p className="font-mono text-[10px] text-amber-400">
+            {pendingCrs} pending change request{pendingCrs !== 1 ? "s" : ""} awaiting response
+          </p>
+        </div>
+      )}
+
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+        {messages.length === 0 && (
+          <div className="flex items-center justify-center h-full">
+            <p className="font-mono text-[10px] text-zinc-600">No messages yet — start the conversation</p>
+          </div>
+        )}
+        {messages.map(msg => (
+          msg.message_type === "scope_warning" ? (
+            <ScopeWarningCard
+              key={msg.id}
+              msg={msg}
+              deploymentId={deploymentId}
+              onRaiseCr={(triggerMsgId, summary) => setCrModal({ triggerMsgId, summary })}
+            />
+          ) : (
+            <div key={msg.id} className={`flex gap-2 ${msg.sender_id === profileId ? "flex-row-reverse" : ""}`}>
+              <div className="w-6 h-6 rounded-sm bg-zinc-800 border border-zinc-700 flex items-center justify-center flex-shrink-0">
+                <span className="font-mono text-[9px] text-zinc-400">
+                  {msg.sender_name[0]?.toUpperCase() ?? "?"}
+                </span>
+              </div>
+              <div className={`max-w-[75%] space-y-0.5 ${msg.sender_id === profileId ? "items-end" : "items-start"} flex flex-col`}>
+                <p className="font-mono text-[9px] text-zinc-600">{msg.sender_name} · {msg.ts}</p>
+                <div className={`px-3 py-2 rounded-sm text-xs leading-relaxed ${
+                  msg.sender_id === profileId
+                    ? "bg-amber-400/10 border border-amber-800/40 text-zinc-200"
+                    : "bg-zinc-900 border border-zinc-800 text-zinc-300"
+                }`}>
+                  {msg.body}
+                </div>
+              </div>
+            </div>
+          )
+        ))}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Input */}
+      <div className="mt-3 flex gap-2 border-t border-zinc-800 pt-3">
+        <input
+          type="text"
+          value={text}
+          onChange={e => setText(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+          placeholder="Type a message…"
+          className="flex-1 bg-zinc-950 border border-zinc-800 rounded-sm px-3 py-2 text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-600"
+        />
+        <button
+          onClick={sendMessage}
+          disabled={!text.trim() || sending}
+          className="px-3 py-2 bg-amber-400 text-zinc-950 rounded-sm hover:bg-amber-300 disabled:opacity-40"
+          aria-label="Send message"
+        >
+          <Send size={13} />
+        </button>
+      </div>
+
+      {/* Change request modal */}
+      {crModal && (
+        <ChangeRequestModal
+          deploymentId={deploymentId}
+          triggerMessageId={crModal.triggerMsgId}
+          prefillDescription={crModal.summary}
+          onClose={() => setCrModal(null)}
+          onCreated={() => { setCrModal(null); fetchCrs(); }}
+        />
+      )}
+    </div>
+  );
+}
+
 function AsyncCollabPageInner() {
   const { data: session } = useSession();
   const searchParams = useSearchParams();
   const deploymentId = searchParams.get("deployment_id");
   const profileId = (session?.user as { profileId?: string })?.profileId;
 
-  const [tab, setTab] = useState<"videos" | "handoffs" | "compose">("videos");
+  const displayName = (session?.user as { name?: string })?.name ?? "You";
+  const [tab, setTab] = useState<"chat" | "videos" | "handoffs" | "compose">("chat");
   const [updates, setUpdates] = useState<VideoUpdate[]>([]);
   const [loadingUpdates, setLoadingUpdates] = useState(true);
   const [watchingId, setWatchingId] = useState<string | null>(null);
@@ -585,8 +900,9 @@ function AsyncCollabPageInner() {
           </div>
 
           {/* Tabs */}
-          <div className="flex gap-1 border-b border-zinc-800">
+          <div className="flex gap-1 border-b border-zinc-800 overflow-x-auto">
             {[
+              { key: "chat"     as const, label: "💬 Chat" },
               { key: "videos"   as const, label: `Updates (${updates.length})` },
               { key: "handoffs" as const, label: `Handoffs (${DEMO_HANDOFFS.length})` },
               { key: "compose"  as const, label: "Record Update" },
@@ -600,6 +916,20 @@ function AsyncCollabPageInner() {
               >{label}</button>
             ))}
           </div>
+
+          {tab === "chat" && deploymentId && profileId && (
+            <ChatTab
+              deploymentId={deploymentId}
+              profileId={profileId}
+              displayName={displayName}
+            />
+          )}
+          {tab === "chat" && !deploymentId && (
+            <div className="border border-dashed border-zinc-800 rounded-sm p-6 text-center">
+              <MessageSquare className="mx-auto text-zinc-700 mb-2" size={20} />
+              <p className="font-mono text-xs text-zinc-600">Open this page from a deployment to access the project chat.</p>
+            </div>
+          )}
 
           {tab === "videos" && (
             <div className="space-y-2">

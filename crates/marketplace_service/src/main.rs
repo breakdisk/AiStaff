@@ -3,11 +3,13 @@
 
 mod admin_handlers;
 mod bundle_handlers;
+mod change_request_handlers;
 mod collab_handlers;
 mod enterprise_handlers;
 mod escrow_consumer;
 mod handlers;
 mod integration_handlers;
+mod pm_consumer;
 mod proposal_handlers;
 mod quality_gate_handlers;
 
@@ -193,12 +195,36 @@ async fn main() -> Result<()> {
             "/quality-gate/scans/{id}/issues",
             post(quality_gate_handlers::bulk_insert_issues),
         )
+        // Change requests (scope drift → approved new scope + escrow bump)
+        .route(
+            "/change-requests",
+            get(change_request_handlers::list_change_requests)
+                .post(change_request_handlers::create_change_request),
+        )
+        .route(
+            "/change-requests/{id}/respond",
+            axum::routing::patch(change_request_handlers::respond_change_request),
+        )
         .with_state(state)
         .layer(TraceLayer::new_for_http());
 
     let addr = "0.0.0.0:3002";
     let listener = tokio::net::TcpListener::bind(addr).await?;
     tracing::info!("marketplace_service HTTP on {addr}");
+
+    // PM event consumer — secondary, must not kill the HTTP server or escrow consumer.
+    {
+        let pool_pm    = pool.clone();
+        let brokers_pm = brokers.clone();
+        tokio::spawn(async move {
+            loop {
+                if let Err(e) = pm_consumer::run_pm_event_consumer(pool_pm.clone(), brokers_pm.clone()).await {
+                    tracing::error!("PM event consumer exited: {e:#} — restarting in 5s");
+                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                }
+            }
+        });
+    }
 
     tokio::try_join!(
         escrow_consumer::run_escrow_consumer(pool, brokers),
