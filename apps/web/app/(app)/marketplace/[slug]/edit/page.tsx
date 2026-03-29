@@ -177,11 +177,12 @@ function Step2Images({
   onNext:         () => void;
   onBack:         () => void;
 }) {
-  const [images,  setImages]  = useState<ListingMedia[]>(existingImages);
-  const [newUrl,  setNewUrl]  = useState("");
-  const [adding,  setAdding]  = useState(false);
-  const [error,   setError]   = useState<string | null>(null);
-  const [deleting, setDeleting] = useState<string | null>(null);
+  const [images,      setImages]      = useState<ListingMedia[]>(existingImages);
+  const [newUrl,      setNewUrl]      = useState("");
+  const [adding,      setAdding]      = useState(false);
+  const [error,       setError]       = useState<string | null>(null);
+  const [deleting,    setDeleting]    = useState<string | null>(null);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   function isValidUrl(s: string): boolean {
     try { new URL(s); return true; } catch { return false; }
@@ -272,19 +273,26 @@ function Step2Images({
               <img
                 src={img.content}
                 alt="Proof of work"
-                className="w-full h-full object-cover rounded-sm border border-zinc-800"
+                className="w-full h-full object-cover rounded-sm border border-zinc-800 cursor-pointer"
+                onClick={() => setLightboxUrl(img.content)}
                 onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.opacity = "0.3"; }}
               />
+              {/* Delete button */}
               <button
                 onClick={() => handleDelete(img.id)}
                 disabled={deleting === img.id}
                 className="absolute top-1 right-1 w-6 h-6 rounded-sm bg-zinc-900/90 border border-zinc-700 flex items-center justify-center opacity-0 group-hover:opacity-100 hover:border-red-700 hover:text-red-400 text-zinc-400 transition-all"
+                aria-label="Delete image"
               >
                 {deleting === img.id
                   ? <Loader2 className="w-3 h-3 animate-spin" />
                   : <Trash2 className="w-3 h-3" />
                 }
               </button>
+              {/* Expand hint */}
+              <div className="absolute bottom-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <span className="font-mono text-[9px] text-zinc-300 bg-zinc-900/80 px-1 rounded">click to preview</span>
+              </div>
             </div>
           ))}
         </div>
@@ -292,6 +300,31 @@ function Step2Images({
         <div className="rounded-sm border border-dashed border-zinc-800 p-8 flex flex-col items-center gap-2 text-zinc-700">
           <ImageIcon className="w-8 h-8" />
           <p className="font-mono text-xs">No images added yet</p>
+        </div>
+      )}
+
+      {/* Image lightbox */}
+      {lightboxUrl && (
+        <div
+          className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center"
+          onClick={() => setLightboxUrl(null)}
+        >
+          <button
+            type="button"
+            onClick={() => setLightboxUrl(null)}
+            className="absolute top-4 right-4 w-9 h-9 flex items-center justify-center rounded-sm bg-zinc-900/80 border border-zinc-700 text-zinc-400 hover:text-zinc-100 transition-colors"
+            aria-label="Close preview"
+          >
+            <X className="w-4 h-4" />
+          </button>
+          <div onClick={(e) => e.stopPropagation()} className="max-w-[90vw] max-h-[90vh]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={lightboxUrl}
+              alt="Preview"
+              className="max-w-full max-h-[90vh] object-contain rounded-sm"
+            />
+          </div>
         </div>
       )}
 

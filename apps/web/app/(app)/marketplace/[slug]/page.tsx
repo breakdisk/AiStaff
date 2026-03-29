@@ -6,7 +6,7 @@ import { useSession } from "next-auth/react";
 import Link from "next/link";
 import {
   ArrowLeft, Star, CheckCircle, Shield, Clock, AlertTriangle,
-  ChevronRight, Loader2, MessageSquare, Play, Users, Zap,
+  ChevronRight, ChevronLeft, X, Loader2, MessageSquare, Play, Users, Zap,
   FileText, Package, ClipboardList, BadgeCheck, Pencil,
 } from "lucide-react";
 import {
@@ -188,6 +188,19 @@ function OverviewTab({ listing, media }: { listing: AgentListing; media: Listing
   const steps      = getSteps(listing);
   const videoItem  = media.find((m) => m.media_type === "video_url");
   const imageItems = media.filter((m) => m.media_type === "image");
+  const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
+
+  // Keyboard nav for lightbox
+  useEffect(() => {
+    if (lightboxIdx === null) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape")     setLightboxIdx(null);
+      if (e.key === "ArrowLeft")  setLightboxIdx((i) => (i !== null && i > 0 ? i - 1 : i));
+      if (e.key === "ArrowRight") setLightboxIdx((i) => (i !== null && i < imageItems.length - 1 ? i + 1 : i));
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lightboxIdx, imageItems.length]);
 
   function embedUrl(raw: string): string | null {
     try { new URL(raw); } catch { return null; }
@@ -269,16 +282,24 @@ function OverviewTab({ listing, media }: { listing: AgentListing; media: Listing
         <p className="font-mono text-[10px] text-amber-500 uppercase tracking-widest mb-2">Proof of Work</p>
         {imageItems.length > 0 ? (
           <div className="grid grid-cols-3 gap-2">
-            {imageItems.map((img) => (
-              <a key={img.id} href={img.content} target="_blank" rel="noopener noreferrer">
+            {imageItems.map((img, idx) => (
+              <button
+                key={img.id}
+                type="button"
+                onClick={() => setLightboxIdx(idx)}
+                className="relative group aspect-square rounded-sm border border-zinc-800 hover:border-zinc-600 overflow-hidden transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+              >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={img.content}
-                  alt="Proof of work"
-                  className="w-full aspect-square object-cover rounded-sm border border-zinc-800 hover:border-zinc-600 transition-colors"
-                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                  alt={`Proof of work ${idx + 1}`}
+                  className="w-full h-full object-cover"
+                  onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.opacity = "0.3"; }}
                 />
-              </a>
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-all">
+                  <Play className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+              </button>
             ))}
           </div>
         ) : (
@@ -294,6 +315,64 @@ function OverviewTab({ listing, media }: { listing: AgentListing; media: Listing
           </>
         )}
       </div>
+
+      {/* Image lightbox */}
+      {lightboxIdx !== null && imageItems[lightboxIdx] && (
+        <div
+          className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center"
+          onClick={() => setLightboxIdx(null)}
+        >
+          {/* Close */}
+          <button
+            type="button"
+            onClick={() => setLightboxIdx(null)}
+            className="absolute top-4 right-4 w-9 h-9 flex items-center justify-center rounded-sm bg-zinc-900/80 border border-zinc-700 text-zinc-400 hover:text-zinc-100 transition-colors z-10"
+            aria-label="Close preview"
+          >
+            <X className="w-4 h-4" />
+          </button>
+
+          {/* Prev */}
+          {lightboxIdx > 0 && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setLightboxIdx(lightboxIdx - 1); }}
+              className="absolute left-4 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-sm bg-zinc-900/80 border border-zinc-700 text-zinc-400 hover:text-zinc-100 transition-colors z-10"
+              aria-label="Previous image"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+          )}
+
+          {/* Next */}
+          {lightboxIdx < imageItems.length - 1 && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setLightboxIdx(lightboxIdx + 1); }}
+              className="absolute right-4 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-sm bg-zinc-900/80 border border-zinc-700 text-zinc-400 hover:text-zinc-100 transition-colors z-10"
+              aria-label="Next image"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          )}
+
+          {/* Image */}
+          <div
+            className="max-w-[90vw] max-h-[90vh] flex flex-col gap-3 items-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={imageItems[lightboxIdx].content}
+              alt={`Proof of work ${lightboxIdx + 1}`}
+              className="max-w-full max-h-[80vh] object-contain rounded-sm"
+            />
+            <p className="font-mono text-[10px] text-zinc-500">
+              {lightboxIdx + 1} / {imageItems.length} &nbsp;·&nbsp; ← → to navigate &nbsp;·&nbsp; Esc to close
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
