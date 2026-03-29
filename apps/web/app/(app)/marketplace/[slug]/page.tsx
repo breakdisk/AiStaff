@@ -189,10 +189,25 @@ function OverviewTab({ listing, media }: { listing: AgentListing; media: Listing
   const videoItem  = media.find((m) => m.media_type === "video_url");
   const imageItems = media.filter((m) => m.media_type === "image");
 
-  function embedUrl(url: string): string | null {
-    if (url.includes("youtube.com/watch")) return url.replace("watch?v=", "embed/");
-    if (url.includes("youtu.be/"))        return url.replace("youtu.be/", "www.youtube.com/embed/");
-    if (url.includes("vimeo.com/"))       return url.replace("vimeo.com/", "player.vimeo.com/video/");
+  function embedUrl(raw: string): string | null {
+    try { new URL(raw); } catch { return null; }
+    const url = raw.trim();
+    if (url.includes("youtube.com/watch")) {
+      const v = new URL(url).searchParams.get("v");
+      return v ? `https://www.youtube.com/embed/${v}` : null;
+    }
+    if (url.includes("youtu.be/")) {
+      const id = url.split("youtu.be/")[1]?.split("?")[0];
+      return id ? `https://www.youtube.com/embed/${id}` : null;
+    }
+    if (url.includes("vimeo.com/")) {
+      const id = url.split("vimeo.com/")[1]?.split("?")[0]?.split("/")[0];
+      return id ? `https://player.vimeo.com/video/${id}` : null;
+    }
+    if (url.includes("loom.com/share/")) {
+      const id = url.split("loom.com/share/")[1]?.split("?")[0];
+      return id ? `https://www.loom.com/embed/${id}` : null;
+    }
     return null;
   }
 

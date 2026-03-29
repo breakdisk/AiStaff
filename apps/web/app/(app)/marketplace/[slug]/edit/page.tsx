@@ -20,6 +20,34 @@ import {
 
 // ── Step 1: Video URL ─────────────────────────────────────────────────────────
 
+// Returns an iframe-safe embed URL for YouTube, Vimeo, and Loom.
+// Returns null for anything else — those are shown as a clickable link only,
+// never loaded in an iframe (prevents Mux/third-party player errors).
+function toEmbedUrl(raw: string): string | null {
+  try { new URL(raw); } catch { return null; }
+  const url = raw.trim();
+  // YouTube: watch page or short link
+  if (url.includes("youtube.com/watch")) {
+    const v = new URL(url).searchParams.get("v");
+    return v ? `https://www.youtube.com/embed/${v}` : null;
+  }
+  if (url.includes("youtu.be/")) {
+    const id = url.split("youtu.be/")[1]?.split("?")[0];
+    return id ? `https://www.youtube.com/embed/${id}` : null;
+  }
+  // Vimeo: vimeo.com/{id}
+  if (url.includes("vimeo.com/")) {
+    const id = url.split("vimeo.com/")[1]?.split("?")[0]?.split("/")[0];
+    return id ? `https://player.vimeo.com/video/${id}` : null;
+  }
+  // Loom: loom.com/share/{id} → loom.com/embed/{id}
+  if (url.includes("loom.com/share/")) {
+    const id = url.split("loom.com/share/")[1]?.split("?")[0];
+    return id ? `https://www.loom.com/embed/${id}` : null;
+  }
+  return null;
+}
+
 function Step1Video({
   listingId, existingVideo, onNext,
 }: {
@@ -27,10 +55,10 @@ function Step1Video({
   existingVideo: ListingMedia | undefined;
   onNext: () => void;
 }) {
-  const [url,    setUrl]    = useState(existingVideo?.content ?? "");
-  const [busy,   setBusy]   = useState(false);
-  const [error,  setError]  = useState<string | null>(null);
-  const [saved,  setSaved]  = useState(!!existingVideo);
+  const [url,   setUrl]   = useState(existingVideo?.content ?? "");
+  const [busy,  setBusy]  = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(!!existingVideo);
 
   function isValidUrl(s: string): boolean {
     try { new URL(s); return true; } catch { return false; }
@@ -38,8 +66,8 @@ function Step1Video({
 
   async function handleSave() {
     const trimmed = url.trim();
-    if (!trimmed) { onNext(); return; } // skip if empty
-    if (!isValidUrl(trimmed)) { setError("Enter a valid URL (YouTube, Vimeo, or direct link)"); return; }
+    if (!trimmed) { onNext(); return; }
+    if (!isValidUrl(trimmed)) { setError("Enter a valid URL (YouTube, Vimeo, or Loom)"); return; }
     setError(null);
     setBusy(true);
     try {
@@ -53,14 +81,20 @@ function Step1Video({
     }
   }
 
+  const trimmed   = url.trim();
+  const embedSrc  = trimmed && isValidUrl(trimmed) ? toEmbedUrl(trimmed) : null;
+  const hasUrl    = !!trimmed && isValidUrl(trimmed);
+
   return (
     <div className="space-y-5">
       <div>
         <p className="font-mono text-[10px] text-amber-500 uppercase tracking-widest mb-1">Step 1 of 3</p>
         <h2 className="text-lg font-semibold text-zinc-100">Add a demo video</h2>
         <p className="font-mono text-xs text-zinc-500 mt-1">
-          A short screen recording or walkthrough dramatically improves conversion.
-          Paste a YouTube, Vimeo, or direct video URL.
+          A short walkthrough dramatically improves conversion.
+          Paste a <span className="text-zinc-300">YouTube</span>,{" "}
+          <span className="text-zinc-300">Vimeo</span>, or{" "}
+          <span className="text-zinc-300">Loom</span> share URL.
         </p>
       </div>
 
@@ -73,32 +107,32 @@ function Step1Video({
         <input
           type="url"
           value={url}
-          onChange={(e) => { setUrl(e.target.value); setSaved(false); }}
-          placeholder="https://www.youtube.com/watch?v=..."
+          onChange={(e) => { setUrl(e.target.value); setSaved(false); setError(null); }}
+          placeholder="https://www.youtube.com/watch?v=… or loom.com/share/…"
           className="w-full h-10 px-3 rounded-sm border border-zinc-700 bg-zinc-900 text-zinc-100 text-xs font-mono placeholder:text-zinc-600 focus:outline-none focus:border-amber-400/50 transition-colors"
         />
+        <p className="font-mono text-[10px] text-zinc-600">
+          Supported: YouTube · Vimeo · Loom — other URLs will appear as a link only
+        </p>
       </div>
 
-      {/* Preview */}
-      {url.trim() && isValidUrl(url.trim()) && (
+      {/* Preview — only embed for known platforms; unknown URLs show a safe placeholder */}
+      {hasUrl && (
         <div className="aspect-video rounded-sm border border-zinc-800 bg-zinc-900 overflow-hidden">
-          {url.includes("youtube") || url.includes("youtu.be") ? (
+          {embedSrc ? (
             <iframe
-              src={url.replace("watch?v=", "embed/").replace("youtu.be/", "www.youtube.com/embed/")}
+              src={embedSrc}
               className="w-full h-full"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-            />
-          ) : url.includes("vimeo") ? (
-            <iframe
-              src={url.replace("vimeo.com/", "player.vimeo.com/video/")}
-              className="w-full h-full"
               allowFullScreen
             />
           ) : (
             <div className="flex flex-col items-center justify-center w-full h-full gap-2 text-zinc-500">
               <Play className="w-8 h-8" />
-              <span className="font-mono text-xs">Direct video link — will render on listing page</span>
+              <span className="font-mono text-xs text-center px-4">
+                Preview not available for this platform —<br />
+                the URL will appear as a &ldquo;Watch video&rdquo; link on your listing
+              </span>
             </div>
           )}
         </div>
@@ -125,7 +159,7 @@ function Step1Video({
         >
           {busy
             ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</>
-            : <>{url.trim() ? "Save & continue" : "Continue"} <ArrowRight className="w-4 h-4" /></>
+            : <>{trimmed ? "Save & continue" : "Continue"} <ArrowRight className="w-4 h-4" /></>
           }
         </button>
       </div>
