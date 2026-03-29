@@ -5,7 +5,7 @@
 //! Step 2: Proof-of-work images (URL-based)
 //! Step 3: Requirements + Deliverables
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
@@ -481,8 +481,10 @@ function Step3RequirementsDeliverables({
 }
 
 // ── Main edit page ─────────────────────────────────────────────────────────────
+// useSearchParams() requires a <Suspense> boundary in Next.js 15 — hard nav
+// (window.location.href) triggers a server render where the hook throws without it.
 
-export default function EditListingPage() {
+function EditListingInner() {
   const params        = useParams();
   const router        = useRouter();
   const searchParams  = useSearchParams();
@@ -673,5 +675,19 @@ export default function EditListingPage() {
 
       </div>
     </div>
+  );
+}
+
+// Suspense boundary required by Next.js 15 — useSearchParams() inside
+// EditListingInner throws during server render without this wrapper.
+export default function EditListingPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+        <Loader2 className="w-6 h-6 text-zinc-600 animate-spin" />
+      </div>
+    }>
+      <EditListingInner />
+    </Suspense>
   );
 }
