@@ -6,7 +6,7 @@
 //! Step 3: Requirements + Deliverables
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import {
@@ -483,10 +483,12 @@ function Step3RequirementsDeliverables({
 // ── Main edit page ─────────────────────────────────────────────────────────────
 
 export default function EditListingPage() {
-  const params  = useParams();
-  const router  = useRouter();
+  const params        = useParams();
+  const router        = useRouter();
+  const searchParams  = useSearchParams();
   const { data: session } = useSession();
-  const slug = typeof params.slug === "string" ? params.slug : "";
+  const slug     = typeof params.slug === "string" ? params.slug : "";
+  const fromCreate = searchParams.get("from") === "create";
 
   const profileId = (session?.user as { profileId?: string })?.profileId ?? "";
 
@@ -592,9 +594,24 @@ export default function EditListingPage() {
           </div>
         </div>
 
+        {/* Welcome banner — shown only when arriving from /post-job */}
+        {fromCreate && (
+          <div className="flex items-start gap-2.5 p-3 rounded-sm border border-emerald-800/50 bg-emerald-950/20">
+            <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-mono text-xs text-emerald-300 font-medium">Listing is live!</p>
+              <p className="font-mono text-[11px] text-emerald-700 mt-0.5">
+                Now add a demo video, screenshots, and requirements — listings with media convert 3× better.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Listing name */}
         <div className="p-3 rounded-sm border border-zinc-800 bg-zinc-900/40">
-          <p className="font-mono text-[10px] text-zinc-600 uppercase tracking-widest mb-0.5">Editing</p>
+          <p className="font-mono text-[10px] text-zinc-600 uppercase tracking-widest mb-0.5">
+            {fromCreate ? "Your new listing" : "Editing"}
+          </p>
           <p className="font-mono text-sm text-zinc-200 truncate">{listing.name}</p>
         </div>
 

@@ -174,6 +174,11 @@ export default function PostJobPage() {
           body:    JSON.stringify({ tag_ids: Array.from(selectedIds) }),
         }).catch(() => {}); // non-blocking — listing is already created
       }
+      // Go straight into the media wizard — no success screen detour
+      if (listing?.slug) {
+        router.push(`/marketplace/${listing.slug}/edit?from=create`);
+        return;
+      }
       if (listing?.slug) setListingSlug(listing.slug);
       setDone(true);
     } catch {
