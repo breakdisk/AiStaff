@@ -5,13 +5,13 @@
 //! Step 2: Proof-of-work images (URL-based)
 //! Step 3: Requirements + Deliverables
 
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState, useRef, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import {
   ArrowLeft, ArrowRight, CheckCircle, Loader2, Play, Image as ImageIcon,
-  Trash2, Plus, Lock, Package, Bot, X,
+  Trash2, Plus, Lock, Package, Bot, X, Upload,
 } from "lucide-react";
 import {
   fetchListingBySlug, fetchListingMedia, addListingMedia, deleteListingMedia,
@@ -180,9 +180,11 @@ function Step2Images({
   const [images,      setImages]      = useState<ListingMedia[]>(existingImages);
   const [newUrl,      setNewUrl]      = useState("");
   const [adding,      setAdding]      = useState(false);
+  const [uploading,   setUploading]   = useState(false);
   const [error,       setError]       = useState<string | null>(null);
   const [deleting,    setDeleting]    = useState<string | null>(null);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   function isValidUrl(s: string): boolean {
     try { new URL(s); return true; } catch { return false; }
@@ -218,6 +220,45 @@ function Step2Images({
     }
   }
 
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!e.target) return;
+    // Reset so same file can be re-selected after a failure
+    (e.target as HTMLInputElement).value = "";
+    if (!file) return;
+
+    setError(null);
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/listing-images/upload", { method: "POST", body: form });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(body.error ?? `Upload failed (${res.status})`);
+      }
+      const { url } = await res.json() as { url: string };
+      const saved = await addListingMedia(listingId, {
+        media_type: "image",
+        content:    url,
+        sort_order: images.length,
+      });
+      setImages((prev) => [...prev, {
+        id:         saved.media_id ?? crypto.randomUUID(),
+        listing_id: listingId,
+        media_type: "image",
+        content:    url,
+        required:   false,
+        sort_order: images.length,
+        created_at: new Date().toISOString(),
+      }]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  }
+
   async function handleDelete(mediaId: string) {
     setDeleting(mediaId);
     try {
@@ -236,8 +277,8 @@ function Step2Images({
         <p className="font-mono text-[10px] text-amber-500 uppercase tracking-widest mb-1">Step 2 of 3</p>
         <h2 className="text-lg font-semibold text-zinc-100">Proof-of-work images</h2>
         <p className="font-mono text-xs text-zinc-500 mt-1">
-          Paste URLs of screenshots, results, or sample outputs. These appear in the listing&apos;s
-          overview tab to build buyer confidence. Host on Cloudinary, Imgur, or any CDN.
+          Upload screenshots, results, or sample outputs. Images are auto-resized to
+          1280 px max and served from our platform — no external hosting needed.
         </p>
       </div>
 
@@ -245,14 +286,45 @@ function Step2Images({
         <p className="font-mono text-xs text-red-400 border border-red-900/50 bg-red-950/20 rounded-sm p-2">{error}</p>
       )}
 
-      {/* Add new image */}
+      {/* Upload from device */}
+      <div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/gif"
+          className="hidden"
+          onChange={handleFileUpload}
+        />
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          className="w-full h-11 flex items-center justify-center gap-2 rounded-sm border border-dashed border-zinc-600 bg-zinc-900/50 text-zinc-400 font-mono text-xs hover:border-amber-400/50 hover:text-zinc-200 disabled:opacity-50 transition-all"
+        >
+          {uploading
+            ? <><Loader2 className="w-4 h-4 animate-spin" /> Uploading &amp; resizing…</>
+            : <><Upload className="w-4 h-4" /> Upload image from device</>}
+        </button>
+        <p className="font-mono text-[10px] text-zinc-600 mt-1">
+          JPEG · PNG · WebP · GIF &nbsp;·&nbsp; max 10 MB per file &nbsp;·&nbsp; auto-resized to 1280 px
+        </p>
+      </div>
+
+      {/* Divider */}
+      <div className="flex items-center gap-3">
+        <div className="flex-1 h-px bg-zinc-800" />
+        <span className="font-mono text-[10px] text-zinc-600">or paste a URL</span>
+        <div className="flex-1 h-px bg-zinc-800" />
+      </div>
+
+      {/* Add by URL */}
       <div className="flex gap-2">
         <input
           type="url"
           value={newUrl}
           onChange={(e) => setNewUrl(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAdd(); } }}
-          placeholder="https://res.cloudinary.com/… or https://i.imgur.com/…"
+          placeholder="https://example.com/screenshot.png"
           className="flex-1 h-10 px-3 rounded-sm border border-zinc-700 bg-zinc-900 text-zinc-100 text-xs font-mono placeholder:text-zinc-600 focus:outline-none focus:border-amber-400/50 transition-colors"
         />
         <button
