@@ -4,8 +4,9 @@ import { join }             from "path";
 import { randomUUID }       from "crypto";
 import sharp                from "sharp";
 
-// Persistent volume — set LISTING_IMAGES_DIR in docker-compose / Dokploy env.
-const UPLOAD_DIR      = process.env.LISTING_IMAGES_DIR ?? "/data/listing-images";
+// Default: /tmp (always writable, no volume config needed).
+// Set LISTING_IMAGES_DIR in Dokploy env for persistence across restarts.
+const UPLOAD_DIR      = process.env.LISTING_IMAGES_DIR ?? "/tmp/listing-images";
 const MAX_INPUT_BYTES = 10 * 1024 * 1024; // 10 MB raw upload cap
 const MAX_DIMENSION   = 1280;             // px — longest side; maintains aspect ratio
 const JPEG_QUALITY    = 82;              // good balance: sharp detail, small file

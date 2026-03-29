@@ -427,8 +427,10 @@ services:
       # Direct DB access — used by Next.js API routes that query postgres via pg Pool
       # (e.g. /api/reputation/*/export, /api/transparency/missed-jobs, /api/proposals/submit)
       DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
-      # Uploaded listing images — persistent volume mounted at this path
-      LISTING_IMAGES_DIR: /data/listing-images
+      # Uploaded listing images — /tmp is always writable, no volume config needed.
+      # For persistence across restarts, set LISTING_IMAGES_DIR to a mounted path
+      # and add a named volume in Dokploy UI.
+      LISTING_IMAGES_DIR: /tmp/listing-images
       # Backend service URLs — Docker container names
       IDENTITY_SERVICE_URL:     http://identity-service:3001
       MARKETPLACE_SERVICE_URL:  http://marketplace-service:3002
@@ -442,8 +444,6 @@ services:
       PAYOUT_SERVICE_URL:       http://payout-service:3010
       COMMUNITY_SERVICE_URL:    http://community-service:3011
       NOTIFICATION_SERVICE_URL: http://notification-service:3012
-    volumes:
-      - listing_images:/data/listing-images
     # No host port binding — Traefik (Dokploy) routes via container network.
     # For local dev, use docker-compose.override.yml which re-adds 3000:3000.
     expose:
@@ -458,4 +458,4 @@ services:
 volumes:
   pg_data:
   qdrant_data:
-  listing_images:    # persistent storage for seller-uploaded proof-of-work images
+  # listing_images: # uncomment + add volume mount to web service for persistent image storage

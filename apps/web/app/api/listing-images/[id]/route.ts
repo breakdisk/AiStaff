@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { readFile } from "fs/promises";
 import { join }     from "path";
 
-const UPLOAD_DIR = process.env.LISTING_IMAGES_DIR ?? "/data/listing-images";
+const UPLOAD_DIR = process.env.LISTING_IMAGES_DIR ?? "/tmp/listing-images";
 
 // Strict allowlist: UUID v4 filename + .jpg only — prevents path traversal.
 const SAFE_FILENAME = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.jpg$/i;

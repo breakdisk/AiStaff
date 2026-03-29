@@ -169,6 +169,8 @@ function Step1Video({
 
 // ── Step 2: Proof-of-work images ──────────────────────────────────────────────
 
+const MAX_IMAGES = 3;
+
 function Step2Images({
   listingId, existingImages, onNext, onBack,
 }: {
@@ -181,37 +183,81 @@ function Step2Images({
   const [newUrl,      setNewUrl]      = useState("");
   const [adding,      setAdding]      = useState(false);
   const [uploading,   setUploading]   = useState(false);
+  const [dragOver,    setDragOver]    = useState(false);
   const [error,       setError]       = useState<string | null>(null);
   const [deleting,    setDeleting]    = useState<string | null>(null);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const canAddMore = images.length < MAX_IMAGES;
+
   function isValidUrl(s: string): boolean {
     try { new URL(s); return true; } catch { return false; }
   }
 
+  // Upload one file, returns the new ListingMedia item or throws.
+  async function uploadFile(file: File, sortOrder: number): Promise<ListingMedia> {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch("/api/listing-images/upload", { method: "POST", body: form });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as { error?: string };
+      throw new Error(body.error ?? `Upload failed (${res.status})`);
+    }
+    const { url } = await res.json() as { url: string };
+    const saved = await addListingMedia(listingId, { media_type: "image", content: url, sort_order: sortOrder });
+    return {
+      id:         saved.media_id ?? crypto.randomUUID(),
+      listing_id: listingId,
+      media_type: "image",
+      content:    url,
+      required:   false,
+      sort_order: sortOrder,
+      created_at: new Date().toISOString(),
+    };
+  }
+
+  // Handles 1–3 files from picker or drag-and-drop.
+  async function handleFiles(files: File[]) {
+    const imageFiles = files.filter((f) => f.type.startsWith("image/"));
+    if (imageFiles.length === 0) return;
+
+    const slots = MAX_IMAGES - images.length;
+    if (slots <= 0) {
+      setError(`Maximum ${MAX_IMAGES} images reached. Delete one to add more.`);
+      return;
+    }
+    const toUpload = imageFiles.slice(0, slots);
+    setError(null);
+    setUploading(true);
+    const added: ListingMedia[] = [];
+    for (const file of toUpload) {
+      try {
+        const item = await uploadFile(file, images.length + added.length);
+        added.push(item);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Upload failed");
+        break;
+      }
+    }
+    if (added.length) setImages((prev) => [...prev, ...added]);
+    setUploading(false);
+  }
+
   async function handleAdd() {
+    if (!canAddMore) { setError(`Maximum ${MAX_IMAGES} images reached. Delete one to add more.`); return; }
     const trimmed = newUrl.trim();
     if (!trimmed) return;
     if (!isValidUrl(trimmed)) { setError("Enter a valid image URL"); return; }
     setError(null);
     setAdding(true);
     try {
-      const res = await addListingMedia(listingId, {
-        media_type: "image",
-        content:    trimmed,
-        sort_order: images.length,
-      });
-      const newItem: ListingMedia = {
-        id:         res.media_id ?? crypto.randomUUID(),
-        listing_id: listingId,
-        media_type: "image",
-        content:    trimmed,
-        required:   false,
-        sort_order: images.length,
-        created_at: new Date().toISOString(),
-      };
-      setImages((prev) => [...prev, newItem]);
+      const res = await addListingMedia(listingId, { media_type: "image", content: trimmed, sort_order: images.length });
+      setImages((prev) => [...prev, {
+        id: res.media_id ?? crypto.randomUUID(), listing_id: listingId,
+        media_type: "image", content: trimmed, required: false,
+        sort_order: images.length, created_at: new Date().toISOString(),
+      }]);
       setNewUrl("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to add image");
@@ -220,53 +266,12 @@ function Step2Images({
     }
   }
 
-  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!e.target) return;
-    // Reset so same file can be re-selected after a failure
-    (e.target as HTMLInputElement).value = "";
-    if (!file) return;
-
-    setError(null);
-    setUploading(true);
-    try {
-      const form = new FormData();
-      form.append("file", file);
-      const res = await fetch("/api/listing-images/upload", { method: "POST", body: form });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({})) as { error?: string };
-        throw new Error(body.error ?? `Upload failed (${res.status})`);
-      }
-      const { url } = await res.json() as { url: string };
-      const saved = await addListingMedia(listingId, {
-        media_type: "image",
-        content:    url,
-        sort_order: images.length,
-      });
-      setImages((prev) => [...prev, {
-        id:         saved.media_id ?? crypto.randomUUID(),
-        listing_id: listingId,
-        media_type: "image",
-        content:    url,
-        required:   false,
-        sort_order: images.length,
-        created_at: new Date().toISOString(),
-      }]);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed");
-    } finally {
-      setUploading(false);
-    }
-  }
-
   async function handleDelete(mediaId: string) {
     setDeleting(mediaId);
     try {
       await deleteListingMedia(listingId, mediaId);
       setImages((prev) => prev.filter((i) => i.id !== mediaId));
-    } catch {
-      // soft fail — item remains visible
-    } finally {
+    } catch { /* soft fail */ } finally {
       setDeleting(null);
     }
   }
@@ -277,8 +282,8 @@ function Step2Images({
         <p className="font-mono text-[10px] text-amber-500 uppercase tracking-widest mb-1">Step 2 of 3</p>
         <h2 className="text-lg font-semibold text-zinc-100">Proof-of-work images</h2>
         <p className="font-mono text-xs text-zinc-500 mt-1">
-          Upload screenshots, results, or sample outputs. Images are auto-resized to
-          1280 px max and served from our platform — no external hosting needed.
+          Upload up to 3 screenshots or sample outputs. Auto-resized to 1280 px —
+          no external hosting needed.
         </p>
       </div>
 
@@ -286,28 +291,70 @@ function Step2Images({
         <p className="font-mono text-xs text-red-400 border border-red-900/50 bg-red-950/20 rounded-sm p-2">{error}</p>
       )}
 
-      {/* Upload from device */}
+      {/* Drag-and-drop / click-to-browse zone */}
       <div>
         <input
           ref={fileInputRef}
           type="file"
           accept="image/jpeg,image/png,image/webp,image/gif"
+          multiple
           className="hidden"
-          onChange={handleFileUpload}
+          onChange={(e) => {
+            const files = Array.from(e.target.files ?? []);
+            (e.target as HTMLInputElement).value = "";
+            handleFiles(files);
+          }}
         />
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
-          className="w-full h-11 flex items-center justify-center gap-2 rounded-sm border border-dashed border-zinc-600 bg-zinc-900/50 text-zinc-400 font-mono text-xs hover:border-amber-400/50 hover:text-zinc-200 disabled:opacity-50 transition-all"
+        <div
+          onClick={() => canAddMore && !uploading && fileInputRef.current?.click()}
+          onDragOver={(e) => { e.preventDefault(); if (canAddMore) setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragOver(false);
+            handleFiles(Array.from(e.dataTransfer.files));
+          }}
+          className={`rounded-sm border-2 border-dashed p-8 flex flex-col items-center gap-3 transition-all
+            ${uploading
+              ? "border-zinc-700 bg-zinc-900/30 cursor-wait"
+              : dragOver
+                ? "border-amber-400/70 bg-amber-400/5 cursor-copy"
+                : canAddMore
+                  ? "border-zinc-700 bg-zinc-900/30 hover:border-amber-400/40 hover:bg-zinc-900/50 cursor-pointer"
+                  : "border-zinc-800 bg-zinc-900/20 opacity-50 cursor-not-allowed"
+            }`}
         >
-          {uploading
-            ? <><Loader2 className="w-4 h-4 animate-spin" /> Uploading &amp; resizing…</>
-            : <><Upload className="w-4 h-4" /> Upload image from device</>}
-        </button>
-        <p className="font-mono text-[10px] text-zinc-600 mt-1">
-          JPEG · PNG · WebP · GIF &nbsp;·&nbsp; max 10 MB per file &nbsp;·&nbsp; auto-resized to 1280 px
-        </p>
+          {uploading ? (
+            <>
+              <Loader2 className="w-8 h-8 text-amber-400 animate-spin" />
+              <p className="font-mono text-xs text-zinc-300">Uploading &amp; resizing…</p>
+            </>
+          ) : dragOver ? (
+            <>
+              <Upload className="w-8 h-8 text-amber-400" />
+              <p className="font-mono text-xs text-amber-300">Drop to upload</p>
+            </>
+          ) : (
+            <>
+              <Upload className="w-8 h-8 text-zinc-600" />
+              <div className="text-center space-y-1">
+                <p className="font-mono text-xs text-zinc-300">
+                  {canAddMore ? "Drag & drop or click to browse" : `${MAX_IMAGES}/${MAX_IMAGES} — delete an image to add more`}
+                </p>
+                <p className="font-mono text-[10px] text-zinc-600">
+                  Select up to {MAX_IMAGES - images.length || MAX_IMAGES} image{MAX_IMAGES - images.length !== 1 ? "s" : ""} &nbsp;·&nbsp;
+                  JPEG · PNG · WebP &nbsp;·&nbsp; max 10 MB each &nbsp;·&nbsp; resized to 1280 px
+                </p>
+              </div>
+            </>
+          )}
+          <span className={`font-mono text-[10px] px-2 py-0.5 rounded-sm border
+            ${images.length >= MAX_IMAGES
+              ? "border-zinc-700 text-zinc-500 bg-zinc-800/50"
+              : "border-amber-900/40 text-amber-600 bg-amber-950/20"}`}>
+            {images.length} / {MAX_IMAGES} images
+          </span>
+        </div>
       </div>
 
       {/* Divider */}
@@ -325,11 +372,12 @@ function Step2Images({
           onChange={(e) => setNewUrl(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAdd(); } }}
           placeholder="https://example.com/screenshot.png"
-          className="flex-1 h-10 px-3 rounded-sm border border-zinc-700 bg-zinc-900 text-zinc-100 text-xs font-mono placeholder:text-zinc-600 focus:outline-none focus:border-amber-400/50 transition-colors"
+          disabled={!canAddMore}
+          className="flex-1 h-10 px-3 rounded-sm border border-zinc-700 bg-zinc-900 text-zinc-100 text-xs font-mono placeholder:text-zinc-600 focus:outline-none focus:border-amber-400/50 disabled:opacity-40 transition-colors"
         />
         <button
           onClick={handleAdd}
-          disabled={adding || !newUrl.trim()}
+          disabled={adding || !newUrl.trim() || !canAddMore}
           className="flex items-center gap-1.5 h-10 px-4 rounded-sm border border-zinc-700 bg-zinc-900 text-zinc-300 font-mono text-xs hover:border-zinc-600 hover:text-zinc-100 disabled:opacity-40 transition-all"
         >
           {adding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><Plus className="w-3.5 h-3.5" /> Add</>}
