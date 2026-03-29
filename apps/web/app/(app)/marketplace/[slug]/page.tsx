@@ -3,10 +3,11 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+import Link from "next/link";
 import {
   ArrowLeft, Star, CheckCircle, Shield, Clock, AlertTriangle,
   ChevronRight, Loader2, MessageSquare, Play, Users, Zap,
-  FileText, Package, ClipboardList, BadgeCheck,
+  FileText, Package, ClipboardList, BadgeCheck, Pencil,
 } from "lucide-react";
 import {
   fetchListingBySlug, fetchListingMedia,
@@ -694,17 +695,31 @@ export default function ListingDetailPage() {
     { key: "reviews",       label: "Reviews",       icon: <Star className="w-3 h-3" /> },
   ];
 
+  const isOwner = !!profileId
+    && profileId !== "00000000-0000-0000-0000-000000000000"
+    && profileId === listing.developer_id;
+
   return (
     <>
       <main className="flex-1 pb-20 lg:pb-8 max-w-5xl mx-auto w-full px-4 pt-4 space-y-4">
 
-        {/* Back link */}
-        <button
-          onClick={() => router.push("/marketplace")}
-          className="flex items-center gap-1.5 font-mono text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
-        >
-          <ArrowLeft className="w-3 h-3" /> Marketplace
-        </button>
+        {/* Back link + owner actions */}
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => router.push("/marketplace")}
+            className="flex items-center gap-1.5 font-mono text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+          >
+            <ArrowLeft className="w-3 h-3" /> Marketplace
+          </button>
+          {isOwner && (
+            <Link
+              href={`/marketplace/${listing.slug}/edit`}
+              className="flex items-center gap-1.5 h-7 px-3 rounded-sm border border-zinc-700 font-mono text-xs text-zinc-400 hover:text-zinc-200 hover:border-zinc-600 transition-all"
+            >
+              <Pencil className="w-3 h-3" /> Edit listing
+            </Link>
+          )}
+        </div>
 
         {/* ── Hero Bar ──────────────────────────────────────────────────────── */}
         <div className="border border-zinc-800 rounded-sm p-4 space-y-3">
