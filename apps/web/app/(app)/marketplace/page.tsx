@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useSession, signIn } from "next-auth/react";
 import {
   Package, Cpu, Hash, ChevronRight, CheckCircle, CheckCircle2,
-  Users, Bot, Zap, Building2, User, Plus, X,
+  Users, Bot, Zap, Building2, User, Plus, X, Search,
   AlertTriangle, Github, Linkedin, Handshake, Loader2, MessageSquare,
 } from "lucide-react";
 import {
@@ -33,7 +33,7 @@ type SellerFilter   = "All" | SellerType;
 const CATEGORY_META: Record<ListingCategory, { icon: React.ElementType; label: string; emoji: string; color: string }> = {
   AiTalent: { icon: Users, label: "AI Talent", emoji: "🧑‍💻", color: "text-sky-400 border-sky-900"       },
   AiStaff:  { icon: Bot,   label: "AI Agents", emoji: "🤖", color: "text-amber-400 border-amber-900"    },
-  AiRobot:  { icon: Zap,   label: "Robots",    emoji: "🦾", color: "text-violet-400 border-violet-900"  },
+  AiRobot:  { icon: Zap,   label: "AI Robots",  emoji: "🦾", color: "text-violet-400 border-violet-900"  },
 };
 
 const SELLER_META: Record<SellerType, { icon: React.ElementType; label: string }> = {
@@ -369,8 +369,10 @@ function ActionButton({ listing, userTier, profileId, marketView, compact }: Act
     );
   }
 
-  // Category-aware CTA label: robots are rented, everything else is hired
-  const ctaLabel = listing.category === "AiRobot" ? "Rent" : "Hire";
+  // Category-aware CTA label
+  const ctaLabel =
+    listing.category === "AiRobot" ? "Rent" :
+    listing.category === "AiStaff" ? "Deploy" : "Hire";
 
   return (
     <>
@@ -1183,6 +1185,7 @@ export default function MarketplacePage() {
   const [status,        setStatus]        = useState<"live" | "demo" | "loading">("loading");
   const [catFilter,     setCatFilter]     = useState<CategoryFilter>("All");
   const [sellerFilter,  setSellerFilter]  = useState<SellerFilter>("All");
+  const [searchQuery,   setSearchQuery]   = useState("");
   const [showPanel,     setShowPanel]     = useState(false);
   const [devTierMap,    setDevTierMap]    = useState<Map<string, VettingTier>>(new Map());
   const [highlightId,   setHighlightId]  = useState<string | null>(null);
@@ -1261,7 +1264,10 @@ export default function MarketplacePage() {
 
   const visible = allListings.filter(l =>
     (catFilter    === "All" || l.category    === catFilter) &&
-    (sellerFilter === "All" || l.seller_type === sellerFilter),
+    (sellerFilter === "All" || l.seller_type === sellerFilter) &&
+    (searchQuery.trim() === "" ||
+      l.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      l.description.toLowerCase().includes(searchQuery.toLowerCase())),
   );
 
   const counts: Record<CategoryFilter, number> = {
@@ -1320,6 +1326,20 @@ export default function MarketplacePage() {
             <Plus className="w-3 h-3" />
             List Product
           </button>
+        </div>
+
+        {/* Search */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500 pointer-events-none" />
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search agents, talent, robots…"
+            className="w-full h-9 pl-8 pr-3 rounded-sm border border-zinc-700 bg-zinc-900
+                       text-zinc-200 font-mono text-sm placeholder:text-zinc-600
+                       focus:outline-none focus:border-amber-400/60 transition-colors"
+          />
         </div>
 
         {/* Freelancer context strip */}
