@@ -1,50 +1,66 @@
 import type { MetadataRoute } from "next";
+import { Pool } from "pg";
 
 const BASE = "https://aistaffglobal.com";
 
-// Static public pages — always included
-// Only include pages that are genuinely crawlable without authentication.
-// Authenticated pages (/marketplace, /leaderboard, /scoping, etc.) redirect
-// crawlers to /login — listing them here wastes crawl budget and signals
-// thin content to search engines and LLM indexers.
-const STATIC_ROUTES: { url: string; priority: number; changeFrequency: MetadataRoute.Sitemap[number]["changeFrequency"] }[] = [
-  { url: "/",               priority: 1.0,  changeFrequency: "daily"   },
-  { url: "/pricing-tool",   priority: 0.75, changeFrequency: "weekly"  },
-  { url: "/transparency",   priority: 0.7,  changeFrequency: "monthly" },
-  { url: "/proof-of-human", priority: 0.7,  changeFrequency: "monthly" },
+// Public pages — no auth required, safe for crawlers and LLM indexers
+const STATIC_ROUTES: {
+  path: string;
+  priority: number;
+  changeFrequency: MetadataRoute.Sitemap[number]["changeFrequency"];
+}[] = [
+  { path: "/",               priority: 1.0, changeFrequency: "weekly"  },
+  { path: "/marketplace",    priority: 0.9, changeFrequency: "hourly"  },
+  { path: "/leaderboard",    priority: 0.8, changeFrequency: "daily"   },
+  { path: "/pricing-tool",   priority: 0.7, changeFrequency: "monthly" },
+  { path: "/proof-of-human", priority: 0.7, changeFrequency: "monthly" },
+  { path: "/transparency",   priority: 0.6, changeFrequency: "monthly" },
+  { path: "/career",         priority: 0.6, changeFrequency: "weekly"  },
+  { path: "/community",      priority: 0.6, changeFrequency: "weekly"  },
+  { path: "/mentorship",     priority: 0.6, changeFrequency: "weekly"  },
+  { path: "/login",          priority: 0.5, changeFrequency: "yearly"  },
+  { path: "/privacy",        priority: 0.3, changeFrequency: "yearly"  },
+  { path: "/terms",          priority: 0.3, changeFrequency: "yearly"  },
+  { path: "/data-deletion",  priority: 0.2, changeFrequency: "yearly"  },
 ];
 
-async function fetchListingIds(): Promise<string[]> {
+async function fetchListings(): Promise<{ slug: string; updated_at: Date }[]> {
+  if (!process.env.DATABASE_URL) return [];
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   try {
-    const url = process.env.MARKETPLACE_SERVICE_URL ?? "http://localhost:3002";
-    const res = await fetch(`${url}/listings`, {
-      next: { revalidate: 3600 }, // ISR: revalidate every hour
-      headers: { "Accept": "application/json" },
-    });
-    if (!res.ok) return [];
-    const data = await res.json() as { id: string }[];
-    return data.map((l) => l.id);
+    const { rows } = await pool.query<{ slug: string; updated_at: Date }>(
+      `SELECT slug, updated_at
+       FROM agent_listings
+       WHERE slug IS NOT NULL
+       ORDER BY updated_at DESC
+       LIMIT 1000`
+    );
+    return rows;
   } catch {
     return [];
+  } finally {
+    await pool.end();
   }
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
 
-  const staticEntries: MetadataRoute.Sitemap = STATIC_ROUTES.map(({ url, priority, changeFrequency }) => ({
-    url:             `${BASE}${url}`,
-    lastModified:    now,
-    changeFrequency,
-    priority,
-  }));
+  const staticEntries: MetadataRoute.Sitemap = STATIC_ROUTES.map(
+    ({ path, priority, changeFrequency }) => ({
+      url: `${BASE}${path}`,
+      lastModified: now,
+      changeFrequency,
+      priority,
+    })
+  );
 
-  const listingIds = await fetchListingIds();
-  const listingEntries: MetadataRoute.Sitemap = listingIds.map((id) => ({
-    url:             `${BASE}/listings/${id}`,
-    lastModified:    now,
-    changeFrequency: "daily",
-    priority:        0.85,
+  const listings = await fetchListings();
+  const listingEntries: MetadataRoute.Sitemap = listings.map((l) => ({
+    url:             `${BASE}/marketplace/${l.slug}`,
+    lastModified:    l.updated_at,
+    changeFrequency: "weekly" as const,
+    priority:        0.8,
   }));
 
   return [...staticEntries, ...listingEntries];
