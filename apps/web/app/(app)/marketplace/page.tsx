@@ -30,10 +30,10 @@ function tierStringToNum(t: string | undefined): VettingTier {
 type CategoryFilter = "All" | ListingCategory;
 type SellerFilter   = "All" | SellerType;
 
-const CATEGORY_META: Record<ListingCategory, { icon: React.ElementType; label: string; color: string }> = {
-  AiTalent: { icon: Users,   label: "AiTalent", color: "text-sky-400 border-sky-900"    },
-  AiStaff:  { icon: Bot,     label: "AiStaff",  color: "text-amber-400 border-amber-900" },
-  AiRobot:  { icon: Zap,     label: "AiRobot",  color: "text-violet-400 border-violet-900" },
+const CATEGORY_META: Record<ListingCategory, { icon: React.ElementType; label: string; emoji: string; color: string }> = {
+  AiTalent: { icon: Users, label: "AI Talent", emoji: "🧑‍💻", color: "text-sky-400 border-sky-900"       },
+  AiStaff:  { icon: Bot,   label: "AI Agents", emoji: "🤖", color: "text-amber-400 border-amber-900"    },
+  AiRobot:  { icon: Zap,   label: "Robots",    emoji: "🦾", color: "text-violet-400 border-violet-900"  },
 };
 
 const SELLER_META: Record<SellerType, { icon: React.ElementType; label: string }> = {
@@ -48,7 +48,7 @@ const DEMO_LISTINGS: AgentListing[] = [
     id:           "a6000001-0000-0000-0000-a1a1a1a1a1a1",
     developer_id: "de000001-0000-0000-0000-111111111111",
     name:         "DataSync Agent v2.1",
-    description:  "Bidirectional ETL sync between PostgreSQL and S3. Handles schema drift, deduplication, and incremental loads. 99.9% SLA.",
+    description:  "Keeps your databases and cloud storage in sync automatically — no data gaps, no duplicates, 99.9% uptime guaranteed.",
     wasm_hash:    "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
     price_cents:  249900,
     active:       true,
@@ -62,7 +62,7 @@ const DEMO_LISTINGS: AgentListing[] = [
     id:           "a6000002-0000-0000-0000-b2b2b2b2b2b2",
     developer_id: "de000002-0000-0000-0000-222222222222",
     name:         "LogAudit Sentinel",
-    description:  "Real-time log ingestion, anomaly detection, and compliance tagging for SOC 2 / ISO 27001 environments. Outputs structured alerts.",
+    description:  "Watches your security logs around the clock and sends you an alert the moment anything suspicious happens.",
     wasm_hash:    "b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3",
     price_cents:  149900,
     active:       true,
@@ -76,7 +76,7 @@ const DEMO_LISTINGS: AgentListing[] = [
     id:           "a6000003-0000-0000-0000-c3c3c3c3c3c3",
     developer_id: "de000001-0000-0000-0000-111111111111",
     name:         "HireAssist Pro",
-    description:  "AI-driven candidate screening, skills verification, and interview scheduling. Integrates with LinkedIn, GitHub, and ATS systems.",
+    description:  "Screens job applicants, checks their skills, and books interviews automatically — saves hours of manual review every day.",
     wasm_hash:    "c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4",
     price_cents:  189900,
     active:       true,
@@ -90,7 +90,7 @@ const DEMO_LISTINGS: AgentListing[] = [
     id:           "a6000004-0000-0000-0000-d4d4d4d4d4d4",
     developer_id: "de000003-0000-0000-0000-333333333333",
     name:         "K8s Scaler Agent",
-    description:  "Autonomous HPA tuning for Kubernetes workloads. Reads Prometheus metrics and adjusts replica counts within user-defined bounds.",
+    description:  "Automatically scales your servers up when traffic spikes and down when it slows — so you never overpay for idle computing power.",
     wasm_hash:    "d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5",
     price_cents:  349900,
     active:       true,
@@ -104,7 +104,7 @@ const DEMO_LISTINGS: AgentListing[] = [
     id:           "a6000005-0000-0000-0000-e5e5e5e5e5e5",
     developer_id: "de000002-0000-0000-0000-222222222222",
     name:         "SecretRotator",
-    description:  "Zero-downtime rotation of database passwords, API keys, and TLS certificates across AWS Secrets Manager, Vault, and Kubernetes secrets.",
+    description:  "Automatically rotates your passwords and API keys on a schedule so hackers cannot use stolen credentials to break in.",
     wasm_hash:    "e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6",
     price_cents:  199900,
     active:       true,
@@ -118,7 +118,7 @@ const DEMO_LISTINGS: AgentListing[] = [
     id:           "a6000006-0000-0000-0000-f6f6f6f6f6f6",
     developer_id: "de000003-0000-0000-0000-333333333333",
     name:         "RoboticArm Calibrator",
-    description:  "Vision-guided calibration and trajectory planning for 6-DOF robotic arms. Supports FANUC, ABB, and UR hardware via Wasm bridge.",
+    description:  "Rent a robotic arm that sees, picks, sorts, and packs items in your warehouse automatically — no programming experience needed.",
     wasm_hash:    "f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1",
     price_cents:  549900,
     active:       true,
@@ -132,7 +132,7 @@ const DEMO_LISTINGS: AgentListing[] = [
     id:           "a6000007-0000-0000-0000-a7a7a7a7a7a7",
     developer_id: "de000001-0000-0000-0000-111111111111",
     name:         "ContractReviewer",
-    description:  "Extracts risk clauses, compares against template SOWs, and flags deviations. Outputs structured diff with severity ratings.",
+    description:  "Reads legal contracts and highlights the risky parts in plain English — so you know exactly what you are signing before you sign it.",
     wasm_hash:    "77a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1",
     price_cents:  129900,
     active:       true,
@@ -162,6 +162,30 @@ function fmtUSD(cents: number) {
 
 function shortHash(hash: string) {
   return `sha256:${hash.slice(0, 8)}…`;
+}
+
+// ── Trust dot — replaces VettingBadge in card/row surfaces ────────────────
+// tier 2 = biometric (green) · tier 1 = social (amber) · tier 0 = unverified (red)
+
+function TrustDot({ tier }: { tier: number }) {
+  if (tier >= 2) return (
+    <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-mono">
+      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
+      Biometric ID
+    </span>
+  );
+  if (tier >= 1) return (
+    <span className="inline-flex items-center gap-1 text-[10px] text-amber-400 font-mono">
+      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
+      Social Verified
+    </span>
+  );
+  return (
+    <span className="inline-flex items-center gap-1 text-[10px] text-zinc-500 font-mono">
+      <span className="w-1.5 h-1.5 rounded-full bg-zinc-600 flex-shrink-0" />
+      Unverified
+    </span>
+  );
 }
 
 // ── Category badge (inline) ────────────────────────────────────────────────
@@ -345,6 +369,9 @@ function ActionButton({ listing, userTier, profileId, marketView, compact }: Act
     );
   }
 
+  // Category-aware CTA label: robots are rented, everything else is hired
+  const ctaLabel = listing.category === "AiRobot" ? "Rent" : "Hire";
+
   return (
     <>
       {marketView === "freelancer" ? (
@@ -355,7 +382,7 @@ function ActionButton({ listing, userTier, profileId, marketView, compact }: Act
                      bg-sky-950 text-sky-400 font-mono text-xs uppercase tracking-widest
                      hover:border-sky-700 active:scale-[0.97] transition-all disabled:opacity-40`}
         >
-          {busy ? "…" : <><Handshake className="w-3 h-3" /> Apply</>}
+          {busy ? "…" : <><Handshake className="w-3 h-3" /> Apply ✋</>}
         </button>
       ) : (
         <div className="flex flex-col items-start gap-0.5">
@@ -368,7 +395,7 @@ function ActionButton({ listing, userTier, profileId, marketView, compact }: Act
           >
             {busy
               ? <><Loader2 className="w-3 h-3 animate-spin" /> Preparing…</>
-              : <>Deploy <ChevronRight className="w-3 h-3" /></>
+              : <>{ctaLabel} <ChevronRight className="w-3 h-3" /></>
             }
           </button>
           {deployError && (
@@ -612,31 +639,26 @@ function ListingCard({ listing, userTier, profileId, marketView, devTierMap, hig
           highlighted ? "border-amber-500 ring-1 ring-amber-500/30" : "border-zinc-800"
         }`}
       >
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 space-y-1">
-            {/* Clickable name → opens detail sheet */}
-            <div className="flex items-start justify-between gap-2">
-              <a
-                href={`/marketplace/${listing.slug}`}
-                className="font-mono text-sm font-medium text-zinc-100 hover:text-amber-400
-                           transition-colors text-left truncate"
-              >
-                {listing.name}
-              </a>
-              <VerifiedBadge planTier={listing.org_plan_tier} />
-            </div>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <CategoryBadge category={listing.category} />
-              <SellerBadge sellerType={listing.seller_type} />
-              <VettingBadge tier={devTier} compact />
-            </div>
-          </div>
-          <span className="font-mono text-sm font-medium text-amber-400 tabular-nums whitespace-nowrap flex-shrink-0">
-            {fmtUSD(listing.price_cents)}
-          </span>
+        {/* Title row: name + share icon */}
+        <div className="flex items-start justify-between gap-2">
+          <a
+            href={`/marketplace/${listing.slug}`}
+            className="font-mono text-sm font-medium text-zinc-100 hover:text-amber-400
+                       transition-colors text-left truncate"
+          >
+            {listing.name}
+          </a>
+          <ShareButton listing={listing} compact />
         </div>
 
-        {/* Description — 2-line clamp with tap-to-expand hint */}
+        {/* Badges row */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <CategoryBadge category={listing.category} />
+          <SellerBadge sellerType={listing.seller_type} />
+          <TrustDot tier={devTier} />
+        </div>
+
+        {/* Description */}
         <div>
           <p className="text-xs text-zinc-400 leading-relaxed line-clamp-2">
             {listing.description}
@@ -652,15 +674,14 @@ function ListingCard({ listing, userTier, profileId, marketView, devTierMap, hig
           )}
         </div>
 
-        <p className="font-mono text-[10px] text-zinc-600 flex items-center gap-1">
-          <Hash className="w-3 h-3" />{shortHash(listing.wasm_hash)}
-        </p>
-
-        <div className="flex items-center gap-2 pt-1 border-t border-zinc-800">
-          <span className="font-mono text-[10px] text-zinc-600 truncate flex-1">
-            dev: {listing.developer_id.slice(0, 8)}…
-          </span>
-          <ShareButton listing={listing} />
+        {/* Price + escrow label + CTA */}
+        <div className="flex items-center justify-between gap-2 pt-1 border-t border-zinc-800">
+          <div>
+            <span className="font-mono text-sm font-medium text-amber-400 tabular-nums">
+              {fmtUSD(listing.price_cents)}
+            </span>
+            <p className="text-[10px] text-emerald-600 mt-0.5">💰 Escrow protected</p>
+          </div>
           <ActionButton
             listing={listing}
             userTier={userTier}
@@ -705,28 +726,22 @@ function TableRow({ listing, userTier, profileId, marketView, devTierMap, highli
         }`}
       >
         <td className="px-3 py-2">
-          <div className="space-y-1">
-            {/* Clickable name → listing detail page */}
-            <div className="flex items-start justify-between gap-2">
-              <a
-                href={`/marketplace/${listing.slug}`}
-                className="font-mono text-xs font-medium text-zinc-200 hover:text-amber-400
-                           transition-colors text-left"
-              >
-                {listing.name}
-              </a>
-              <VerifiedBadge planTier={listing.org_plan_tier} />
-            </div>
-            <p className="font-mono text-[10px] text-zinc-600 flex items-center gap-1">
-              <Cpu className="w-2.5 h-2.5" />{shortHash(listing.wasm_hash)}
-            </p>
+          <div className="flex items-start justify-between gap-2">
+            <a
+              href={`/marketplace/${listing.slug}`}
+              className="font-mono text-xs font-medium text-zinc-200 hover:text-amber-400
+                         transition-colors text-left"
+            >
+              {listing.name}
+            </a>
+            <ShareButton listing={listing} compact />
           </div>
         </td>
         <td className="px-3 py-2">
           <div className="flex items-center gap-1.5 flex-wrap">
             <CategoryBadge category={listing.category} />
             <SellerBadge sellerType={listing.seller_type} />
-            <VettingBadge tier={devTier} compact />
+            <TrustDot tier={devTier} />
           </div>
         </td>
         {/* Description — 2 lines + "read more" link that opens detail sheet */}
@@ -742,12 +757,14 @@ function TableRow({ listing, userTier, profileId, marketView, devTierMap, highli
             </a>
           )}
         </td>
-        <td className="px-3 py-2 font-mono text-sm font-medium text-amber-400 tabular-nums whitespace-nowrap">
-          {fmtUSD(listing.price_cents)}
+        <td className="px-3 py-2 whitespace-nowrap">
+          <span className="font-mono text-sm font-medium text-amber-400 tabular-nums">
+            {fmtUSD(listing.price_cents)}
+          </span>
+          <p className="text-[10px] text-emerald-600 mt-0.5">💰 Escrow protected</p>
         </td>
         <td className="px-3 py-2">
           <div className="flex items-center gap-1.5">
-            <ShareButton listing={listing} compact />
             <ActionButton
               listing={listing}
               userTier={userTier}
@@ -1268,14 +1285,17 @@ export default function MarketplacePage() {
 
           {/* View toggle */}
           <div className="flex items-center rounded-sm border border-zinc-700 overflow-hidden">
-            {(["client", "freelancer"] as MarketView[]).map((v) => (
+            {([
+              { v: "client",     label: "🛒 I'm Hiring"  },
+              { v: "freelancer", label: "💼 I'm Working" },
+            ] as { v: MarketView; label: string }[]).map(({ v, label }) => (
               <button
                 key={v}
                 onClick={() => {
                   setMarketView(v);
                   localStorage.setItem("market_view", v);
                 }}
-                className={`h-7 px-3 font-mono text-xs transition-colors capitalize ${
+                className={`h-7 px-3 font-mono text-xs transition-colors ${
                   marketView === v
                     ? v === "freelancer"
                       ? "bg-sky-900 text-sky-300"
@@ -1283,7 +1303,7 @@ export default function MarketplacePage() {
                     : "text-zinc-500 hover:text-zinc-300"
                 }`}
               >
-                {v}
+                {label}
               </button>
             ))}
           </div>
@@ -1307,22 +1327,64 @@ export default function MarketplacePage() {
           <div className="flex items-center gap-2 px-3 py-2 rounded-sm border border-sky-900 bg-sky-950/40">
             <Handshake className="w-3.5 h-3.5 text-sky-400 shrink-0" aria-hidden="true" />
             <p className="font-mono text-xs text-sky-300">
-              Installer view — click <span className="text-sky-200 font-semibold">Apply</span> on any listing to express interest in deploying that agent.
+              Installer view — click <span className="text-sky-200 font-semibold">Apply ✋</span> on any listing to express your interest in working on it.
             </p>
           </div>
         )}
 
+        {/* How it works — 4-step strip */}
+        <div className="flex gap-2 overflow-x-auto pb-0.5 scrollbar-none -mx-1 px-1">
+          {[
+            { n: "1", e: "🔍", title: "Find",       desc: "Pick an AI helper or talent" },
+            { n: "2", e: "💳", title: "Pay Safely",  desc: "Money held in escrow until the job is done" },
+            { n: "3", e: "✅", title: "Approve",     desc: "Happy? Release payment. Not happy? Get a refund." },
+            { n: "4", e: "⭐", title: "Done!",       desc: "Rate your experience and build your reputation" },
+          ].map(({ n, e, title, desc }) => (
+            <div key={n} className="flex-shrink-0 min-w-[130px] bg-zinc-900 border border-zinc-800 rounded-sm p-2.5 text-center">
+              <div className="w-5 h-5 rounded-full bg-amber-400 text-zinc-950 text-[11px] font-bold flex items-center justify-center mx-auto mb-1.5">
+                {n}
+              </div>
+              <div className="text-base mb-1">{e}</div>
+              <p className="font-mono text-xs font-semibold text-zinc-100 mb-0.5">{title}</p>
+              <p className="text-[10px] text-zinc-500 leading-tight">{desc}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Featured listing banner — highest-priced active listing (future: paid featured slot) */}
+        {(() => {
+          const featured = [...visible].sort((a, b) => b.price_cents - a.price_cents)[0];
+          if (!featured) return null;
+          const meta = CATEGORY_META[featured.category];
+          return (
+            <div className="flex items-center gap-3 border border-amber-900 bg-amber-950/20 rounded-sm px-4 py-3">
+              <span className="text-3xl flex-shrink-0">{meta.emoji}</span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <span className="text-[10px] font-mono font-bold text-amber-400 uppercase tracking-widest">⚡ Featured</span>
+                  <CategoryBadge category={featured.category} />
+                </div>
+                <p className="font-mono text-sm font-semibold text-zinc-100 truncate">{featured.name}</p>
+                <p className="text-xs text-zinc-400 line-clamp-1 mt-0.5">{featured.description}</p>
+              </div>
+              <div className="flex-shrink-0 text-right">
+                <p className="font-mono text-lg font-bold text-amber-400 tabular-nums">{fmtUSD(featured.price_cents)}</p>
+                <ActionButton listing={featured} userTier={userTier} profileId={profileId} marketView={marketView} compact />
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Category tabs */}
         <div className="flex flex-wrap items-center gap-1 w-full">
           {(["All", "AiTalent", "AiStaff", "AiRobot"] as CategoryFilter[]).map((cat) => {
-            const meta = cat === "All" ? null : CATEGORY_META[cat];
-            const Icon = meta?.icon;
+            const meta   = cat === "All" ? null : CATEGORY_META[cat];
             const active = catFilter === cat;
             return (
               <button
                 key={cat}
                 onClick={() => setCatFilter(cat)}
-                className={`flex items-center gap-1.5 px-3 h-8 rounded-sm border font-mono text-xs transition-colors ${
+                className={`flex items-center gap-1.5 px-3 h-8 rounded-full border font-mono text-xs transition-colors ${
                   active
                     ? cat === "All"
                       ? "border-zinc-600 text-zinc-100 bg-zinc-800"
@@ -1330,9 +1392,9 @@ export default function MarketplacePage() {
                     : "border-zinc-800 text-zinc-500 hover:border-zinc-700 hover:text-zinc-400"
                 }`}
               >
-                {Icon && <Icon className="w-3 h-3" />}
-                {cat}
-                <span className={`font-mono text-[10px] px-1 rounded-sm ${active ? "bg-zinc-700 text-zinc-300" : "text-zinc-600"}`}>
+                {meta ? <span>{meta.emoji}</span> : <span>🌟</span>}
+                {meta ? meta.label : "All"}
+                <span className={`font-mono text-[10px] px-1 rounded-full ${active ? "bg-zinc-700 text-zinc-300" : "text-zinc-600"}`}>
                   {counts[cat]}
                 </span>
               </button>
@@ -1400,23 +1462,45 @@ export default function MarketplacePage() {
           </div>
         )}
 
+        {/* Trust legend */}
+        <div className="border border-zinc-800 rounded-sm p-3">
+          <p className="font-mono text-[10px] text-zinc-600 uppercase tracking-widest mb-2">Trust guide</p>
+          <div className="flex flex-wrap gap-4">
+            <span className="inline-flex items-center gap-1.5 text-xs text-zinc-400 font-mono">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
+              Biometric ID — Real person, face verified
+            </span>
+            <span className="inline-flex items-center gap-1.5 text-xs text-zinc-400 font-mono">
+              <span className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" />
+              Social Verified — GitHub or LinkedIn linked
+            </span>
+            <span className="inline-flex items-center gap-1.5 text-xs text-zinc-400 font-mono">
+              <span className="w-2 h-2 rounded-full bg-zinc-600 flex-shrink-0" />
+              Unverified — Identity unknown, hire with caution
+            </span>
+          </div>
+        </div>
+
         {/* Escrow panel */}
         <div className="border border-zinc-800 rounded-sm p-3">
-          <p className="font-mono text-xs text-zinc-500 uppercase tracking-widest mb-2">Escrow Split</p>
+          <p className="font-mono text-[10px] text-zinc-600 uppercase tracking-widest mb-2">How your money is protected</p>
           <div className="grid grid-cols-3 gap-3 text-xs font-mono">
             <div>
-              <p className="text-zinc-600">Developer</p>
-              <p className="text-zinc-300">70%</p>
+              <p className="text-zinc-500">Agent developer</p>
+              <p className="text-zinc-300 font-semibold">70%</p>
             </div>
             <div>
-              <p className="text-zinc-600">AiTalent</p>
-              <p className="text-zinc-300">30%</p>
+              <p className="text-zinc-500">Talent / installer</p>
+              <p className="text-zinc-300 font-semibold">30%</p>
             </div>
             <div>
-              <p className="text-zinc-600">Veto window</p>
-              <p className="text-zinc-300">30 s</p>
+              <p className="text-zinc-500">Cancel window</p>
+              <p className="text-emerald-400 font-semibold">30 sec</p>
             </div>
           </div>
+          <p className="font-mono text-[10px] text-zinc-600 mt-2">
+            💰 Payment is held in escrow and only released when you approve the work.
+          </p>
         </div>
       </main>
 
