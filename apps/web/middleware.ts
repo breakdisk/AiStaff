@@ -38,6 +38,7 @@ export default auth((req) => {
     pathname === "/privacy" ||
     pathname === "/data-deletion" ||
     pathname === "/api/announcements" ||
+    pathname.startsWith("/portal/") ||              // public agency portals + invite accept
     pathname === "/opengraph-image" ||
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico" ||

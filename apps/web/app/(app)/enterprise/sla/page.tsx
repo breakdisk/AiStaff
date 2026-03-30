@@ -296,7 +296,14 @@ function IncidentTable({ deps }: { deps: OrgDeployment[] }) {
             <span className={`font-mono text-[9px] px-1.5 py-0.5 rounded-sm border flex-shrink-0 ${statusColor(inc.status)}`}>
               {inc.status}
             </span>
-            <span className="font-mono text-xs text-zinc-300 flex-1 truncate">{inc.title}</span>
+            <span className="font-mono text-xs text-zinc-300 flex-1 truncate flex items-center gap-1.5">
+              {inc.title}
+              {(deps.find(d => d.id === inc.id)?.recurrence) && (
+                <span className="font-mono text-[9px] text-amber-400 border border-amber-900 bg-amber-950/20 px-1 py-px rounded-sm flex-shrink-0">
+                  ↻ {deps.find(d => d.id === inc.id)?.recurrence?.slice(0,3)}
+                </span>
+              )}
+            </span>
             <span className="font-mono text-[10px] text-zinc-500 flex-shrink-0">{cents(inc.amount)}</span>
             <span className="font-mono text-[10px] text-zinc-600 flex-shrink-0">{inc.date}</span>
           </div>

@@ -75,6 +75,8 @@ const SECTION_NAV: { heading: string; items: { label: string; href: string }[] }
       { label: "Bundles",         href: "/enterprise/bundles"        },
       { label: "Talent Pools",    href: "/enterprise/talent-pools"   },
       { label: "SLA Dashboard",   href: "/enterprise/sla"            },
+      { label: "Subcontracts",    href: "/enterprise/subcontracts"   },
+      { label: "Client Invite",   href: "/enterprise/client-invite"  },
       { label: "Global & Access", href: "/global"                    },
     ],
   },

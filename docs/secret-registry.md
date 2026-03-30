@@ -20,6 +20,7 @@
 | `SMTP_USER` | notification_service | SMTP auth username | 90 days |
 | `SMTP_PASS` | notification_service | SMTP auth password | 90 days |
 | `SMTP_FROM` | notification_service | From address | On change |
+| `CRON_SECRET` | web (cron API routes) | Bearer token for `/api/cron/*` endpoints | Quarterly |
 | `WASM_PLUGIN_DIR` | deployment_engine | Path to signed Wasm plugins | On infra change |
 | `WASM_REGISTRY_MANIFEST_KEY` | deployment_engine | Public key for Wasm plugin signature verification | Quarterly |
 | `PLATFORM_DID` | reputation_service | DID string for VC signing | On DID rotation |

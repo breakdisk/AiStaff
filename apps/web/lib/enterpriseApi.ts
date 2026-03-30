@@ -82,6 +82,8 @@ export interface OrgDeployment {
   escrow_amount_cents: number;
   created_at: string;
   org_id: string;
+  recurrence?: string | null;
+  next_billing_at?: string | null;
 }
 
 export interface AdminOrgRow {
@@ -264,4 +266,54 @@ export function fetchOrgProposals(
   return req(
     `${mktBase()}/orgs/${orgId}/proposals?caller_profile_id=${encodeURIComponent(callerProfileId)}`,
   );
+}
+
+// ── Client Invite ─────────────────────────────────────────────────────────────
+
+export interface ClientLink {
+  id:             string;
+  invited_email:  string;
+  accepted_at:    string | null;
+  created_at:     string;
+  client_name:    string | null;
+  client_email:   string | null;
+  identity_tier:  string | null;
+  trust_score:    number | null;
+}
+
+export function sendClientInvite(
+  orgId: string,
+  email: string,
+): Promise<{ invite_url: string }> {
+  return req(`/api/enterprise/orgs/${orgId}/client-invite`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+}
+
+export function listClientLinks(orgId: string): Promise<{ links: ClientLink[] }> {
+  return req(`/api/enterprise/orgs/${orgId}/client-invite`);
+}
+
+// ── Subcontracts ──────────────────────────────────────────────────────────────
+
+export interface SubcontractTask {
+  id:               string;
+  deployment_id:    string;
+  title:            string;
+  description:      string | null;
+  budget_cents:     number;
+  status:           "OPEN" | "ASSIGNED" | "SUBMITTED" | "APPROVED" | "PAID";
+  freelancer_name:  string | null;
+  freelancer_email: string | null;
+  created_at:       string;
+}
+
+export function listSubcontracts(
+  orgId: string,
+  deploymentId?: string,
+): Promise<{ tasks: SubcontractTask[] }> {
+  const qs = deploymentId ? `?deployment_id=${deploymentId}` : "";
+  return req(`/api/enterprise/orgs/${orgId}/subcontracts${qs}`);
 }

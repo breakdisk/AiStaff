@@ -269,12 +269,15 @@ interface ActionButtonProps {
   compact?:   boolean;
 }
 
+type Recurrence = "MONTHLY" | "QUARTERLY" | "ANNUAL";
+
 function ActionButton({ listing, userTier, profileId, marketView, compact }: ActionButtonProps) {
   const [done,        setDone]        = useState<string | null>(null); // deployment_id | "applied"
   const [busy,        setBusy]        = useState(false);
   const [showGate,    setShowGate]    = useState(false);
   const [offlineNote, setOfflineNote] = useState(false);
   const [deployError, setDeployError] = useState<string | null>(null);
+  const [recurrence,  setRecurrence]  = useState<Recurrence | null>(null);
 
   async function handleFreelancer() {
     if (userTier === "UNVERIFIED") { setShowGate(true); return; }
@@ -319,6 +322,7 @@ function ActionButton({ listing, userTier, profileId, marketView, compact }: Act
           listing_id:   listing.id,
           agent_name:   listing.name,
           client_id:    profileId,
+          recurrence:   recurrence ?? undefined,
         }),
       });
       const data = await res.json() as { payment_url?: string; error?: string; currency?: string };
@@ -405,6 +409,34 @@ function ActionButton({ listing, userTier, profileId, marketView, compact }: Act
               <AlertTriangle className="w-3 h-3 mt-px flex-shrink-0" />
               {deployError}
             </span>
+          )}
+          {!compact && (
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <button
+                onClick={() => setRecurrence(r => r ? null : "MONTHLY")}
+                className={`w-7 h-3.5 rounded-full border transition-colors flex-shrink-0 ${
+                  recurrence ? "bg-amber-400 border-amber-400" : "bg-zinc-800 border-zinc-700"
+                }`}
+                title="Make recurring retainer"
+              >
+                <span className={`block w-2.5 h-2.5 rounded-full bg-white transition-transform mx-px ${
+                  recurrence ? "translate-x-3.5" : "translate-x-0"
+                }`} />
+              </button>
+              {recurrence ? (
+                <div className="flex gap-0.5">
+                  {(["MONTHLY","QUARTERLY","ANNUAL"] as Recurrence[]).map(r => (
+                    <button key={r} onClick={() => setRecurrence(r)}
+                      className={`px-1.5 h-4 rounded-sm border font-mono text-[9px] uppercase transition-colors ${
+                        recurrence === r ? "border-amber-400 text-amber-400 bg-amber-950/30" : "border-zinc-700 text-zinc-600"
+                      }`}
+                    >{r[0]}{r.slice(1,3).toLowerCase()}</button>
+                  ))}
+                </div>
+              ) : (
+                <span className="font-mono text-[9px] text-zinc-700">Recurring</span>
+              )}
+            </div>
           )}
         </div>
       )}
