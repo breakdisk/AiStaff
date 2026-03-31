@@ -20,10 +20,12 @@ const SECTION_NAV: { heading: string; items: { label: string; href: string }[] }
   {
     heading: "AI Tools",
     items: [
-      { label: "Scoping",      href: "/scoping"      },
-      { label: "Outcomes",     href: "/outcomes"     },
-      { label: "Proposals",    href: "/proposals"    },
-      { label: "Pricing Tool", href: "/pricing-tool" },
+      { label: "Scoping",          href: "/scoping"       },
+      { label: "Outcomes",         href: "/outcomes"      },
+      { label: "Proposals",        href: "/proposals"     },
+      { label: "My Applications",  href: "/applications"  },
+      { label: "Job Feed",         href: "/jobs"          },
+      { label: "Pricing Tool",     href: "/pricing-tool"  },
     ],
   },
   {
@@ -42,6 +44,7 @@ const SECTION_NAV: { heading: string; items: { label: string; href: string }[] }
     heading: "Workspace",
     items: [
       { label: "Work Diaries",  href: "/work-diaries"  },
+      { label: "Work History",  href: "/work-history"  },
       { label: "Async Collab",  href: "/async-collab"  },
       { label: "Collaboration", href: "/collab"         },
       { label: "Success Layer", href: "/success-layer"  },
