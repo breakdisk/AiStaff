@@ -21,13 +21,14 @@ interface Org {
   handle:      string;
   description: string | null;
   website_url: string | null;
+  is_verified: boolean;
 }
 
 async function getOrgByHandle(handle: string): Promise<Org | null> {
   const client = await pool.connect();
   try {
     const { rows } = await client.query(
-      `SELECT id, name, handle, description, website_url FROM organisations WHERE handle = $1`,
+      `SELECT id, name, handle, description, website_url, is_verified FROM organisations WHERE handle = $1`,
       [handle],
     );
     return rows[0] ?? null;
@@ -92,7 +93,14 @@ export default async function PortalPage({ params }: { params: Promise<{ handle:
           <Building2 className="w-5 h-5 text-amber-400" />
           <span className="font-mono text-[10px] text-amber-400 uppercase tracking-widest">Agency Portal</span>
         </div>
-        <h1 className="font-mono text-2xl font-bold text-zinc-50">{org.name}</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="font-mono text-2xl font-bold text-zinc-50">{org.name}</h1>
+          {org.is_verified && (
+            <span className="inline-flex items-center gap-1 font-mono text-[10px] px-2 py-0.5 border border-emerald-800 rounded-sm text-emerald-400 bg-emerald-950/30">
+              ✓ Verified Agency
+            </span>
+          )}
+        </div>
         {org.description && (
           <p className="font-mono text-sm text-zinc-400 max-w-2xl">{org.description}</p>
         )}

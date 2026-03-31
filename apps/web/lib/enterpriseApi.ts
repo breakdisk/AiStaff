@@ -94,6 +94,8 @@ export interface AdminOrgRow {
   member_count: number;
   contract_value_cents: number;
   renewal_date: string | null;
+  is_verified: boolean;
+  verified_at: string | null;
   created_at: string;
 }
 
@@ -175,10 +177,12 @@ export function listOrgDeployments(org_id: string): Promise<OrgDeployment[]> {
 }
 
 export function adminListOrgs(): Promise<AdminOrgRow[]> {
-  const url = IS_SERVER
-    ? `${IDENTITY}/admin/enterprises`
-    : "/api/admin/enterprises";
-  return req(url);
+  // Always call the Next.js API route (Postgres-direct) — identity service
+  // does not return is_verified. Use full URL when server-side.
+  const base = IS_SERVER
+    ? (process.env.AUTH_URL ?? process.env.NEXTAUTH_URL ?? "http://localhost:3000")
+    : "";
+  return req(`${base}/api/admin/enterprises`);
 }
 
 // ── Bundles ───────────────────────────────────────────────────────────────────

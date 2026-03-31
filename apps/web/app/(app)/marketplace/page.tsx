@@ -200,12 +200,19 @@ function CategoryBadge({ category }: { category: ListingCategory }) {
   );
 }
 
-function SellerBadge({ sellerType }: { sellerType: SellerType }) {
+function SellerBadge({ sellerType, verified }: { sellerType: SellerType; verified?: boolean }) {
   const { icon: Icon, label } = SELLER_META[sellerType];
   return (
-    <span className="inline-flex items-center gap-1 font-mono text-[10px] px-1.5 py-0.5 border border-zinc-700 rounded-sm text-zinc-400">
-      <Icon className="w-2.5 h-2.5" />
-      {label}
+    <span className="inline-flex items-center gap-1">
+      <span className="inline-flex items-center gap-1 font-mono text-[10px] px-1.5 py-0.5 border border-zinc-700 rounded-sm text-zinc-400">
+        <Icon className="w-2.5 h-2.5" />
+        {label}
+      </span>
+      {verified && (
+        <span className="inline-flex items-center gap-0.5 font-mono text-[10px] px-1.5 py-0.5 border border-emerald-800 rounded-sm text-emerald-400 bg-emerald-950/30">
+          ✓ Verified
+        </span>
+      )}
     </span>
   );
 }
@@ -517,7 +524,7 @@ function ListingDetailSheet({ listing, userTier, profileId, marketView, onClose 
           <div className="space-y-1.5 min-w-0 pr-3">
             <div className="flex items-center gap-1.5 flex-wrap">
               <CategoryBadge category={listing.category} />
-              <SellerBadge sellerType={listing.seller_type} />
+              <SellerBadge sellerType={listing.seller_type} verified={listing.org_is_verified} />
             </div>
             <p className="font-mono text-sm font-semibold text-zinc-100 leading-snug">
               {listing.name}
@@ -688,7 +695,7 @@ function ListingCard({ listing, userTier, profileId, marketView, devTierMap, hig
         {/* Badges row */}
         <div className="flex items-center gap-1.5 flex-wrap">
           <CategoryBadge category={listing.category} />
-          <SellerBadge sellerType={listing.seller_type} />
+          <SellerBadge sellerType={listing.seller_type} verified={listing.org_is_verified} />
           <TrustDot tier={devTier} />
         </div>
 
@@ -774,7 +781,7 @@ function TableRow({ listing, userTier, profileId, marketView, devTierMap, highli
         <td className="px-3 py-2">
           <div className="flex items-center gap-1.5 flex-wrap">
             <CategoryBadge category={listing.category} />
-            <SellerBadge sellerType={listing.seller_type} />
+            <SellerBadge sellerType={listing.seller_type} verified={listing.org_is_verified} />
             <TrustDot tier={devTier} />
           </div>
         </td>
@@ -1221,6 +1228,7 @@ export default function MarketplacePage() {
   const [showPanel,     setShowPanel]     = useState(false);
   const [devTierMap,    setDevTierMap]    = useState<Map<string, VettingTier>>(new Map());
   const [highlightId,   setHighlightId]  = useState<string | null>(null);
+  const [verifiedOrgs,  setVerifiedOrgs] = useState<Set<string>>(new Set());
   const [marketView,    setMarketView]    = useState<MarketView>(() => {
     if (typeof window !== "undefined") {
       return (localStorage.getItem("market_view") as MarketView) ?? "client";
@@ -1239,7 +1247,21 @@ export default function MarketplacePage() {
     }
   }, [sessionRole]);
 
+  // Annotate listings with org_is_verified whenever the verified set changes
   useEffect(() => {
+    setAllListings(prev => prev.map(l => ({
+      ...l,
+      org_is_verified: l.org_id ? verifiedOrgs.has(l.org_id) : false,
+    })));
+  }, [verifiedOrgs]);
+
+  useEffect(() => {
+    // Fetch verified org IDs in parallel with listings
+    fetch("/api/marketplace/verified-orgs")
+      .then(r => r.ok ? r.json() : { verified: [] })
+      .then((d: { verified?: string[] }) => setVerifiedOrgs(new Set(d.verified ?? [])))
+      .catch(() => {});
+
     fetchListings()
       .then(async ({ listings }) => {
         if (listings.length > 0) {

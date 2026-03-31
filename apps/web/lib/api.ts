@@ -124,8 +124,10 @@ export interface AgentListing {
   listing_status?: string;
   created_at:      string;
   updated_at:      string;
-  org_plan_tier?:  string | null;
-  org_id?:         string | null;
+  org_plan_tier?:   string | null;
+  org_id?:          string | null;
+  /** True when the listing's org has been admin-verified. */
+  org_is_verified?: boolean;
 }
 
 export interface CreateListingRequest {

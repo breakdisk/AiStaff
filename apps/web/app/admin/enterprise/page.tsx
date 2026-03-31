@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { adminListOrgs, AdminOrgRow } from "@/lib/enterpriseApi";
 import { Building2 } from "lucide-react";
+import { VerifyOrgActions } from "./VerifyOrgActions";
 
 const tierColor: Record<string, string> = {
   PLATINUM:   "text-violet-400",
@@ -36,6 +37,7 @@ export default async function AdminEnterprise() {
               <th className="px-4 py-2">Contract</th>
               <th className="px-4 py-2">Renewal</th>
               <th className="px-4 py-2">Created</th>
+              <th className="px-4 py-2">Verified</th>
             </tr>
           </thead>
           <tbody>
@@ -58,11 +60,14 @@ export default async function AdminEnterprise() {
                 <td className="px-4 py-2.5 text-xs text-zinc-500">
                   {new Date(org.created_at).toLocaleDateString()}
                 </td>
+                <td className="px-4 py-2.5">
+                  <VerifyOrgActions orgId={org.id} verified={org.is_verified ?? false} />
+                </td>
               </tr>
             ))}
             {orgs.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-xs text-zinc-500">
+                <td colSpan={8} className="px-4 py-6 text-center text-xs text-zinc-500">
                   No enterprise organisations yet.
                 </td>
               </tr>

@@ -271,10 +271,11 @@ export default function EnterpriseDashboard() {
 
         <div className="grid grid-cols-2 gap-3">
           {[
-            { href: "/enterprise/members", label: "Team & Invites", icon: Users },
-            { href: "/enterprise/api-keys", label: "API Keys", icon: Shield },
-            { href: "/enterprise/sla", label: "SLA Dashboard", icon: TrendingUp },
-            { href: "/admin/deployments", label: "Deployments", icon: Zap },
+            { href: "/enterprise/members",    label: "Team & Invites",  icon: Users      },
+            { href: "/enterprise/api-keys",  label: "API Keys",        icon: Shield     },
+            { href: "/enterprise/sla",       label: "SLA Dashboard",   icon: TrendingUp },
+            { href: "/enterprise/pl",        label: "P&L Dashboard",   icon: TrendingUp },
+            { href: "/admin/deployments",    label: "Deployments",     icon: Zap        },
           ].map(({ href, label, icon: Icon }) => (
             <a key={href} href={href}
               className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-sm px-4 py-3 text-sm text-zinc-300 hover:border-zinc-700 hover:text-zinc-50"
