@@ -395,8 +395,6 @@ services:
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
       LINKEDIN_CLIENT_ID:     ${LINKEDIN_CLIENT_ID}
       LINKEDIN_CLIENT_SECRET: ${LINKEDIN_CLIENT_SECRET}
-      FACEBOOK_CLIENT_ID:     ${FACEBOOK_CLIENT_ID:-}
-      FACEBOOK_CLIENT_SECRET: ${FACEBOOK_CLIENT_SECRET:-}
       # Anthropic — required for LangGraph routes (/api/pm-agent, /api/proposal-copilot)
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       # Qdrant — local vector DB for plagiarism detection (CLAUDE.md §0: offline-first AI)
