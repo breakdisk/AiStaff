@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 
+// build: 2026-04-02 — force cache bust for portfolio redesign
 // ── Service base URLs ──────────────────────────────────────────────────────────
 // Defaults to localhost for `npm run dev` / bare `next start`.
 // In Docker, pass the container-name URLs via environment:
