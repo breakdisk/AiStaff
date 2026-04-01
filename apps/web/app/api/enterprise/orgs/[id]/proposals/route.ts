@@ -23,7 +23,6 @@ export async function GET(
     freelancer_email: string;
     client_email: string;
     submitted_at: string;
-    submitted_by_profile_id: string | null;
     status: string;
   }>(
     `SELECT
@@ -32,7 +31,6 @@ export async function GET(
        p.freelancer_email,
        p.client_email,
        p.submitted_at,
-       p.submitted_by_profile_id,
        p.status
      FROM proposals p
      WHERE p.freelancer_email IN (
@@ -55,7 +53,7 @@ export async function GET(
     freelancer_email:        r.freelancer_email,
     client_email:            r.client_email,
     submitted_at:            r.submitted_at,
-    submitted_by_profile_id: r.submitted_by_profile_id,
+    submitted_by_profile_id: null,
     submitter_name:          null,
     status:                  r.status,
   });
