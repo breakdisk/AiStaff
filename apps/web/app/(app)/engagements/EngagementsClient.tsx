@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { Star } from 'lucide-react'
+import { Star, AlertTriangle } from 'lucide-react'
 import { fetchDeploymentMilestones, MilestoneStatus } from '@/lib/api'
 import { MilestonePanel } from './MilestonePanel'
 
@@ -106,6 +106,54 @@ function ReviewForm({
   )
 }
 
+function WarrantyForm({
+  deploymentId,
+  onDone,
+}: {
+  deploymentId: string
+  onDone: () => void
+}) {
+  const [description, setDescription] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const submit = async () => {
+    if (!description.trim()) { setError('Please describe the issue.'); return }
+    setError(null)
+    setSubmitting(true)
+    const res = await fetch('/api/warranty-claims', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ deployment_id: deploymentId, description }),
+    })
+    setSubmitting(false)
+    if (res.status === 409) { setError('A claim already exists for this deployment.'); return }
+    if (!res.ok) { setError('Failed to file claim.'); return }
+    onDone()
+  }
+
+  return (
+    <div className="mt-3 p-3 rounded-sm border border-zinc-700 bg-zinc-950 space-y-3">
+      <p className="font-mono text-xs text-zinc-400">Describe the issue or drift detected</p>
+      <textarea
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        placeholder="Describe what went wrong or doesn't match the agreed deliverables…"
+        rows={3}
+        className="w-full rounded-sm border border-zinc-700 bg-zinc-900 px-3 py-2 font-mono text-xs text-zinc-50 placeholder-zinc-600 focus:border-amber-400 focus:outline-none resize-none"
+      />
+      {error && <p className="font-mono text-xs text-red-500">{error}</p>}
+      <button
+        onClick={submit}
+        disabled={submitting}
+        className="px-3 py-1.5 bg-red-500 text-zinc-950 font-mono text-xs font-semibold rounded-sm hover:bg-red-400 disabled:opacity-50 transition-colors"
+      >
+        {submitting ? 'Filing…' : 'File Claim'}
+      </button>
+    </div>
+  )
+}
+
 function SkeletonCard() {
   return (
     <div className="animate-pulse rounded-sm border border-zinc-800 bg-zinc-900 p-4 space-y-3">
@@ -123,6 +171,8 @@ export default function EngagementsClient() {
   const [error, setError] = useState<string | null>(null)
   const [reviewingId, setReviewingId] = useState<string | null>(null)
   const [reviewedIds, setReviewedIds] = useState<Set<string>>(new Set())
+  const [claimingId, setClaimingId] = useState<string | null>(null)
+  const [claimedIds, setClaimedIds] = useState<Set<string>>(new Set())
 
   const loadMilestones = async (deploymentId: string) => {
     try {
@@ -188,9 +238,10 @@ export default function EngagementsClient() {
             onUpdate={() => loadMilestones(eng.deployment_id)}
           />
 
-          {/* Review section — only for completed client engagements */}
+          {/* Actions for completed client engagements */}
           {eng.state === 'COMPLETED' && eng.my_role === 'client' && (
-            <div className="pt-2 border-t border-zinc-800">
+            <div className="pt-2 border-t border-zinc-800 space-y-2">
+              {/* Review */}
               {reviewedIds.has(eng.deployment_id) ? (
                 <p className="font-mono text-xs text-emerald-500">Review submitted ✓</p>
               ) : reviewingId === eng.deployment_id ? (
@@ -210,6 +261,29 @@ export default function EngagementsClient() {
                   <Star className="w-3.5 h-3.5" />
                   Leave a Review
                 </button>
+              )}
+
+              {/* Warranty claim */}
+              {!claimedIds.has(eng.deployment_id) && claimingId !== eng.deployment_id && (
+                <button
+                  onClick={() => setClaimingId(eng.deployment_id)}
+                  className="inline-flex items-center gap-1.5 font-mono text-xs text-zinc-500 hover:text-red-400 transition-colors"
+                >
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  File Warranty Claim
+                </button>
+              )}
+              {claimedIds.has(eng.deployment_id) && (
+                <p className="font-mono text-xs text-zinc-500">Warranty claim filed ✓</p>
+              )}
+              {claimingId === eng.deployment_id && (
+                <WarrantyForm
+                  deploymentId={eng.deployment_id}
+                  onDone={() => {
+                    setClaimingId(null)
+                    setClaimedIds(prev => new Set([...prev, eng.deployment_id]))
+                  }}
+                />
               )}
             </div>
           )}
