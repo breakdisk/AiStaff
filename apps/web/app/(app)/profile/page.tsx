@@ -597,6 +597,9 @@ export default function ProfilePage() {
 
   const [editing,         setEditing]         = useState(false);
   const [allTags,         setAllTags]         = useState<SkillTag[]>([]);
+  const [endorsements,    setEndorsements]    = useState<Map<string, number>>(new Map());
+  const [calendarBlocks,  setCalendarBlocks]  = useState<{ date: string; status: string }[]>([]);
+  const [availSaving,     setAvailSaving]     = useState<string | null>(null);
   const [currentSkills,   setCurrentSkills]   = useState<TalentSkill[]>([]);
   const [bio,             setBio]             = useState("");
   const [hourlyRate,      setHourlyRate]      = useState("");
@@ -658,6 +661,18 @@ export default function ProfilePage() {
       fetch("/api/talent/privacy")
         .then((res) => res.ok ? res.json() : null)
         .then((data: unknown) => { if (data && typeof data === "object") setPrivacy(data as typeof privacy); })
+        .catch(() => {});
+      // Endorsements
+      fetch(`/api/endorsements/${profileId}`)
+        .then(r => r.ok ? r.json() : [])
+        .then((rows: { skill_tag_id: string; count: number }[]) => {
+          setEndorsements(new Map(rows.map(r => [r.skill_tag_id, r.count])));
+        })
+        .catch(() => {});
+      // Availability calendar blocks
+      fetch("/api/profile/availability")
+        .then(r => r.ok ? r.json() : [])
+        .then(setCalendarBlocks)
         .catch(() => {});
     }
   }, [profileId]);
@@ -976,6 +991,11 @@ export default function ProfilePage() {
                   {s.verified_at && <CheckCircle2 className="w-3 h-3 text-emerald-500 flex-shrink-0" />}
                   <span className="font-mono text-xs text-amber-400">{s.tag}</span>
                   <span className="font-mono text-[10px] text-amber-700">{PROF_LABELS[s.proficiency]}</span>
+                  {(endorsements.get(s.tag_id) ?? 0) > 0 && (
+                    <span className="font-mono text-[9px] text-emerald-400 border border-emerald-900 bg-emerald-950/30 px-1 rounded-sm leading-4">
+                      +{endorsements.get(s.tag_id)}
+                    </span>
+                  )}
                 </div>
               ))}
             </div>
@@ -1152,6 +1172,85 @@ export default function ProfilePage() {
                 Biometric Verification — Coming Soon
               </div>
             )}
+          </div>
+        )}
+
+        {/* Availability calendar */}
+        {!editing && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="font-mono text-xs text-zinc-500 uppercase tracking-widest">Availability — Next 4 Weeks</p>
+              <p className="font-mono text-[9px] text-zinc-700">Click a day to toggle</p>
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {Array.from({ length: 28 }, (_, i) => {
+                const d    = new Date();
+                d.setDate(d.getDate() + i);
+                const key  = d.toISOString().slice(0, 10);
+                const block = calendarBlocks.find(b => b.date === key);
+                const status = block?.status ?? "AVAILABLE";
+                const colorMap: Record<string, string> = {
+                  AVAILABLE: "border-emerald-800 bg-emerald-950/20 text-emerald-400",
+                  BUSY:      "border-red-900    bg-red-950/20    text-red-400",
+                  TENTATIVE: "border-amber-800  bg-amber-950/20  text-amber-400",
+                };
+                const cycleStatus = (s: string) => s === "AVAILABLE" ? "BUSY" : s === "BUSY" ? "TENTATIVE" : null;
+                const isSaving    = availSaving === key;
+                return (
+                  <button
+                    key={key}
+                    disabled={isSaving}
+                    onClick={async () => {
+                      const next = cycleStatus(status);
+                      setAvailSaving(key);
+                      await fetch("/api/profile/availability", {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ date: key, status: next }),
+                      }).catch(() => {});
+                      setCalendarBlocks(prev => {
+                        const filtered = prev.filter(b => b.date !== key);
+                        return next ? [...filtered, { date: key, status: next }] : filtered;
+                      });
+                      setAvailSaving(null);
+                    }}
+                    title={`${key} — ${status}`}
+                    className={`w-8 h-8 rounded-sm border font-mono text-[9px] flex flex-col items-center justify-center
+                                transition-colors disabled:opacity-40 ${colorMap[status]}`}
+                  >
+                    <span className="text-[8px] text-zinc-600 leading-none">{d.toLocaleDateString("en-GB", { weekday: "narrow" })}</span>
+                    <span className="leading-none">{d.getDate()}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex items-center gap-3 pt-1">
+              {[["AVAILABLE", "emerald", "Available"], ["BUSY", "red", "Busy"], ["TENTATIVE", "amber", "Tentative"]].map(([s, c, l]) => (
+                <div key={s} className="flex items-center gap-1">
+                  <div className={`w-2.5 h-2.5 rounded-sm border border-${c}-800 bg-${c}-950/30`} />
+                  <span className="font-mono text-[9px] text-zinc-600">{l}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Portfolio link */}
+        {!editing && profileId && (
+          <div className="border border-zinc-800 rounded-sm p-3 bg-zinc-900/30 flex items-center justify-between gap-3">
+            <div>
+              <p className="font-mono text-xs text-zinc-300">Public Portfolio</p>
+              <p className="font-mono text-[10px] text-zinc-600 mt-0.5">Share your verified performance record with clients</p>
+            </div>
+            <a
+              href={`/portfolio/${profileId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-shrink-0 font-mono text-[10px] px-3 py-1.5 border border-zinc-700
+                         text-zinc-400 rounded-sm hover:border-amber-700 hover:text-amber-400 transition-colors whitespace-nowrap"
+            >
+              View →
+            </a>
           </div>
         )}
 

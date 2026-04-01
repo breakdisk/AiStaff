@@ -31,6 +31,8 @@ export default auth((req) => {
       (pathname.endsWith("/preview") || pathname.endsWith("/sign-external"))) ||
     pathname.startsWith("/talent/") ||
     pathname.startsWith("/api/talent/") ||
+    pathname.startsWith("/portfolio/") ||
+    pathname.startsWith("/api/portfolio/") ||
     pathname === "/transparency" ||
     pathname === "/pricing-tool" ||
     pathname === "/proof-of-human" ||
