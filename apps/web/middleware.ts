@@ -44,7 +44,7 @@ export default auth((req) => {
     pathname === "/opengraph-image" ||
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico" ||
-    /\.(?:png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|otf)$/i.test(pathname);
+    /\.(?:png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|otf|html)$/i.test(pathname);
 
   if (!isAuthenticated && !isPublic) {
     // API routes must return 401 — never redirect to login.
