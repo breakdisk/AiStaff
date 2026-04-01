@@ -37,7 +37,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       `SELECT id FROM deployments
         WHERE id = $1
           AND (developer_id = $2 OR client_id = $2)
-          AND state = 'COMPLETED'`,
+          AND state = 'RELEASED'`,
       [deployment_id, endorserId],
     );
     if (deps.length === 0) {

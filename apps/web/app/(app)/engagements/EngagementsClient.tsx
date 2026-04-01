@@ -20,7 +20,7 @@ function StateBadge({ state }: { state: string }) {
     VETO_WINDOW:        'bg-amber-400/10 text-amber-400 border-amber-400/30',
     BIOMETRIC_PENDING:  'bg-blue-500/10 text-blue-400 border-blue-500/30',
     ACTIVE:             'bg-emerald-500/10 text-emerald-500 border-emerald-500/30',
-    COMPLETED:          'bg-zinc-700/50 text-zinc-300 border-zinc-600',
+    RELEASED:           'bg-zinc-700/50 text-zinc-300 border-zinc-600',
   }
   const cls = colors[state] ?? 'bg-zinc-800 text-zinc-400 border-zinc-700'
   return (
@@ -239,7 +239,7 @@ export default function EngagementsClient() {
           />
 
           {/* Actions for completed client engagements */}
-          {eng.state === 'COMPLETED' && eng.my_role === 'client' && (
+          {eng.state === 'RELEASED' && eng.my_role === 'client' && (
             <div className="pt-2 border-t border-zinc-800 space-y-2">
               {/* Review */}
               {reviewedIds.has(eng.deployment_id) ? (

@@ -110,7 +110,7 @@ interface SpendRow {
 
 function StateBadge({ state }: { state: string }) {
   const cls =
-    state === "COMPLETED"    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-500" :
+    state === "RELEASED"     ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-500" :
     state === "VETOED"       ? "border-red-500/30 bg-red-500/10 text-red-500" :
     state === "VETO_WINDOW"  ? "border-amber-400/30 bg-amber-400/10 text-amber-400" :
                                "border-zinc-700 bg-zinc-800 text-zinc-400";

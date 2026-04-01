@@ -65,7 +65,7 @@ export async function GET(): Promise<NextResponse> {
                                        AND ep.recipient_id  = $1
          LEFT JOIN dod_checklist_steps cs ON cs.deployment_id = d.id
         WHERE d.freelancer_id = $1
-          AND d.state = 'COMPLETED'
+          AND d.state = 'RELEASED'
         GROUP BY d.id, al.name, d.created_at, ep.amount_cents
         ORDER BY d.created_at DESC
         LIMIT 6`,
