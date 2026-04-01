@@ -1,0 +1,189 @@
+{
+  "name": "New Listing — Social Distribution",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "new-listing",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-0001-0001-000000000001",
+      "name": "Webhook — New Listing Event",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "new-listing-webhook"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://aistaffglobal.com/api/marketplace/listings/{{ $json.listing_id }}",
+        "options": {
+          "timeout": 5000
+        }
+      },
+      "id": "a1b2c3d4-0001-0001-0001-000000000002",
+      "name": "Fetch Listing Detail",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.linkedin.com/v2/ugcPosts",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "linkedInOAuth2Api",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "author",
+              "value": "urn:li:organization:aistaff"
+            },
+            {
+              "name": "lifecycleState",
+              "value": "DRAFT"
+            },
+            {
+              "name": "specificContent",
+              "value": "={{ JSON.stringify({ 'com.linkedin.ugc.ShareContent': { shareCommentary: { text: 'New on AiStaff: ' + $json.name + '\\n\\n' + $json.description + '\\n\\nEscrow-backed. ZK-verified identity. 30-second veto window.\\n\\nhttps://aistaffglobal.com/marketplace/' + $json.listing_id }, shareMediaCategory: 'NONE' } }) }}"
+            },
+            {
+              "name": "visibility",
+              "value": "{ \"com.linkedin.ugc.MemberNetworkVisibility\": \"PUBLIC\" }"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "a1b2c3d4-0001-0001-0001-000000000003",
+      "name": "Draft LinkedIn Post",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [680, 180],
+      "credentials": {
+        "linkedInOAuth2Api": {
+          "id": "linkedin-aistaff",
+          "name": "AiStaff LinkedIn"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.twitter.com/2/tweets",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "twitterOAuth2Api",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "=New on @aistaff: {{ $('Fetch Listing Detail').item.json.name }}\\n\\nCategory: {{ $('Fetch Listing Detail').item.json.category }}\\nStarting from: ${{ ($('Fetch Listing Detail').item.json.price_cents / 100).toFixed(0) }}\\n\\nEscrow-backed. Groth16 ZK identity. 30s veto window on every deployment.\\n\\nhttps://aistaffglobal.com/marketplace/{{ $('Webhook — New Listing Event').item.json.listing_id }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "a1b2c3d4-0001-0001-0001-000000000004",
+      "name": "Draft X/Twitter Thread",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [680, 300],
+      "credentials": {
+        "twitterOAuth2Api": {
+          "id": "twitter-aistaff",
+          "name": "AiStaff Twitter"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v19.0/me/feed",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "facebookGraphApi",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "message",
+              "value": "=New listing on AiStaff: {{ $('Fetch Listing Detail').item.json.name }}\\n\\n{{ $('Fetch Listing Detail').item.json.description }}\\n\\nEscrow-backed deployments. ZK-verified operator identity. 30-second human veto window.\\n\\nhttps://aistaffglobal.com/marketplace/{{ $('Webhook — New Listing Event').item.json.listing_id }}"
+            },
+            {
+              "name": "published",
+              "value": "false"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "a1b2c3d4-0001-0001-0001-000000000005",
+      "name": "Draft Facebook Post",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [680, 420],
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "facebook-aistaff",
+          "name": "AiStaff Facebook"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook — New Listing Event": {
+      "main": [
+        [
+          {
+            "node": "Fetch Listing Detail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Listing Detail": {
+      "main": [
+        [
+          {
+            "node": "Draft LinkedIn Post",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Draft X/Twitter Thread",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Draft Facebook Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "versionId": "1.0.0",
+  "meta": {
+    "templateId": "new-listing-social-distribution",
+    "instanceId": "aistaff-n8n"
+  },
+  "tags": ["social", "distribution", "listings"],
+  "notes": "Trigger: POST to /webhook/new-listing with { listing_id, name, description, price_cents, category }. Webhook secret configured in n8n credential store (see README.md). All social credentials use credential references only — no tokens in this file."
+}

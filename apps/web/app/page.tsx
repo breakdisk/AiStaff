@@ -737,7 +737,7 @@ function CtaBanner() {
 
 // ── Footer ────────────────────────────────────────────────────────────────────
 
-const FOOTER_LINKS: Record<string, { label: string; href: string }[]> = {
+const FOOTER_LINKS: Record<string, { label: string; href: string; external?: boolean }[]> = {
   Platform: [
     { label: "AiTalent",    href: "/marketplace" },
     { label: "AiStaff",     href: "/marketplace" },
@@ -745,21 +745,21 @@ const FOOTER_LINKS: Record<string, { label: string; href: string }[]> = {
     { label: "Leaderboard", href: "/leaderboard" },
   ],
   Product: [
-    { label: "Dashboard",   href: "/dashboard"   },
-    { label: "Marketplace", href: "/marketplace" },
-    { label: "Pricing",     href: "#"            },
+    { label: "Dashboard",   href: "/dashboard"         },
+    { label: "Marketplace", href: "/marketplace"        },
+    { label: "Pricing",     href: "/pricing-tool"       },
   ],
   Trust: [
-    { label: "Escrow Model",  href: "#" },
-    { label: "ZK Identity",   href: "#" },
-    { label: "Warranty",      href: "#" },
-    { label: "Audit Trail",   href: "#" },
+    { label: "Escrow Model",  href: "/marketplace"      },
+    { label: "ZK Identity",   href: "/proof-of-human"   },
+    { label: "Warranty",      href: "/marketplace"      },
+    { label: "Audit Trail",   href: "/transparency"     },
   ],
   Company: [
-    { label: "About",   href: "#" },
-    { label: "Blog",    href: "#" },
-    { label: "Careers", href: "#" },
-    { label: "Privacy", href: "#" },
+    { label: "About",   href: "https://github.com/breakdisk/AiStaff", external: true },
+    { label: "Blog",    href: "/blog"                                                  },
+    { label: "Careers", href: "https://github.com/breakdisk/AiStaff", external: true },
+    { label: "Privacy", href: "/privacy"                                               },
   ],
 };
 
@@ -777,8 +777,12 @@ function Footer() {
               Human-on-the-Loop AI deployment marketplace. Trust built in.
             </p>
             <div className="flex gap-2">
-              {[Github, Twitter, Linkedin].map((Icon, i) => (
-                <a key={i} href="#"
+              {([
+                { Icon: Github,   href: "https://github.com/breakdisk/AiStaff"            },
+                { Icon: Twitter,  href: "https://twitter.com/aistaff"                      },
+                { Icon: Linkedin, href: "https://www.linkedin.com/company/aistaff"         },
+              ] as const).map(({ Icon, href }) => (
+                <a key={href} href={href} target="_blank" rel="noopener noreferrer"
                   className="w-8 h-8 rounded-sm border border-zinc-800 hover:border-zinc-600 flex items-center justify-center text-zinc-500 hover:text-zinc-300 transition-all">
                   <Icon className="w-3.5 h-3.5" />
                 </a>
@@ -793,9 +797,15 @@ function Footer() {
               <ul className="space-y-2">
                 {links.map((l) => (
                   <li key={l.label}>
-                    <Link href={l.href} className="text-xs text-zinc-400 hover:text-zinc-200 transition-colors">
-                      {l.label}
-                    </Link>
+                    {l.external ? (
+                      <a href={l.href} target="_blank" rel="noopener noreferrer" className="text-xs text-zinc-400 hover:text-zinc-200 transition-colors">
+                        {l.label}
+                      </a>
+                    ) : (
+                      <Link href={l.href} className="text-xs text-zinc-400 hover:text-zinc-200 transition-colors">
+                        {l.label}
+                      </Link>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -807,8 +817,12 @@ function Footer() {
         <div className="border-t border-zinc-900 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="font-mono text-xs text-zinc-600">© 2026 AiStaffApp. All rights reserved.</p>
           <div className="flex items-center gap-4">
-            {["Terms", "Privacy", "Security"].map((l) => (
-              <a key={l} href="#" className="font-mono text-xs text-zinc-600 hover:text-zinc-400 transition-colors">{l}</a>
+            {([
+              { label: "Terms",    href: "/terms"         },
+              { label: "Privacy",  href: "/privacy"       },
+              { label: "Security", href: "/transparency"  },
+            ] as const).map(({ label, href }) => (
+              <Link key={label} href={href} className="font-mono text-xs text-zinc-600 hover:text-zinc-400 transition-colors">{label}</Link>
             ))}
           </div>
         </div>

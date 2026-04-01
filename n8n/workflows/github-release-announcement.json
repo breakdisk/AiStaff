@@ -1,0 +1,172 @@
+{
+  "name": "GitHub Release — Announcement Distribution",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "github-release",
+        "options": {}
+      },
+      "id": "c3d4e5f6-0003-0003-0003-000000000001",
+      "name": "Webhook — GitHub Release Published",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "github-release-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "const payload = $input.item.json;\nconst release = payload.release;\nconst repo = payload.repository;\n\nif (!release || release.draft || release.prerelease) {\n  // Skip drafts and pre-releases\n  return [];\n}\n\nconst tag = release.tag_name ?? 'unknown';\nconst name = release.name ?? tag;\nconst body = (release.body ?? '').slice(0, 500);\nconst url = release.html_url ?? `https://github.com/${repo?.full_name ?? 'breakdisk/AiStaff'}/releases`;\n\nreturn [{ json: { tag, name, body, url, repo_name: repo?.name ?? 'AiStaff', published_at: release.published_at } }];"
+      },
+      "id": "c3d4e5f6-0003-0003-0003-000000000002",
+      "name": "Parse Release Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.linkedin.com/v2/ugcPosts",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "linkedInOAuth2Api",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "author",
+              "value": "urn:li:organization:aistaff"
+            },
+            {
+              "name": "lifecycleState",
+              "value": "PUBLISHED"
+            },
+            {
+              "name": "specificContent",
+              "value": "={{ JSON.stringify({ 'com.linkedin.ugc.ShareContent': { shareCommentary: { text: 'AiStaff ' + $json.tag + ' released\\n\\n' + $json.body + '\\n\\nFull changelog: ' + $json.url }, shareMediaCategory: 'NONE' } }) }}"
+            },
+            {
+              "name": "visibility",
+              "value": "{ \"com.linkedin.ugc.MemberNetworkVisibility\": \"PUBLIC\" }"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "c3d4e5f6-0003-0003-0003-000000000003",
+      "name": "Post to LinkedIn",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [680, 180],
+      "credentials": {
+        "linkedInOAuth2Api": {
+          "id": "linkedin-aistaff",
+          "name": "AiStaff LinkedIn"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://www.googleapis.com/youtube/v3/communityPosts",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "youTubeOAuth2Api",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "snippet",
+              "value": "={{ JSON.stringify({ textOriginal: 'AiStaff ' + $json.tag + ' is live.\\n\\n' + $json.body + '\\n\\nChangelog: ' + $json.url }) }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "c3d4e5f6-0003-0003-0003-000000000004",
+      "name": "Post to YouTube Community",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [680, 300],
+      "credentials": {
+        "youTubeOAuth2Api": {
+          "id": "youtube-aistaff",
+          "name": "AiStaff YouTube"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "slackApi",
+        "resource": "message",
+        "operation": "post",
+        "channel": "#releases",
+        "text": "=*{{ $('Parse Release Payload').item.json.repo_name }} {{ $('Parse Release Payload').item.json.tag }} released*\n\n{{ $('Parse Release Payload').item.json.body }}\n\nChangelog: {{ $('Parse Release Payload').item.json.url }}\n\nLinkedIn + YouTube community posts published.",
+        "otherOptions": {}
+      },
+      "id": "c3d4e5f6-0003-0003-0003-000000000005",
+      "name": "Notify Slack #releases",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2,
+      "position": [680, 420],
+      "credentials": {
+        "slackApi": {
+          "id": "slack-aistaff-internal",
+          "name": "AiStaff Slack Internal"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook — GitHub Release Published": {
+      "main": [
+        [
+          {
+            "node": "Parse Release Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Release Payload": {
+      "main": [
+        [
+          {
+            "node": "Post to LinkedIn",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Post to YouTube Community",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notify Slack #releases",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "versionId": "1.0.0",
+  "meta": {
+    "templateId": "github-release-announcement",
+    "instanceId": "aistaff-n8n"
+  },
+  "tags": ["github", "releases", "announcement"],
+  "notes": "Configure GitHub webhook on the AiStaff repo: Settings → Webhooks → Add webhook. Set Content-Type to application/json. Select 'Releases' event only. Secret: configure in n8n credential store and in GitHub webhook settings — never put the value in this file. Pre-release and draft events are filtered out in the Parse Release Payload node."
+}

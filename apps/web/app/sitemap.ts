@@ -18,6 +18,12 @@ const STATIC_ROUTES: {
   { path: "/career",         priority: 0.6, changeFrequency: "weekly"  },
   { path: "/community",      priority: 0.6, changeFrequency: "weekly"  },
   { path: "/mentorship",     priority: 0.6, changeFrequency: "weekly"  },
+  { path: "/tools/roi-calculator", priority: 0.8, changeFrequency: "monthly" },
+  { path: "/tools/trust-score",    priority: 0.8, changeFrequency: "monthly" },
+  { path: "/robotics",             priority: 0.7, changeFrequency: "monthly" },
+  { path: "/agents/aistaff",       priority: 0.8, changeFrequency: "weekly"  },
+  { path: "/agents/aitalent",      priority: 0.8, changeFrequency: "weekly"  },
+  { path: "/agents/airobot",       priority: 0.7, changeFrequency: "weekly"  },
   { path: "/login",          priority: 0.5, changeFrequency: "yearly"  },
   { path: "/privacy",        priority: 0.3, changeFrequency: "yearly"  },
   { path: "/terms",          priority: 0.3, changeFrequency: "yearly"  },
@@ -63,5 +69,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority:        0.8,
   }));
 
-  return [...staticEntries, ...listingEntries];
+  const HIRE_SKILLS = ["rust","python","typescript","devops","ml-engineer","llm-integration","data-engineer"];
+  const HIRE_INDUSTRIES = ["fintech","healthcare","logistics","legal","hr-automation","e-commerce","saas"];
+  const hireEntries: MetadataRoute.Sitemap = HIRE_SKILLS.flatMap((skill) =>
+    HIRE_INDUSTRIES.map((industry) => ({
+      url: `${BASE}/hire/${skill}/${industry}`,
+      lastModified: now,
+      changeFrequency: "monthly" as const,
+      priority: 0.7,
+    }))
+  );
+
+  return [...staticEntries, ...hireEntries, ...listingEntries];
 }

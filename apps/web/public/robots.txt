@@ -39,6 +39,10 @@ Allow: /pricing-tool
 Allow: /pricing-calculator
 Allow: /legal-toolkit
 Allow: /scoping
+Allow: /hire/
+Allow: /agents/
+Allow: /robotics/
+Allow: /tools/
 Allow: /llms.txt
 Allow: /llms-full.txt
 Allow: /sitemap.xml

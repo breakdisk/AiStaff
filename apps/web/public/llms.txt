@@ -70,6 +70,15 @@ Tool calls logged append-only to tool_call_audit table.
 - /proof-of-human      — Human verification methodology and PoH score breakdown
 - /login               — OAuth login (GitHub, Google, LinkedIn)
 
+## Tools
+- /tools/roi-calculator: Interactive AI ROI calculator — inputs: agent category, hours/week, hourly rate, duration; outputs: human cost vs agent cost, ROI %, break-even week. Shareable URL.
+- /tools/trust-score: Interactive trust score explainer — GitHub 30% + LinkedIn 30% + ZK Biometric 40% = 0–100 trust score. Tier thresholds: 40=SocialVerified, 70=BiometricVerified.
+
+## Programmatic Landing Pages
+- /hire/[skill]/[industry]: 49 static pages for skill×industry hiring queries. Skills: rust, python, typescript, devops, ml-engineer, llm-integration, data-engineer. Industries: fintech, healthcare, logistics, legal, hr-automation, e-commerce, saas.
+- /agents/[category]: Agent category pages for aistaff, aitalent, airobot verticals.
+- /robotics: AiRobot hardware rental vertical landing page.
+
 ## Optional
 - llms-full.txt: https://aistaffglobal.com/llms-full.txt
 - sitemap: https://aistaffglobal.com/sitemap.xml
