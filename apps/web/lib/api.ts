@@ -1173,3 +1173,120 @@ export interface AgencyProfile {
 export function fetchAgencyProfile(handle: string): Promise<AgencyProfile> {
   return apiFetch(`/api/identity/orgs/public/${encodeURIComponent(handle)}`);
 }
+
+// ── Reviews ────────────────────────────────────────────────────────────────
+
+export interface ListingReview {
+  id:               string;
+  reviewer_initial: string;
+  rating:           number;
+  body:             string | null;
+  created_at:       string;
+}
+
+export function fetchReviews(listingId: string): Promise<ListingReview[]> {
+  return apiFetch(`/api/reviews?listing_id=${encodeURIComponent(listingId)}`);
+}
+
+export async function submitReview(
+  deploymentId: string,
+  listingId: string,
+  rating: number,
+  body?: string,
+): Promise<void> {
+  const res = await fetch("/api/reviews", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ deployment_id: deploymentId, listing_id: listingId, rating, body }),
+  });
+  if (!res.ok) {
+    const data = await res.json() as { error?: string };
+    throw new Error(data.error ?? "Failed to submit review");
+  }
+}
+
+// ── Saved Listings ─────────────────────────────────────────────────────────
+
+export interface SavedListing {
+  listing_id:   string;
+  name:         string;
+  description:  string;
+  price_cents:  number;
+  category:     string;
+  slug:         string;
+  saved_at:     string;
+}
+
+export function fetchSavedListings(): Promise<SavedListing[]> {
+  return apiFetch("/api/saved");
+}
+
+export async function saveListing(listingId: string): Promise<void> {
+  await fetch(`/api/saved/${encodeURIComponent(listingId)}`, { method: "POST" });
+}
+
+export async function unsaveListing(listingId: string): Promise<void> {
+  await fetch(`/api/saved/${encodeURIComponent(listingId)}`, { method: "DELETE" });
+}
+
+// ── Billing History ────────────────────────────────────────────────────────
+
+export interface SpendRow {
+  deployment_id:       string;
+  listing_name:        string;
+  slug:                string;
+  escrow_amount_cents: number;
+  fee_cents:           number;
+  fee_pct:             number;
+  state:               string;
+  created_at:          string;
+}
+
+export function fetchBillingHistory(): Promise<SpendRow[]> {
+  return apiFetch("/api/billing/history");
+}
+
+// ── Warranty Claims ────────────────────────────────────────────────────────
+
+export interface WarrantyClaim {
+  id:            string;
+  deployment_id: string;
+  drift_proof:   string;
+  claimed_at:    string;
+  resolved_at:   string | null;
+  resolution:    "REMEDIATED" | "REFUNDED" | "REJECTED" | null;
+  listing_name:  string;
+}
+
+export function fetchMyWarrantyClaims(): Promise<WarrantyClaim[]> {
+  return apiFetch("/api/warranty-claims");
+}
+
+export async function fileWarrantyClaim(deploymentId: string, description: string): Promise<void> {
+  const res = await fetch("/api/warranty-claims", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ deployment_id: deploymentId, description }),
+  });
+  if (!res.ok) {
+    const data = await res.json() as { error?: string };
+    throw new Error(data.error ?? "Failed to file claim");
+  }
+}
+
+// ── Licenses ───────────────────────────────────────────────────────────────
+
+export interface License {
+  id:            string;
+  listing_name:  string;
+  slug:          string;
+  jurisdiction:  string;
+  seats:         number;
+  issued_at:     string;
+  expires_at:    string;
+  revoked_at:    string | null;
+}
+
+export function fetchMyLicenses(): Promise<License[]> {
+  return apiFetch("/api/licenses/mine");
+}

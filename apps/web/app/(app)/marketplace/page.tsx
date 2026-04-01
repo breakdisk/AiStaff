@@ -6,6 +6,7 @@ import {
   Package, Cpu, Hash, ChevronRight, CheckCircle, CheckCircle2,
   Users, Bot, Zap, Building2, User, Plus, X, Search,
   AlertTriangle, Github, Linkedin, Handshake, Loader2, MessageSquare,
+  Bookmark, BookmarkCheck, SlidersHorizontal,
 } from "lucide-react";
 import {
   fetchListings, createListing, expressInterest, fetchPublicProfile,
@@ -661,13 +662,15 @@ function ListingDetailSheet({ listing, userTier, profileId, marketView, onClose 
 
 // ── Listing card (mobile) ──────────────────────────────────────────────────
 
-function ListingCard({ listing, userTier, profileId, marketView, devTierMap, highlighted }: {
-  listing:     AgentListing;
-  userTier:    string;
-  highlighted?: boolean;
-  profileId:  string;
-  marketView: MarketView;
-  devTierMap: Map<string, VettingTier>;
+function ListingCard({ listing, userTier, profileId, marketView, devTierMap, highlighted, saved, onToggleSave }: {
+  listing:       AgentListing;
+  userTier:      string;
+  highlighted?:  boolean;
+  profileId:     string;
+  marketView:    MarketView;
+  devTierMap:    Map<string, VettingTier>;
+  saved:         boolean;
+  onToggleSave:  () => void;
 }) {
   const devTier     = devTierMap.get(listing.developer_id) ?? DEV_TIERS[listing.developer_id] ?? 0;
   const [showDetail, setShowDetail] = useState(false);
@@ -680,7 +683,7 @@ function ListingCard({ listing, userTier, profileId, marketView, devTierMap, hig
           highlighted ? "border-amber-500 ring-1 ring-amber-500/30" : "border-zinc-800"
         }`}
       >
-        {/* Title row: name + share icon */}
+        {/* Title row: name + bookmark + share icon */}
         <div className="flex items-start justify-between gap-2">
           <a
             href={`/marketplace/${listing.slug}`}
@@ -689,7 +692,18 @@ function ListingCard({ listing, userTier, profileId, marketView, devTierMap, hig
           >
             {listing.name}
           </a>
-          <ShareButton listing={listing} compact />
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              onClick={onToggleSave}
+              aria-label={saved ? "Remove from saved" : "Save listing"}
+              className="text-zinc-600 hover:text-amber-400 transition-colors"
+            >
+              {saved
+                ? <BookmarkCheck className="w-4 h-4 text-amber-400" />
+                : <Bookmark className="w-4 h-4" />}
+            </button>
+            <ShareButton listing={listing} compact />
+          </div>
         </div>
 
         {/* Badges row */}
@@ -747,13 +761,15 @@ function ListingCard({ listing, userTier, profileId, marketView, devTierMap, hig
 
 // ── Desktop table row ──────────────────────────────────────────────────────
 
-function TableRow({ listing, userTier, profileId, marketView, devTierMap, highlighted }: {
-  listing:     AgentListing;
-  userTier:    string;
-  highlighted?: boolean;
-  profileId:  string;
-  marketView: MarketView;
-  devTierMap: Map<string, VettingTier>;
+function TableRow({ listing, userTier, profileId, marketView, devTierMap, highlighted, saved, onToggleSave }: {
+  listing:       AgentListing;
+  userTier:      string;
+  highlighted?:  boolean;
+  profileId:     string;
+  marketView:    MarketView;
+  devTierMap:    Map<string, VettingTier>;
+  saved:         boolean;
+  onToggleSave:  () => void;
 }) {
   const devTier = devTierMap.get(listing.developer_id) ?? DEV_TIERS[listing.developer_id] ?? 0;
   const [showDetail, setShowDetail] = useState(false);
@@ -813,6 +829,15 @@ function TableRow({ listing, userTier, profileId, marketView, devTierMap, highli
               marketView={marketView}
               compact
             />
+            <button
+              onClick={onToggleSave}
+              aria-label={saved ? "Remove from saved" : "Save listing"}
+              className="text-zinc-600 hover:text-amber-400 transition-colors"
+            >
+              {saved
+                ? <BookmarkCheck className="w-4 h-4 text-amber-400" />
+                : <Bookmark className="w-4 h-4" />}
+            </button>
           </div>
         </td>
       </tr>
@@ -1229,6 +1254,9 @@ export default function MarketplacePage() {
   const [devTierMap,    setDevTierMap]    = useState<Map<string, VettingTier>>(new Map());
   const [highlightId,   setHighlightId]  = useState<string | null>(null);
   const [verifiedOrgs,  setVerifiedOrgs] = useState<Set<string>>(new Set());
+  const [savedIds,      setSavedIds]      = useState<Set<string>>(new Set());
+  const [trustFilter,   setTrustFilter]   = useState<0 | 1 | 2>(0);
+  const [maxPrice,      setMaxPrice]      = useState("");
   const [marketView,    setMarketView]    = useState<MarketView>(() => {
     if (typeof window !== "undefined") {
       return (localStorage.getItem("market_view") as MarketView) ?? "client";
@@ -1254,6 +1282,25 @@ export default function MarketplacePage() {
       org_is_verified: l.org_id ? verifiedOrgs.has(l.org_id) : false,
     })));
   }, [verifiedOrgs]);
+
+  // Fetch saved listing IDs for bookmark state
+  useEffect(() => {
+    if (!profileId || profileId === "00000000-0000-0000-0000-000000000000") return;
+    fetch("/api/saved")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: { listing_id: string }[]) => setSavedIds(new Set(rows.map((r) => r.listing_id))))
+      .catch(() => {});
+  }, [profileId]);
+
+  const toggleSave = async (listingId: string) => {
+    const wasSaved = savedIds.has(listingId);
+    setSavedIds((prev) => {
+      const next = new Set(prev);
+      wasSaved ? next.delete(listingId) : next.add(listingId);
+      return next;
+    });
+    await fetch(`/api/saved/${listingId}`, { method: wasSaved ? "DELETE" : "POST" }).catch(() => {});
+  };
 
   useEffect(() => {
     // Fetch verified org IDs in parallel with listings
@@ -1316,13 +1363,22 @@ export default function MarketplacePage() {
     return () => { clearTimeout(t); clearTimeout(clear); };
   }, [allListings]); // re-run when listings load from API
 
-  const visible = allListings.filter(l =>
-    (catFilter    === "All" || l.category    === catFilter) &&
-    (sellerFilter === "All" || l.seller_type === sellerFilter) &&
-    (searchQuery.trim() === "" ||
-      l.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      l.description.toLowerCase().includes(searchQuery.toLowerCase())),
-  );
+  const maxPriceCents = maxPrice.trim() ? parseFloat(maxPrice) * 100 : null;
+  const visible = allListings.filter(l => {
+    if (catFilter !== "All" && l.category !== catFilter) return false;
+    if (sellerFilter !== "All" && l.seller_type !== sellerFilter) return false;
+    if (searchQuery.trim() !== "" &&
+        !l.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
+        !l.description.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    if (trustFilter > 0) {
+      const tier = devTierMap.get(l.developer_id) ?? 0;
+      if (tier < trustFilter) return false;
+    }
+    if (maxPriceCents !== null && l.price_cents > maxPriceCents) return false;
+    return true;
+  });
+
+  const activeFilterCount = (trustFilter > 0 ? 1 : 0) + (maxPrice.trim() ? 1 : 0);
 
   const counts: Record<CategoryFilter, number> = {
     All:      allListings.length,
@@ -1394,6 +1450,56 @@ export default function MarketplacePage() {
                        text-zinc-200 font-mono text-sm placeholder:text-zinc-600
                        focus:outline-none focus:border-amber-400/60 transition-colors"
           />
+        </div>
+
+        {/* Filter row */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            <SlidersHorizontal className="w-3.5 h-3.5 text-zinc-500" />
+            <span className="font-mono text-xs text-zinc-500">Filter:</span>
+          </div>
+          {/* Trust filter */}
+          <div className="flex rounded-sm border border-zinc-700 overflow-hidden">
+            {([
+              { v: 0 as const, label: "Any Trust"  },
+              { v: 1 as const, label: "Social+"    },
+              { v: 2 as const, label: "Biometric"  },
+            ]).map(({ v, label }) => (
+              <button
+                key={v}
+                onClick={() => setTrustFilter(trustFilter === v ? 0 : v)}
+                className={`h-7 px-2.5 font-mono text-[10px] transition-colors ${
+                  trustFilter === v
+                    ? "bg-amber-400 text-zinc-950"
+                    : "text-zinc-500 hover:text-zinc-300"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {/* Max price */}
+          <div className="flex items-center gap-1">
+            <span className="font-mono text-xs text-zinc-500">Max $</span>
+            <input
+              type="number"
+              min={0}
+              value={maxPrice}
+              onChange={(e) => setMaxPrice(e.target.value)}
+              placeholder="any"
+              className="w-20 h-7 px-2 rounded-sm border border-zinc-700 bg-zinc-900 font-mono text-xs text-zinc-200 placeholder-zinc-600 focus:border-amber-400 focus:outline-none"
+            />
+          </div>
+          {/* Clear */}
+          {activeFilterCount > 0 && (
+            <button
+              onClick={() => { setTrustFilter(0); setMaxPrice(""); }}
+              className="inline-flex items-center gap-1 font-mono text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors"
+            >
+              <X className="w-3 h-3" />
+              Clear ({activeFilterCount})
+            </button>
+          )}
         </div>
 
         {/* Freelancer context strip */}
@@ -1523,7 +1629,7 @@ export default function MarketplacePage() {
                 </tr>
               </thead>
               <tbody>
-                {visible.map((l) => <TableRow key={l.id} listing={l} userTier={userTier} profileId={profileId} marketView={marketView} devTierMap={devTierMap} highlighted={highlightId === l.id} />)}
+                {visible.map((l) => <TableRow key={l.id} listing={l} userTier={userTier} profileId={profileId} marketView={marketView} devTierMap={devTierMap} highlighted={highlightId === l.id} saved={savedIds.has(l.id)} onToggleSave={() => toggleSave(l.id)} />)}
               </tbody>
             </table>
           </div>
@@ -1532,7 +1638,7 @@ export default function MarketplacePage() {
         {/* Mobile cards */}
         {visible.length > 0 && (
           <div className="sm:hidden space-y-2">
-            {visible.map((l) => <ListingCard key={l.id} listing={l} userTier={userTier} profileId={profileId} marketView={marketView} devTierMap={devTierMap} highlighted={highlightId === l.id} />)}
+            {visible.map((l) => <ListingCard key={l.id} listing={l} userTier={userTier} profileId={profileId} marketView={marketView} devTierMap={devTierMap} highlighted={highlightId === l.id} saved={savedIds.has(l.id)} onToggleSave={() => toggleSave(l.id)} />)}
           </div>
         )}
 

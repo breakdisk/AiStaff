@@ -489,12 +489,59 @@ function RequirementsTab({ listing, media }: { listing: AgentListing; media: Lis
   );
 }
 
-function ReviewsTab() {
-  const total   = DEMO_REVIEWS.length;
-  const avg     = (DEMO_REVIEWS.reduce((s, r) => s + r.stars, 0) / total).toFixed(1);
-  const counts  = [5,4,3,2,1].map(n => ({
+interface LiveReview {
+  id: string;
+  reviewer_initial: string;
+  rating: number;
+  body: string | null;
+  created_at: string;
+}
+
+function relativeDate(iso: string) {
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
+  if (days === 0) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 30) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", year: "numeric" });
+}
+
+function ReviewsTab({ listingId }: { listingId: string }) {
+  const [reviews, setReviews] = useState<LiveReview[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`/api/reviews?listing_id=${listingId}`)
+      .then((r) => r.json() as Promise<LiveReview[]>)
+      .then(setReviews)
+      .finally(() => setLoading(false));
+  }, [listingId]);
+
+  if (loading) {
+    return (
+      <div className="space-y-3">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="animate-pulse border border-zinc-800 rounded-sm p-3 space-y-2">
+            <div className="h-3 w-1/3 rounded bg-zinc-800" />
+            <div className="h-3 w-2/3 rounded bg-zinc-800" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (reviews.length === 0) {
+    return (
+      <p className="font-mono text-sm text-zinc-400 py-4">
+        No reviews yet — be the first to deploy and leave feedback.
+      </p>
+    );
+  }
+
+  const total = reviews.length;
+  const avg   = (reviews.reduce((s, r) => s + r.rating, 0) / total).toFixed(1);
+  const counts = [5, 4, 3, 2, 1].map((n) => ({
     n,
-    count: DEMO_REVIEWS.filter(r => r.stars === n).length,
+    count: reviews.filter((r) => r.rating === n).length,
   }));
 
   return (
@@ -504,7 +551,7 @@ function ReviewsTab() {
         <div className="text-center">
           <p className="font-mono text-3xl font-medium text-amber-400">{avg}</p>
           <Stars n={Math.round(Number(avg))} />
-          <p className="font-mono text-[10px] text-zinc-600 mt-1">{total} deployments</p>
+          <p className="font-mono text-[10px] text-zinc-600 mt-1">{total} review{total !== 1 ? "s" : ""}</p>
         </div>
         <div className="flex-1 space-y-1.5">
           {counts.map(({ n, count }) => (
@@ -513,7 +560,7 @@ function ReviewsTab() {
               <div className="flex-1 h-1 bg-zinc-800 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-amber-500 rounded-full"
-                  style={{ width: `${(count / total) * 100}%` }}
+                  style={{ width: `${total > 0 ? (count / total) * 100 : 0}%` }}
                 />
               </div>
               <span className="font-mono text-[10px] text-zinc-600 w-3">{count}</span>
@@ -526,27 +573,20 @@ function ReviewsTab() {
 
       {/* Individual reviews */}
       <div className="space-y-3">
-        {DEMO_REVIEWS.map(r => (
+        {reviews.map((r) => (
           <div key={r.id} className="border border-zinc-800 rounded-sm p-3 space-y-2">
             <div className="flex items-start justify-between gap-2">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-sm bg-zinc-800 border border-zinc-700 flex items-center justify-center flex-shrink-0">
-                  <span className="font-mono text-[10px] text-zinc-400">{r.author[0]}</span>
+                  <span className="font-mono text-[10px] text-zinc-400 uppercase">{r.reviewer_initial}</span>
                 </div>
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <p className="font-mono text-xs text-zinc-200">{r.author}</p>
-                    {tierBadge(r.tier)}
-                  </div>
-                  <p className="font-mono text-[9px] text-zinc-600">{r.role}</p>
-                </div>
+                <Stars n={r.rating} sm />
               </div>
-              <div className="flex flex-col items-end gap-1">
-                <Stars n={r.stars} sm />
-                <p className="font-mono text-[9px] text-zinc-600">{r.date}</p>
-              </div>
+              <p className="font-mono text-[9px] text-zinc-600">{relativeDate(r.created_at)}</p>
             </div>
-            <p className="font-mono text-xs text-zinc-400 leading-relaxed">{r.body}</p>
+            {r.body && (
+              <p className="font-mono text-xs text-zinc-400 leading-relaxed">{r.body}</p>
+            )}
           </div>
         ))}
       </div>
@@ -931,7 +971,7 @@ export default function ListingDetailPage() {
               {tab === "overview"     && <OverviewTab      listing={listing} media={media} />}
               {tab === "deliverables" && <DeliverablesTab  listing={listing} media={media} />}
               {tab === "requirements" && <RequirementsTab  listing={listing} media={media} />}
-              {tab === "reviews"      && <ReviewsTab />}
+              {tab === "reviews"      && <ReviewsTab listingId={listing.id} />}
             </div>
           </div>
 

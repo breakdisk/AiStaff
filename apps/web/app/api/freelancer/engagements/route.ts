@@ -15,6 +15,7 @@ export async function GET() {
   const { rows } = await pool.query(
     `SELECT
        d.id              AS deployment_id,
+       d.agent_id        AS listing_id,
        al.name           AS job_title,
        CASE
          WHEN d.freelancer_id = $1 THEN cp.email
@@ -29,7 +30,7 @@ export async function GET() {
      JOIN unified_profiles cp ON cp.id = d.client_id
      JOIN unified_profiles fp ON fp.id = d.freelancer_id
     WHERE (d.freelancer_id = $1 OR d.client_id = $1)
-      AND d.state NOT IN ('VETOED', 'COMPLETED', 'FAILED')
+      AND d.state NOT IN ('VETOED', 'FAILED')
     ORDER BY d.created_at DESC
     LIMIT 50`,
     [profileId],

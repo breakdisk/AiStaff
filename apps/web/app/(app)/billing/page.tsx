@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, Zap, Building2, User, CreditCard } from "lucide-react";
+import { CheckCircle2, Zap, Building2, User, CreditCard, Download } from "lucide-react";
 
 // ── Plan data ─────────────────────────────────────────────────────────────────
 
@@ -95,7 +95,161 @@ const PLANS: Plan[] = [
   },
 ];
 
-// ── Sidebar nav ───────────────────────────────────────────────────────────────
+// ── Spend History ─────────────────────────────────────────────────────────────
+
+interface SpendRow {
+  deployment_id: string;
+  listing_name: string;
+  slug: string;
+  escrow_amount_cents: number;
+  fee_cents: number;
+  fee_pct: number;
+  state: string;
+  created_at: string;
+}
+
+function StateBadge({ state }: { state: string }) {
+  const cls =
+    state === "COMPLETED"    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-500" :
+    state === "VETOED"       ? "border-red-500/30 bg-red-500/10 text-red-500" :
+    state === "VETO_WINDOW"  ? "border-amber-400/30 bg-amber-400/10 text-amber-400" :
+                               "border-zinc-700 bg-zinc-800 text-zinc-400";
+  return (
+    <span className={`rounded-sm border px-1.5 py-0.5 font-mono text-[10px] ${cls}`}>
+      {state.replace(/_/g, " ")}
+    </span>
+  );
+}
+
+function SpendHistory() {
+  const [rows, setRows]     = useState<SpendRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/billing/history")
+      .then((r) => r.json() as Promise<SpendRow[]>)
+      .then(setRows)
+      .finally(() => setLoading(false));
+  }, []);
+
+  const exportCsv = () => {
+    const a = document.createElement("a");
+    a.href = "/api/billing/history?export=csv";
+    a.download = "spend-history.csv";
+    a.click();
+  };
+
+  const totalEscrow = rows.reduce((s, r) => s + r.escrow_amount_cents, 0);
+  const totalFees   = rows.reduce((s, r) => s + r.fee_cents, 0);
+
+  if (loading) {
+    return (
+      <div className="space-y-3">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="animate-pulse rounded-sm border border-zinc-800 bg-zinc-900 h-10" />
+        ))}
+      </div>
+    );
+  }
+
+  if (rows.length === 0) {
+    return (
+      <p className="font-mono text-sm text-zinc-400 py-4">No spend history yet.</p>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Summary tiles */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label: "Total Escrow", value: `$${(totalEscrow / 100).toLocaleString("en-US", { maximumFractionDigits: 2 })}` },
+          { label: "Platform Fees", value: `$${(totalFees / 100).toLocaleString("en-US", { maximumFractionDigits: 2 })}` },
+          { label: "Deployments", value: String(rows.length) },
+        ].map(({ label, value }) => (
+          <div key={label} className="rounded-sm border border-zinc-800 bg-zinc-900 p-3 text-center">
+            <p className="font-mono text-lg font-semibold text-amber-400">{value}</p>
+            <p className="font-mono text-[10px] text-zinc-500 mt-0.5">{label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Export */}
+      <div className="flex justify-end">
+        <button
+          onClick={exportCsv}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-zinc-700 rounded-sm font-mono text-xs text-zinc-300 hover:border-zinc-500 transition-colors"
+        >
+          <Download className="w-3.5 h-3.5" />
+          Export CSV
+        </button>
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden md:block rounded-sm border border-zinc-800 overflow-hidden">
+        <table className="w-full text-left">
+          <thead className="bg-zinc-900">
+            <tr>
+              {["Date", "Agent", "Escrow", "Fee (15%)", "Total", "State"].map((h) => (
+                <th key={h} className="px-4 py-2.5 font-mono text-[10px] text-zinc-500 uppercase tracking-wider">
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => {
+              const total = r.escrow_amount_cents + r.fee_cents;
+              return (
+                <tr key={r.deployment_id} className={i % 2 === 0 ? "bg-zinc-950" : "bg-zinc-900/50"}>
+                  <td className="px-4 py-3 font-mono text-xs text-zinc-400">
+                    {new Date(r.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                  </td>
+                  <td className="px-4 py-3 font-mono text-xs text-zinc-200">
+                    <Link href={`/marketplace/${r.slug}`} className="hover:text-amber-400 transition-colors">
+                      {r.listing_name}
+                    </Link>
+                  </td>
+                  <td className="px-4 py-3 font-mono text-xs text-zinc-300">
+                    ${(r.escrow_amount_cents / 100).toLocaleString("en-US", { maximumFractionDigits: 2 })}
+                  </td>
+                  <td className="px-4 py-3 font-mono text-xs text-zinc-400">
+                    ${(r.fee_cents / 100).toLocaleString("en-US", { maximumFractionDigits: 2 })}
+                  </td>
+                  <td className="px-4 py-3 font-mono text-xs text-zinc-200 font-medium">
+                    ${(total / 100).toLocaleString("en-US", { maximumFractionDigits: 2 })}
+                  </td>
+                  <td className="px-4 py-3"><StateBadge state={r.state} /></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Mobile cards */}
+      <div className="md:hidden space-y-3">
+        {rows.map((r) => (
+          <div key={r.deployment_id} className="rounded-sm border border-zinc-800 bg-zinc-900 p-4 space-y-2">
+            <div className="flex items-start justify-between gap-2">
+              <Link href={`/marketplace/${r.slug}`} className="font-mono text-sm font-medium text-amber-400 hover:underline">
+                {r.listing_name}
+              </Link>
+              <StateBadge state={r.state} />
+            </div>
+            <div className="flex items-center gap-4 font-mono text-xs text-zinc-400">
+              <span>Escrow ${(r.escrow_amount_cents / 100).toFixed(2)}</span>
+              <span>Fee ${(r.fee_cents / 100).toFixed(2)}</span>
+            </div>
+            <p className="font-mono text-[10px] text-zinc-600">
+              {new Date(r.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -208,6 +362,7 @@ function PlanCard({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function BillingPage() {
+  const [tab,      setTab]     = useState<"plans" | "history">("plans");
   const [annual,  setAnnual]  = useState(false);
   const [current, setCurrent] = useState("starter");
   const [upgraded, setUpgraded] = useState<string | null>(null);
@@ -230,6 +385,26 @@ export default function BillingPage() {
           <CreditCard className="w-5 h-5 text-amber-500" />
         </div>
 
+        {/* Tab switcher */}
+        <div className="flex border-b border-zinc-800">
+          {(["plans", "history"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`px-4 py-2 font-mono text-xs capitalize transition-colors border-b-2 -mb-px ${
+                tab === t
+                  ? "border-amber-400 text-amber-400"
+                  : "border-transparent text-zinc-500 hover:text-zinc-300"
+              }`}
+            >
+              {t === "plans" ? "Plans" : "Spend History"}
+            </button>
+          ))}
+        </div>
+
+        {tab === "history" && <SpendHistory />}
+
+        {tab === "plans" && <>
         {/* Zero-commission callout */}
         <div className="border border-green-900/50 bg-green-950/10 rounded-sm p-3">
           <p className="font-mono text-[10px] text-green-500 uppercase tracking-widest mb-1">Zero Per-Transaction Commission</p>
@@ -295,6 +470,7 @@ export default function BillingPage() {
             </div>
           ))}
         </div>
+        </>}
       </main>
       );
 }
