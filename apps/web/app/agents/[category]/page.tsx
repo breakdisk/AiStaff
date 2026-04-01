@@ -102,16 +102,17 @@ const CAT_META: Record<Category, CategoryMeta> = {
   },
 };
 
-export function generateMetadata({
+export async function generateMetadata({
   params,
 }: {
-  params: { category: Category };
-}): Metadata {
-  const meta = CAT_META[params.category];
+  params: Promise<{ category: Category }>;
+}): Promise<Metadata> {
+  const { category } = await params;
+  const meta = CAT_META[category];
   return {
     title: `${meta.label} Marketplace — AiStaff`,
     description: meta.description.slice(0, 200),
-    alternates: { canonical: `/agents/${params.category}` },
+    alternates: { canonical: `/agents/${category}` },
     openGraph: {
       title: `${meta.label} Marketplace — AiStaff`,
       description: `${meta.headline} on AiStaff. Escrow-backed, ZK-verified.`,
@@ -137,13 +138,14 @@ const OFFER_CATALOG_JSONLD = (cat: CategoryMeta, category: Category) => ({
   })),
 });
 
-export default function AgentCategoryPage({
+export default async function AgentCategoryPage({
   params,
 }: {
-  params: { category: Category };
+  params: Promise<{ category: Category }>;
 }) {
-  const meta = CAT_META[params.category];
-  const jsonLd = OFFER_CATALOG_JSONLD(meta, params.category);
+  const { category } = await params;
+  const meta = CAT_META[category];
+  const jsonLd = OFFER_CATALOG_JSONLD(meta, category);
 
   return (
     <>
@@ -237,7 +239,7 @@ export default function AgentCategoryPage({
               className="inline-flex items-center gap-2 px-5 py-3 bg-amber-400 text-zinc-950 text-sm font-mono font-semibold rounded-sm hover:bg-amber-300 transition-colors"
             >
               Browse {meta.label}
-              <span aria-hidden="true">-&gt;</span>
+              <span aria-hidden="true">→</span>
             </Link>
           </div>
         </div>

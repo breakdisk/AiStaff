@@ -51,17 +51,18 @@ const INDUSTRY_LABELS: Record<Industry, string> = {
   saas: "SaaS",
 };
 
-export function generateMetadata({
+export async function generateMetadata({
   params,
 }: {
-  params: { skill: Skill; industry: Industry };
-}): Metadata {
-  const s = SKILL_LABELS[params.skill] ?? params.skill;
-  const ind = INDUSTRY_LABELS[params.industry] ?? params.industry;
+  params: Promise<{ skill: Skill; industry: Industry }>;
+}): Promise<Metadata> {
+  const { skill, industry } = await params;
+  const s = SKILL_LABELS[skill] ?? skill;
+  const ind = INDUSTRY_LABELS[industry] ?? industry;
   return {
     title: `Hire a ${s} AI Engineer for ${ind} — AiStaff`,
     description: `Find vetted ${s} AI engineers for ${ind} projects on AiStaff. Escrow-backed, ZK-verified identity, 7-day warranty, 30-second veto window on every deployment.`,
-    alternates: { canonical: `/hire/${params.skill}/${params.industry}` },
+    alternates: { canonical: `/hire/${skill}/${industry}` },
     openGraph: {
       title: `Hire a ${s} AI Engineer for ${ind}`,
       description: `Vetted ${s} talent for ${ind}. Escrow-backed deployments on AiStaff.`,
@@ -272,15 +273,16 @@ const GUARANTEES = [
   },
 ];
 
-export default function HirePage({
+export default async function HirePage({
   params,
 }: {
-  params: { skill: Skill; industry: Industry };
+  params: Promise<{ skill: Skill; industry: Industry }>;
 }) {
-  const s = SKILL_LABELS[params.skill] ?? params.skill;
-  const ind = INDUSTRY_LABELS[params.industry] ?? params.industry;
-  const whyPoints = getWhyContent(params.skill, params.industry);
-  const intro = getIntroText(params.skill, params.industry);
+  const { skill, industry } = await params;
+  const s = SKILL_LABELS[skill] ?? skill;
+  const ind = INDUSTRY_LABELS[industry] ?? industry;
+  const whyPoints = getWhyContent(skill, industry);
+  const intro = getIntroText(skill, industry);
 
   const jsonLd = {
     "@context": "https://schema.org",
