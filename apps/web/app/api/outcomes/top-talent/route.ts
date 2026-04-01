@@ -31,7 +31,11 @@ export async function GET(): Promise<NextResponse> {
       `SELECT
          up.id,
          up.email,
-         COALESCE(up.identity_tier,     0)  AS identity_tier,
+         CASE up.identity_tier
+           WHEN 'BIOMETRIC_VERIFIED' THEN 2
+           WHEN 'SOCIAL_VERIFIED'    THEN 1
+           ELSE 0
+         END                               AS identity_tier,
          COALESCE(up.trust_score,       0)  AS trust_score,
          COALESCE(up.hourly_rate_cents, 0)  AS rate_cents,
          tr.total_deployments,

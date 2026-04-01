@@ -36,7 +36,11 @@ export async function GET(
         `SELECT
            id,
            LEFT(email, 1)            AS name_initial,
-           COALESCE(identity_tier, 0) AS identity_tier,
+           CASE identity_tier
+             WHEN 'BIOMETRIC_VERIFIED' THEN 2
+             WHEN 'SOCIAL_VERIFIED'    THEN 1
+             ELSE 0
+           END                        AS identity_tier,
            COALESCE(trust_score,   0) AS trust_score,
            bio,
            COALESCE(hourly_rate_cents, 0) AS hourly_rate_cents
