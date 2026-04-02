@@ -29,12 +29,7 @@ export async function GET(
 ): Promise<NextResponse> {
   const { profileId } = await params;
 
-  let client;
-  try {
-    client = await pool.connect();
-  } catch (e: unknown) {
-    return NextResponse.json({ error: "DB connect failed", detail: String(e) }, { status: 500 });
-  }
+  const client = await pool.connect();
   try {
     const [profileRes, skillsRes, statsRes, reviewsRes] = await Promise.all([
       client.query(
@@ -55,11 +50,11 @@ export async function GET(
       ),
 
       client.query(
-        `SELECT st.name
+        `SELECT st.tag AS name
            FROM talent_skills ts
-           JOIN skill_tags    st ON st.id = ts.skill_id
-          WHERE ts.profile_id = $1
-          ORDER BY st.name`,
+           JOIN skill_tags    st ON st.id = ts.tag_id
+          WHERE ts.talent_id = $1
+          ORDER BY st.tag`,
         [profileId],
       ),
 
@@ -119,8 +114,6 @@ export async function GET(
     };
 
     return NextResponse.json(result);
-  } catch (e: unknown) {
-    return NextResponse.json({ error: "query failed", detail: String(e) }, { status: 500 });
   } finally {
     client.release();
   }
