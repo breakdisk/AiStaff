@@ -146,9 +146,9 @@ export const authConfig: NextAuthConfig = {
       clientId:     process.env.FACEBOOK_CLIENT_ID!,
       clientSecret: process.env.FACEBOOK_CLIENT_SECRET!,
       checks: ["state"],
-      // @auth/core hardcodes v19.0 which was deprecated Feb 2026 — override to v21.0
+      // @auth/core hardcodes v19.0 — override to match Meta app's API version
       authorization: {
-        url:    "https://www.facebook.com/v21.0/dialog/oauth",
+        url:    "https://www.facebook.com/v25.0/dialog/oauth",
         params: { scope: "email" },
       },
     }),
