@@ -656,5 +656,37 @@ n8n/
 
 ---
 
+---
+
+## 9. PRODUCTION GOTCHAS (learned in production — do not repeat)
+
+### OAuth Provider Gotchas
+- **Facebook API version**: `@auth/core` hardcodes `v19.0` (deprecated Feb 2026). Override in `auth.config.ts`:
+  `authorization: { url: "https://www.facebook.com/v25.0/dialog/oauth", params: { scope: "email" } }`.
+  Must match Meta app's configured API version (check Meta Dev Console → Upgrade API version).
+- **Facebook "Can't load URL / domain not included"** — misleading error; often means deprecated API version, not domain config.
+- **Facebook `email` scope**: Must be added under Use Cases → "Authentication and account creation" in Meta Dev Console + Advanced Access enabled.
+
+### Dokploy + docker-compose env var rule
+- NEVER use `${VAR:-}` fallback for OAuth/secret vars in docker-compose `environment:`.
+  `:-` defaults to `""` which OVERRIDES Dokploy's runtime injection with empty string.
+  Use `${VAR}` (no fallback) — same pattern as `GITHUB_CLIENT_ID`/`GOOGLE_CLIENT_ID` entries.
+
+### DB Schema Gotchas
+- `talent_skills` columns: `talent_id`, `tag_id`, `proficiency` — NOT `profile_id`/`skill_id`.
+- `skill_tags` columns: `id`, `tag`, `domain` — NOT `name`; use `st.tag AS name` in queries.
+
+### Next.js env var fallback pattern
+- `NEXT_PUBLIC_*` vars baked at build time default to `""` (empty string) in Docker if not passed as build args.
+  Use `||` (not `??`) when empty string should trigger fallback: `process.env.VAR || "fallback"`.
+  `??` only catches `null`/`undefined` — misses `""`.
+
+### Public profile pages (two separate routes)
+- `/talent/[id]` — in-platform social card (`"use client"`, follow/unfollow, uses session). NOT SEO-indexed.
+- `/portfolio/[profileId]` — external credential page (SSR Server Component, SEO/GEO). Middleware allowlist lines 32–35.
+  API: `/api/portfolio/[profileId]`. Both routes are public (no auth gate).
+
+---
+
 > **This platform handles real money, real identities, and autonomous AI agents.**
 > Every decision has consequences. Design accordingly.
