@@ -33,12 +33,12 @@ publish  = false
 tokio = { version = "1", features = ["full"] }
 
 # Web
-axum       = { version = "0.8", features = ["macros"] }
+axum       = { version = "0.8", features = ["macros", "multipart"] }
 tower-http = { version = "0.6", features = ["trace", "cors", "request-id"] }
 
 # Database
 sqlx = { version = "0.8", features = [
-    "postgres", "runtime-tokio-rustls", "uuid", "chrono", "macros"
+    "postgres", "runtime-tokio-rustls", "uuid", "chrono", "macros", "json"
 ] }
 
 # Serialization
@@ -69,6 +69,7 @@ uuid        = { version = "1", features = ["v4", "v7", "serde"] }
 chrono      = { version = "0.4", features = ["serde"] }
 sha2        = "0.10"
 hex         = "0.4"
+infer       = "0.16"
 base64      = "0.22"
 urlencoding = "2.1"
 dotenvy     = "0.15"
@@ -86,7 +87,7 @@ sys-info = "0.9"
 common = { path = "crates/common" }
 
 [profile.release]
-lto           = true      # Link-time optimisation — merges all codegen units
-codegen-units = 1         # Single unit: slower build, faster + smaller binary
+lto           = "thin"    # Thin LTO — ~90% of fat LTO benefit, fraction of RAM usage
+codegen-units = 2         # 2 units: reduces peak linker memory vs 1
 strip         = "symbols" # Strip debug symbols from final binary
 opt-level     = "z"       # Optimise for binary size (best cold-start on edge)

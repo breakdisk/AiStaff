@@ -295,3 +295,121 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 | Pull latest images | Per deploy | `docker compose pull` (for base images) |
 | Prune old Docker layers | Weekly | `docker system prune -f` |
 | Check disk usage | Weekly | `df -h && docker system df` |
+
+---
+
+## 11. Dokploy deployment (recommended path)
+
+> Dokploy is a self-hosted PaaS running on your VPS. It manages Traefik for
+> reverse-proxy + TLS automatically. Skip sections 1–4 of this runbook when
+> using Dokploy — Nginx, Certbot, and server bootstrap are handled for you.
+
+### 11.1 Prerequisites
+
+| Item | Requirement |
+|---|---|
+| VPS | 4 vCPU, 8 GB RAM, 80 GB SSD (Ubuntu 22.04 LTS) |
+| Dokploy | Installed: `curl -sSL https://dokploy.com/install.sh \| sh` |
+| Domain | DNS A record → VPS public IP. Wildcard `*.yourdomain.com` also works. |
+| Git repo | GitHub with the AiStaff monorepo |
+
+### 11.2 Dokploy project setup
+
+1. Open Dokploy dashboard → **Projects** → **New Project** → name it `aistaff`
+2. Inside project → **New Service** → **Docker Compose**
+3. **Source**: Git → connect GitHub repo → select `main` branch
+4. **Compose file path**: `docker-compose.yml`
+5. **Override compose file**: `docker-compose.dokploy.yml`
+   *(Dokploy merges the two files at deploy time)*
+
+### 11.3 Environment variables (Dokploy UI)
+
+Add every variable in the service → **Environment** tab.
+Minimum required before first deploy:
+
+| Variable | How to generate / where to get |
+|---|---|
+| `APP_DOMAIN` | Your production domain, e.g. `app.aistaff.app` |
+| `NEXTAUTH_URL` | `https://app.aistaff.app` |
+| `NEXTAUTH_SECRET` | `openssl rand -base64 32` |
+| `POSTGRES_USER` | e.g. `aistaff` |
+| `POSTGRES_PASSWORD` | `openssl rand -base64 24` |
+| `POSTGRES_DB` | `aistaff` |
+| `JWT_PRIVATE_KEY` | See key generation below |
+| `JWT_PUBLIC_KEY` | See key generation below |
+| `GITHUB_CLIENT_ID` | GitHub → Developer Settings → OAuth Apps |
+| `GITHUB_CLIENT_SECRET` | Same OAuth app |
+| `GOOGLE_CLIENT_ID` | Google Cloud Console → APIs & Services → Credentials |
+| `GOOGLE_CLIENT_SECRET` | Same credential |
+| `LINKEDIN_CLIENT_ID` | LinkedIn Developer Portal → App |
+| `LINKEDIN_CLIENT_SECRET` | Same app |
+| `ANTHROPIC_API_KEY` | console.anthropic.com → API Keys |
+| `SMTP_HOST` | e.g. `smtp.sendgrid.net` or `smtp.postmarkapp.com` |
+| `SMTP_PORT` | `587` (STARTTLS) |
+| `SMTP_FROM` | `noreply@yourdomain.com` |
+| `SMTP_USERNAME` | Provider-specific (SendGrid: literal string `apikey`) |
+| `SMTP_PASSWORD` | Provider SMTP password / API key |
+| `INTEGRATION_TOKEN_ENCRYPTION_KEY` | `openssl rand -base64 32` |
+| `PLATFORM_DID` | `did:web:app.aistaff.app` |
+
+Generate JWT RSA key pair (run on VPS or local terminal — delete PEM files immediately):
+
+```bash
+openssl genrsa -out jwt_private.pem 2048
+openssl rsa -in jwt_private.pem -pubout -out jwt_public.pem
+base64 -w0 jwt_private.pem   # copy output → JWT_PRIVATE_KEY in Dokploy
+base64 -w0 jwt_public.pem    # copy output → JWT_PUBLIC_KEY in Dokploy
+rm jwt_private.pem jwt_public.pem
+```
+
+### 11.4 OAuth redirect URIs (update in provider consoles)
+
+Replace `app.aistaff.app` with your actual domain:
+
+| Provider | Authorized redirect URI |
+|---|---|
+| GitHub | `https://app.aistaff.app/api/auth/callback/github` |
+| Google | `https://app.aistaff.app/api/auth/callback/google` |
+| LinkedIn | `https://app.aistaff.app/api/auth/callback/linkedin` |
+
+### 11.5 Run DB migrations (one-time, before first deploy)
+
+Dokploy does not run migrations automatically.
+Postgres port is NOT publicly exposed — use an SSH tunnel:
+
+```bash
+# Terminal 1 — on your local machine:
+ssh -L 15432:localhost:5432 root@<vps-ip>
+
+# Terminal 2 — sqlx-cli (install once: cargo install sqlx-cli --no-default-features --features postgres)
+DATABASE_URL="postgres://<POSTGRES_USER>:<POSTGRES_PASSWORD>@localhost:15432/aistaff" \
+  sqlx migrate run --source migrations/
+```
+
+Or use Dokploy's built-in **Terminal** on the running `postgres` container.
+
+### 11.6 Deploy
+
+Dokploy → service → **Deploy** tab → click **Deploy**.
+
+Dokploy will:
+1. Pull latest commit from GitHub
+2. Merge `docker-compose.yml` + `docker-compose.dokploy.yml`
+3. Build all images (first run: 15–25 min — Rust compilation)
+4. Start containers, configure Traefik routing, issue Let's Encrypt certificate automatically
+
+Monitor build in the **Logs** tab.
+
+### 11.7 Smoke test
+
+After deploy, run the checks from §8 (replace `<domain>` with your domain).
+TLS certificate is issued automatically — check Traefik dashboard in Dokploy.
+
+### 11.8 Continuous deployment (optional)
+
+Dokploy → service → **Deployments** → enable **Auto Deploy on Push**.
+Dokploy installs a GitHub webhook. Every push to `main` triggers a rebuild.
+
+> **Note:** Full rebuild takes ~15–25 min (Rust compile). For faster CI/CD,
+> push pre-built Docker images from GitHub Actions and configure Dokploy
+> to pull from GHCR (GitHub Container Registry) instead of building from source.

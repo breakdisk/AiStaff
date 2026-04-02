@@ -330,6 +330,38 @@ pub async fn whatsapp_webhook(State(s): State<AppState>, body: String) -> impl I
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Messenger integration
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// POST /integrations/messenger/init  body: { user_id }
+pub async fn init_messenger(
+    State(s): State<AppState>,
+    Json(b): Json<UserBody>,
+) -> impl IntoResponse {
+    match integrations::init_messenger_connect(&s.db, b.user_id, &s.config.messenger_page_username)
+        .await
+    {
+        Ok(r) => (StatusCode::OK, Json(json!(r))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+/// POST /integrations/messenger/webhook  body: plain text containing ref={nonce}
+pub async fn messenger_webhook(State(s): State<AppState>, body: String) -> impl IntoResponse {
+    match integrations::verify_messenger_webhook(&s.db, &body).await {
+        Ok(()) => (StatusCode::OK, Json(json!({ "ok": true }))).into_response(),
+        Err(e) => {
+            tracing::warn!(error=%e, "Messenger webhook verification failed");
+            (StatusCode::OK, Json(json!({ "ok": true }))).into_response()
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Slack OAuth
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -483,6 +515,67 @@ pub async fn integration_status(
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Generic email send (used by web layer for contract and proposal emails)
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct NotifyBody {
+    pub recipient_email: String,
+    pub subject: String,
+    pub body: String,
+}
+
+/// POST /notify-inapp  { user_id, title, body, event_type, priority }
+#[derive(Debug, Deserialize)]
+pub struct NotifyInAppBody {
+    pub user_id: Uuid,
+    pub title: String,
+    pub body: String,
+    pub event_type: Option<String>,
+    pub priority: Option<String>,
+}
+
+pub async fn send_notify_inapp(
+    State(s): State<AppState>,
+    Json(req): Json<NotifyInAppBody>,
+) -> impl IntoResponse {
+    let event_type = req.event_type.as_deref().unwrap_or("system");
+    let priority = req.priority.as_deref().unwrap_or("normal");
+    match s
+        .fanout
+        .dispatch_in_app(req.user_id, &req.title, &req.body, event_type, priority)
+        .await
+    {
+        Ok(_) => (StatusCode::OK, Json(json!({ "ok": true }))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "ok": false, "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+/// POST /notify  { recipient_email, subject, body }
+/// Sends a transactional email via SMTP. recipient UUID is nil (no platform user required).
+pub async fn send_notify(
+    State(s): State<AppState>,
+    Json(req): Json<NotifyBody>,
+) -> impl IntoResponse {
+    match s
+        .fanout
+        .dispatch_email(Uuid::nil(), &req.recipient_email, &req.subject, &req.body)
+        .await
+    {
+        Ok(_) => (StatusCode::OK, Json(json!({ "ok": true }))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "ok": false, "error": e.to_string() })),
         )
             .into_response(),
     }

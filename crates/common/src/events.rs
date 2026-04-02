@@ -94,7 +94,9 @@ pub struct ReleaseEscrow {
     pub reason: String,
 }
 
-/// Full 70/30 split release event.
+/// Full escrow split release event.
+/// Freelancer path: 15% platform + 70/30 of remainder (agency_id = None).
+/// Agency path:     12% platform + agency_pct% of remainder + 70/30 of rest.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EscrowRelease {
     pub deployment_id: Uuid,
@@ -102,6 +104,14 @@ pub struct EscrowRelease {
     pub developer_cents: u64,
     pub talent_id: Uuid,
     pub talent_cents: u64,
+    /// Platform commission — 15% (freelancer) or 12% (agency).
+    pub platform_cents: u64,
+    /// Agency owner profile ID. None for direct freelancer deployments.
+    #[serde(default)]
+    pub agency_id: Option<Uuid>,
+    /// Agency management fee in cents. Zero when agency_id is None.
+    #[serde(default)]
+    pub agency_cents: u64,
 }
 
 // ── v2 Topic constants ────────────────────────────────────────────────────────
@@ -218,6 +228,27 @@ pub struct ReputationExported {
     pub issued_at: DateTime<Utc>,
 }
 
+// ── Collab / messaging events ─────────────────────────────────────────────────
+pub const TOPIC_MESSAGE_SENT: &str = "collab.message_sent";
+/// Every user-authored chat message — consumed by the AI PM in deployment_engine.
+pub const TOPIC_CHAT_MESSAGES: &str = "chat.messages";
+/// AI PM decisions (scope drift, deadline risk, etc.) — consumed by marketplace_service.
+pub const TOPIC_PM_EVENTS: &str = "pm.events";
+
+/// Emitted by marketplace_service after a chat message is persisted.
+/// Consumed by notification_service to send async email notifications.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct MessageSent {
+    pub deployment_id: Uuid,
+    pub message_id: Uuid,
+    pub sender_id: Uuid,
+    pub sender_name: String,
+    /// All deployment participants except the sender.
+    pub recipient_ids: Vec<Uuid>,
+    /// First 120 chars of the message body — safe for email preview.
+    pub body_preview: String,
+}
+
 // ── Community & Growth events (Feature 08) ────────────────────────────────────
 pub const TOPIC_COMMUNITY_EVENTS: &str = "community.events";
 
@@ -263,4 +294,29 @@ pub struct CarbonOffsetLogged {
     pub offset_id: Uuid,
     pub offset_kg: f64,
     pub activity_type: String,
+}
+
+// ── AI PM events ──────────────────────────────────────────────────────────────
+
+/// Emitted by marketplace_service for every user-authored chat message.
+/// Consumed by deployment_engine's PM consumer for scope drift triage.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ChatMessageCreated {
+    pub message_id:    Uuid,
+    pub deployment_id: Uuid,
+    pub sender_id:     Uuid,
+    pub body:          String,
+    pub sent_at:       DateTime<Utc>,
+}
+
+/// Emitted by deployment_engine when Haiku detects a message is outside the SOW.
+/// Consumed by marketplace_service to insert an inline warning system message.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ScopeDriftDetected {
+    pub deployment_id:      Uuid,
+    pub trigger_message_id: Uuid,
+    /// One-sentence summary of the out-of-scope request.
+    pub summary:            String,
+    /// Haiku confidence score (0.0–1.0).  Only emitted when >= 0.75.
+    pub confidence:         f32,
 }

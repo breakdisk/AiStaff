@@ -8,6 +8,11 @@ x-rust-build: &rust-build
 # ── Shared service defaults ──────────────────────────────────────────────────
 x-rust-defaults: &rust-defaults
   restart: unless-stopped
+  logging:
+    driver: "json-file"
+    options:
+      max-size: "10m"   # rotate after 10 MB
+      max-file: "3"     # keep 3 rotated files max (30 MB total per service)
 
 services:
   # ── Infrastructure ─────────────────────────────────────────────────────────
@@ -15,9 +20,9 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB:       aistaffapp
-      POSTGRES_USER:     dev
-      POSTGRES_PASSWORD: devpassword
+      POSTGRES_DB:       ${POSTGRES_DB:-aistaff}
+      POSTGRES_USER:     ${POSTGRES_USER:-aistaff}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports: ["5432:5432"]
     volumes: ["pg_data:/var/lib/postgresql/data"]
     command: >
@@ -25,7 +30,7 @@ services:
         -c shared_buffers=128MB
         -c max_connections=50
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U dev -d aistaffapp"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aistaff} -d ${POSTGRES_DB:-aistaff}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -66,12 +71,51 @@ services:
       retries: 10
       start_period: 60s
 
+  # Pre-creates all Kafka topics so services start cleanly without
+  # UnknownTopicOrPartition errors. Exits 0 after creation — not a long-lived service.
+  kafka-init:
+    image: confluentinc/cp-kafka:7.6.0
+    depends_on:
+      kafka: { condition: service_healthy }
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic installation.events    --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic escrow.commands        --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic deployment.status      --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic deployment.started     --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic deployment.complete    --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic payout.veto            --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic biometric.signoff      --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic license.commands       --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic checklist.events       --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic warranty.events        --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic match.requests         --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic match.results          --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic notification.fanout    --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic telemetry.events       --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic drift.alerts           --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic trust.events           --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic reputation.commands    --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic collab.message_sent    --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic community.events       --partitions 1 --replication-factor 1
+        echo "All Kafka topics created."
+    restart: "no"
+
   mailhog:
     image: mailhog/mailhog:latest
     restart: unless-stopped
     ports:
       - "1025:1025"   # SMTP
       - "8025:8025"   # Web UI
+
+  qdrant:
+    image: qdrant/qdrant:v1.9.2
+    restart: unless-stopped
+    ports:
+      - "6333:6333"   # HTTP API
+    volumes:
+      - qdrant_data:/qdrant/storage
 
   # ── Phase 1 services ───────────────────────────────────────────────────────
   identity-service:
@@ -80,13 +124,13 @@ services:
       <<: *rust-build
       args: { SERVICE: identity_service }
     environment:
-      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
       KAFKA_BROKERS: kafka:9092
       RUST_LOG: info
     ports: ["3001:3001"]
     depends_on:
       postgres: { condition: service_healthy }
-      kafka:    { condition: service_healthy }
+      kafka-init: { condition: service_completed_successfully }
 
   marketplace-service:
     <<: *rust-defaults
@@ -94,13 +138,15 @@ services:
       <<: *rust-build
       args: { SERVICE: marketplace_service }
     environment:
-      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
       KAFKA_BROKERS: kafka:9092
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@aistaff.app}
+      NOTIFICATION_SERVICE_URL: http://notification_service:3012
       RUST_LOG: info
     ports: ["3002:3002"]
     depends_on:
       postgres: { condition: service_healthy }
-      kafka:    { condition: service_healthy }
+      kafka-init: { condition: service_completed_successfully }
 
   checklist-service:
     <<: *rust-defaults
@@ -108,13 +154,13 @@ services:
       <<: *rust-build
       args: { SERVICE: checklist_service }
     environment:
-      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
       KAFKA_BROKERS: kafka:9092
       RUST_LOG: info
     ports: ["3003:3003"]
     depends_on:
       postgres: { condition: service_healthy }
-      kafka:    { condition: service_healthy }
+      kafka-init: { condition: service_completed_successfully }
 
   license-service:
     <<: *rust-defaults
@@ -122,13 +168,13 @@ services:
       <<: *rust-build
       args: { SERVICE: license_service }
     environment:
-      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
       KAFKA_BROKERS: kafka:9092
       RUST_LOG: info
     ports: ["3004:3004"]
     depends_on:
       postgres: { condition: service_healthy }
-      kafka:    { condition: service_healthy }
+      kafka-init: { condition: service_completed_successfully }
 
   matching-service:
     <<: *rust-defaults
@@ -136,7 +182,7 @@ services:
       <<: *rust-build
       args: { SERVICE: matching_service }
     environment:
-      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
       KAFKA_BROKERS: kafka:9092
       COMPLIANCE_SERVICE_URL: http://compliance-service:3006
       RUST_LOG: info
@@ -152,7 +198,7 @@ services:
       <<: *rust-build
       args: { SERVICE: compliance_service }
     environment:
-      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
       RUST_LOG: info
     ports: ["3006:3006"]
     depends_on:
@@ -164,13 +210,13 @@ services:
       <<: *rust-build
       args: { SERVICE: telemetry_service }
     environment:
-      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
       KAFKA_BROKERS: kafka:9092
       RUST_LOG: info
     ports: ["3007:3007"]
     depends_on:
       postgres: { condition: service_healthy }
-      kafka:    { condition: service_healthy }
+      kafka-init: { condition: service_completed_successfully }
 
   analytics-service:
     <<: *rust-defaults
@@ -178,7 +224,7 @@ services:
       <<: *rust-build
       args: { SERVICE: analytics_service }
     environment:
-      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
       RUST_LOG: info
     ports: ["3008:3008"]
     depends_on:
@@ -190,14 +236,14 @@ services:
       <<: *rust-build
       args: { SERVICE: reputation_service }
     environment:
-      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
       KAFKA_BROKERS: kafka:9092
       PLATFORM_DID: did:aistaff:platform
       RUST_LOG: info
     ports: ["3009:3009"]
     depends_on:
       postgres: { condition: service_healthy }
-      kafka:    { condition: service_healthy }
+      kafka-init: { condition: service_completed_successfully }
 
   payout-service:
     <<: *rust-defaults
@@ -205,13 +251,13 @@ services:
       <<: *rust-build
       args: { SERVICE: payout_service }
     environment:
-      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
       KAFKA_BROKERS: kafka:9092
       RUST_LOG: info
     ports: ["3010:3010"]
     depends_on:
       postgres: { condition: service_healthy }
-      kafka:    { condition: service_healthy }
+      kafka-init: { condition: service_completed_successfully }
 
   community-service:
     <<: *rust-defaults
@@ -219,13 +265,13 @@ services:
       <<: *rust-build
       args: { SERVICE: community_service }
     environment:
-      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
       KAFKA_BROKERS: kafka:9092
       RUST_LOG: info
     ports: ["3011:3011"]
     depends_on:
       postgres: { condition: service_healthy }
-      kafka:    { condition: service_healthy }
+      kafka-init: { condition: service_completed_successfully }
 
   # ── Kafka-only consumers (no HTTP port) ───────────────────────────────────
   deployment-engine:
@@ -234,13 +280,14 @@ services:
       <<: *rust-build
       args: { SERVICE: deployment_engine }
     environment:
-      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
       KAFKA_BROKERS: kafka:9092
       MCP_SERVER_URL: http://mcp-server:4040
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       RUST_LOG: info
     depends_on:
       postgres:   { condition: service_healthy }
-      kafka:      { condition: service_healthy }
+      kafka-init: { condition: service_completed_successfully }
       mcp-server: { condition: service_started }
 
   environment-orchestrator:
@@ -249,12 +296,12 @@ services:
       <<: *rust-build
       args: { SERVICE: environment_orchestrator }
     environment:
-      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
       KAFKA_BROKERS: kafka:9092
       RUST_LOG: info
     depends_on:
       postgres: { condition: service_healthy }
-      kafka:    { condition: service_healthy }
+      kafka-init: { condition: service_completed_successfully }
 
   notification-service:
     <<: *rust-defaults
@@ -263,12 +310,15 @@ services:
       args: { SERVICE: notification_service }
     ports: ["3012:3012"]
     environment:
-      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
       KAFKA_BROKERS: kafka:9092
-      SMTP_HOST: mailhog
-      SMTP_FROM: noreply@aistaff.app
+      SMTP_HOST: ${SMTP_HOST:-mailhog}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_FROM: ${SMTP_FROM:-noreply@aistaff.app}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       NOTIFICATION_HTTP_PORT: "3012"
-      BASE_URL: http://localhost:3012
+      BASE_URL: ${BASE_URL:-http://localhost:3000/api}
       # Twilio (SMS + WhatsApp)
       TWILIO_ACCOUNT_SID:     ${TWILIO_ACCOUNT_SID:-dev_placeholder}
       TWILIO_AUTH_TOKEN:      ${TWILIO_AUTH_TOKEN:-dev_placeholder}
@@ -287,7 +337,7 @@ services:
       RUST_LOG: info
     depends_on:
       postgres: { condition: service_healthy }
-      kafka:    { condition: service_healthy }
+      kafka-init: { condition: service_completed_successfully }
       mailhog:  { condition: service_started }
 
   mcp-server:
@@ -296,7 +346,7 @@ services:
       <<: *rust-build
       args: { SERVICE: mcp_server }
     environment:
-      DATABASE_URL: postgres://dev:devpassword@postgres:5432/aistaffapp
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
       MCP_FS_ROOT: /workspace
       RUST_LOG: info
     ports: ["4040:4040"]
@@ -306,6 +356,9 @@ services:
   # ── Frontend ────────────────────────────────────────────────────────────────
   web:
     restart: unless-stopped
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     build:
       context: apps/web
       dockerfile: Dockerfile
@@ -322,14 +375,19 @@ services:
         PAYOUT_SERVICE_URL:       http://payout-service:3010
         COMMUNITY_SERVICE_URL:    http://community-service:3011
         NOTIFICATION_SERVICE_URL: http://notification-service:3012
+        # Stripe publishable key is NEXT_PUBLIC_* — must be a build arg so Next.js
+        # bakes it into the client bundle at `next build` time.
+        NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY:-pk_test_placeholder}
     environment:
       NODE_ENV: production
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      # Auth.js v5 requires AUTH_SECRET (not NEXTAUTH_SECRET). Accept both.
+      AUTH_SECRET:     ${AUTH_SECRET:-${NEXTAUTH_SECRET}}
       NEXTAUTH_URL:    ${NEXTAUTH_URL:-http://localhost:3000}
       # Auth.js v5: AUTH_URL is the canonical base — do NOT set AUTH_TRUST_HOST
       # alongside it. AUTH_TRUST_HOST overrides AUTH_URL using the request Host
       # header, producing a different redirect_uri than what OAuth apps expect.
-      AUTH_URL:        ${NEXTAUTH_URL:-http://localhost:3000}
+      AUTH_URL:        ${AUTH_URL:-${NEXTAUTH_URL:-http://localhost:3000}}
       # OAuth providers
       GITHUB_CLIENT_ID:     ${GITHUB_CLIENT_ID}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
@@ -337,8 +395,43 @@ services:
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
       LINKEDIN_CLIENT_ID:     ${LINKEDIN_CLIENT_ID}
       LINKEDIN_CLIENT_SECRET: ${LINKEDIN_CLIENT_SECRET}
+      FACEBOOK_CLIENT_ID:     ${FACEBOOK_CLIENT_ID}
+      FACEBOOK_CLIENT_SECRET: ${FACEBOOK_CLIENT_SECRET}
       # Anthropic — required for LangGraph routes (/api/pm-agent, /api/proposal-copilot)
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # Qdrant — local vector DB for plagiarism detection (CLAUDE.md §0: offline-first AI)
+      QDRANT_URL: http://qdrant:6333
+      # OpenAI embeddings — text-embedding-3-small for deliverable similarity vectors
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # Stripe — runtime server-side secrets (never exposed to client bundle)
+      STRIPE_SECRET_KEY:       ${STRIPE_SECRET_KEY}
+      STRIPE_WEBHOOK_SECRET:   ${STRIPE_WEBHOOK_SECRET}
+      # Network International (N-Genius Online) — runtime server-side secrets
+      NETWORK_INTL_API_KEY:    ${NETWORK_INTL_API_KEY:-}
+      NETWORK_INTL_OUTLET_REF: ${NETWORK_INTL_OUTLET_REF:-}
+      # Sandbox: https://api-gateway.sandbox.ngenius-payments.com
+      # Production: https://api-gateway.ngenius-payments.com
+      NETWORK_INTL_API_BASE:   ${NETWORK_INTL_API_BASE:-https://api-gateway.sandbox.ngenius-payments.com}
+      # Custom webhook auth header value — must match Header Value in N-Genius portal
+      NETWORK_INTL_WEBHOOK_SECRET: ${NETWORK_INTL_WEBHOOK_SECRET:-}
+      # SMTP — magic link email delivery (Amazon SES or any SMTP relay).
+      # Same vars used by notification_service; must be forwarded explicitly here
+      # because docker-compose environment: lists are not inherited across services.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_FROM: ${SMTP_FROM:-noreply@aistaffglobal.com}
+      SMTP_USER:     ${SMTP_USER:-}
+      SMTP_PASS:     ${SMTP_PASS:-}
+      # Aliases used by notification_service — forward both so actions.ts can
+      # fall back to whichever naming convention is set in Dokploy.
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      # Direct DB access — used by Next.js API routes that query postgres via pg Pool
+      # (e.g. /api/reputation/*/export, /api/transparency/missed-jobs, /api/proposals/submit)
+      DATABASE_URL: postgres://${POSTGRES_USER:-aistaff}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
+      # Uploaded listing images — named volume mounted at /data/listing-images.
+      # In Dokploy: add volume mount host=/var/lib/dokploy/volumes/listing_images → /data/listing-images
+      LISTING_IMAGES_DIR: /data/listing-images
       # Backend service URLs — Docker container names
       IDENTITY_SERVICE_URL:     http://identity-service:3001
       MARKETPLACE_SERVICE_URL:  http://marketplace-service:3002
@@ -352,15 +445,20 @@ services:
       PAYOUT_SERVICE_URL:       http://payout-service:3010
       COMMUNITY_SERVICE_URL:    http://community-service:3011
       NOTIFICATION_SERVICE_URL: http://notification-service:3012
+    volumes:
+      - listing_images:/data/listing-images
     # No host port binding — Traefik (Dokploy) routes via container network.
     # For local dev, use docker-compose.override.yml which re-adds 3000:3000.
     expose:
       - "3000"
     depends_on:
-      - identity-service
-      - marketplace-service
-      - checklist-service
-      - payout-service
+      postgres: { condition: service_healthy }
+      identity-service:   { condition: service_started }
+      marketplace-service: { condition: service_started }
+      checklist-service:  { condition: service_started }
+      payout-service:     { condition: service_started }
 
 volumes:
   pg_data:
+  qdrant_data:
+  listing_images:    # persistent storage for seller-uploaded listing images

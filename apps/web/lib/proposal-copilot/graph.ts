@@ -6,7 +6,6 @@ import {
   Annotation,
   messagesStateReducer,
 } from "@langchain/langgraph";
-import { ChatAnthropic } from "@langchain/anthropic";
 import {
   HumanMessage,
   AIMessage,
@@ -15,6 +14,11 @@ import {
 } from "@langchain/core/messages";
 import { z } from "zod";
 import type { ProposalDraft, JobBrief, CopilotState } from "./types";
+import {
+  type AiProvider,
+  resolveFastLlm,
+  resolveCapableLlm,
+} from "@/lib/ai-provider";
 
 // ── Zod schema for structured proposal output ─────────────────────────────
 
@@ -53,27 +57,13 @@ const GraphState = Annotation.Root({
   answers:        Annotation<string[]>({ reducer: (_, n) => n, default: () => [] }),
   job_brief:      Annotation<JobBrief | null>({ reducer: (_, n) => n, default: () => null }),
   draft:          Annotation<ProposalDraft | null>({ reducer: (_, n) => n, default: () => null }),
+  user_api_key:   Annotation<string>({ reducer: (_, n) => n, default: () => "" }),
+  user_provider:  Annotation<AiProvider>({ reducer: (_, n) => n, default: () => "anthropic" }),
 });
 
 export type CopilotStateType = typeof GraphState.State;
 
-// ── LLM instances (lazy — created on first use to avoid build-time key check) ─
-
-let _intakeLlm: ChatAnthropic | null = null;
-function getIntakeLlm() {
-  if (!_intakeLlm) _intakeLlm = new ChatAnthropic({ model: "claude-haiku-4-5-20251001", maxTokens: 300 });
-  return _intakeLlm;
-}
-
-function buildDraftLlm() {
-  return new ChatAnthropic({ model: "claude-sonnet-4-6", maxTokens: 2000 })
-    .withStructuredOutput(ProposalSchema, { name: "generate_proposal" });
-}
-let _draftLlmStructured: ReturnType<typeof buildDraftLlm> | null = null;
-function getDraftLlmStructured() {
-  if (!_draftLlmStructured) _draftLlmStructured = buildDraftLlm();
-  return _draftLlmStructured;
-}
+// ── LLM helpers — delegate to multi-provider factory ─────────────────────
 
 // ── Helper ─────────────────────────────────────────────────────────────────
 
@@ -124,7 +114,7 @@ export async function intake_node(
         .map((a, i) => `Answer ${i + 1}: ${a}`)
         .join("\n")}\n\nYou have asked ${state.question_count} question(s). Ask your next question. Do not repeat topics already covered.`;
 
-  const response = await getIntakeLlm().invoke([
+  const response = await resolveFastLlm(state.user_provider, state.user_api_key, 300).invoke([
     new SystemMessage(INTAKE_SYSTEM),
     ...state.messages,
     new HumanMessage(userPrompt),
@@ -162,7 +152,9 @@ export async function generate_draft_node(
     .map((a, i) => `Freelancer answer ${i + 1}: ${a}`)
     .join("\n");
 
-  const draft = (await getDraftLlmStructured().invoke([
+  const draft = (await resolveCapableLlm(state.user_provider, state.user_api_key, 2000)
+    .withStructuredOutput(ProposalSchema, { name: "generate_proposal" })
+    .invoke([
     new SystemMessage(DRAFT_SYSTEM),
     new HumanMessage(
       `Job brief:\n${briefText}\n\nFreelancer background (from intake):\n${answersText}\n\nGenerate a complete proposal draft.`,
@@ -212,13 +204,20 @@ export function setSession(id: string, state: CopilotStateType): void {
   SESSION_MAP.set(id, { state, lastAccess: Date.now() });
 }
 
-export function initSession(id: string, jobBrief: JobBrief | null): CopilotStateType {
+export function initSession(
+  id: string,
+  jobBrief: JobBrief | null,
+  userApiKey = "",
+  userProvider: AiProvider = "anthropic",
+): CopilotStateType {
   const fresh: CopilotStateType = {
     messages:       [],
     question_count: 0,
     answers:        [],
     job_brief:      jobBrief,
     draft:          null,
+    user_api_key:   userApiKey,
+    user_provider:  userProvider,
   };
   setSession(id, fresh);
   return fresh;

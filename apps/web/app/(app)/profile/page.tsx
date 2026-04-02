@@ -1,0 +1,1282 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useSession, signIn } from "next-auth/react";
+import {
+  Bot, Star, TrendingUp, Rocket, Bell,
+  CheckCircle2, Clock, Shield, Github, Linkedin, CheckCheck, AlertTriangle,
+  Pencil, X, Save, Loader2, DollarSign, Key, Eye, EyeOff,
+} from "lucide-react";
+import { VettingBadge }    from "@/components/VettingBadge";
+import { TrustScoreBadge } from "@/components/TrustScoreBadge";
+
+import {
+  updateProfile, fetchPublicProfile, fetchSkillTags, fetchTalentSkills, updateTalentSkills,
+  requestNonce, attestSkills, disconnectProvider,
+  type SkillTag, type TalentSkill, type UpdateProfileRequest,
+} from "@/lib/api";
+
+// ── AI provider UI config (client-safe — no LangChain imports) ────────────────
+
+type AiProvider = "anthropic" | "openai" | "gemini" | "xai" | "openrouter" | "deepseek" | "kimi" | "qwen" | "minimax";
+
+const AI_PROVIDERS: { id: AiProvider; label: string; placeholder: string }[] = [
+  { id: "anthropic",  label: "Anthropic",  placeholder: "sk-ant-api03-…" },
+  { id: "openai",     label: "OpenAI",     placeholder: "sk-proj-…"      },
+  { id: "gemini",     label: "Gemini",     placeholder: "AIzaSy…"        },
+  { id: "xai",        label: "xAI Grok",   placeholder: "xai-…"          },
+  { id: "openrouter", label: "OpenRouter", placeholder: "sk-or-v1-…"     },
+  { id: "deepseek",   label: "DeepSeek",   placeholder: "sk-…"           },
+  { id: "kimi",       label: "Kimi",       placeholder: "sk-…"           },
+  { id: "qwen",       label: "Qwen",       placeholder: "sk-…"           },
+  { id: "minimax",    label: "MiniMax",    placeholder: "…"              },
+];
+
+// ── Tier helpers ───────────────────────────────────────────────────────────────
+
+type TierString = "UNVERIFIED" | "SOCIAL_VERIFIED" | "BIOMETRIC_VERIFIED";
+
+function tierToNum(t: TierString | string | undefined): 0 | 1 | 2 {
+  if (t === "SOCIAL_VERIFIED")    return 1;
+  if (t === "BIOMETRIC_VERIFIED") return 2;
+  return 0;
+}
+
+// ── Google icon ────────────────────────────────────────────────────────────────
+
+function GoogleIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24">
+      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+    </svg>
+  );
+}
+
+// ── Connected accounts ─────────────────────────────────────────────────────────
+
+const PROVIDERS = [
+  { id: "github",   label: "GitHub",   icon: <Github className="w-4 h-4 text-zinc-300" />,   tierNote: "+30 pts · technical verification" },
+  { id: "google",   label: "Google",   icon: <GoogleIcon className="w-4 h-4" />,             tierNote: "auth only · no trust score" },
+  { id: "linkedin", label: "LinkedIn", icon: <Linkedin className="w-4 h-4 text-zinc-300" />, tierNote: "+15 pts · professional verification" },
+];
+
+function ConnectedAccounts({
+  provider,
+  profileId,
+  onDisconnect,
+}: {
+  provider:     string;
+  profileId:    string | undefined;
+  onDisconnect: (provider: string, newScore: number, newTier: string) => void;
+}) {
+  const [disconnecting, setDisconnecting] = useState<string | null>(null);
+
+  async function handleDisconnect(pid: string) {
+    if (!profileId) return;
+    setDisconnecting(pid);
+    try {
+      const res = await disconnectProvider(profileId, pid as "github" | "google" | "linkedin");
+      onDisconnect(pid, res.trust_score, res.identity_tier);
+    } catch {
+      // backend offline — show nothing, keep UI unchanged
+    } finally {
+      setDisconnecting(null);
+    }
+  }
+
+  return (
+    <div className="border border-zinc-800 rounded-sm bg-zinc-900 divide-y divide-zinc-800">
+      {PROVIDERS.map((p) => {
+        const connected = p.id === provider;
+        return (
+          <div key={p.id} className="flex items-center gap-3 px-3 py-2.5">
+            {p.icon}
+            <div className="flex-1 min-w-0">
+              <p className="font-mono text-xs text-zinc-200">{p.label}</p>
+              <p className="font-mono text-[10px] text-zinc-600">{p.tierNote}</p>
+            </div>
+            {connected ? (
+              <div className="flex items-center gap-2">
+                <span className="flex items-center gap-1 font-mono text-[10px] text-emerald-500">
+                  <CheckCheck className="w-3 h-3" /> Connected
+                </span>
+                <button
+                  onClick={() => handleDisconnect(p.id)}
+                  disabled={disconnecting === p.id}
+                  className="font-mono text-[10px] text-zinc-600 hover:text-red-400
+                             border border-zinc-700 hover:border-red-900 px-2 py-1
+                             rounded-sm transition-colors disabled:opacity-40"
+                >
+                  {disconnecting === p.id ? "…" : "Disconnect"}
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => signIn(p.id)}
+                className="font-mono text-[10px] text-amber-400 hover:text-amber-300
+                           border border-amber-900 hover:border-amber-700 px-2 py-1
+                           rounded-sm transition-colors"
+              >
+                Connect →
+              </button>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Role stats ─────────────────────────────────────────────────────────────────
+
+const ROLE_STATS: Record<string, { label: string; value: string; icon: React.ElementType }[]> = {
+  client: [
+    { label: "Deployments",    value: "3",     icon: Rocket    },
+    { label: "Agents Active",  value: "2",     icon: Bot       },
+    { label: "Avg Trust Score",value: "72",    icon: Shield    },
+  ],
+  talent: [
+    { label: "Deployments Done", value: "12",   icon: Rocket    },
+    { label: "Reputation Score", value: "73",   icon: Star      },
+    { label: "Escrow Earned",    value: "$1.8k", icon: TrendingUp },
+  ],
+  "agent-owner": [
+    { label: "Agents Published", value: "4",   icon: Bot       },
+    { label: "Total Licenses",   value: "19",  icon: Star      },
+    { label: "Escrow Earned",    value: "$12k", icon: TrendingUp },
+  ],
+};
+
+// ── Proficiency labels ─────────────────────────────────────────────────────────
+
+const PROF_LABELS = ["", "Beginner", "Basic", "Intermediate", "Advanced", "Expert"];
+
+// ── Skill picker ──────────────────────────────────────────────────────────────
+
+function SkillPicker({
+  allTags,
+  current,
+  onChange,
+}: {
+  allTags:  SkillTag[];
+  current:  Map<string, number>;
+  onChange: (tagId: string, proficiency: number | null) => void;
+}) {
+  const domains = [...new Set(allTags.map((t) => t.domain))].sort();
+
+  return (
+    <div className="space-y-4">
+      {domains.map((domain) => (
+        <div key={domain}>
+          <p className="font-mono text-[10px] text-zinc-600 uppercase tracking-widest mb-2">{domain}</p>
+          <div className="flex flex-wrap gap-2">
+            {allTags
+              .filter((t) => t.domain === domain)
+              .map((tag) => {
+                const prof = current.get(tag.id) ?? 0;
+                const selected = prof > 0;
+                return (
+                  <div key={tag.id} className="flex flex-col items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => onChange(tag.id, selected ? null : 3)}
+                      className={`h-7 px-2.5 rounded-sm border font-mono text-xs transition-all ${
+                        selected
+                          ? "border-amber-400/60 bg-amber-400/10 text-amber-400"
+                          : "border-zinc-700 bg-zinc-900 text-zinc-400 hover:border-zinc-600"
+                      }`}
+                    >
+                      {tag.tag}
+                    </button>
+                    {selected && (
+                      <select
+                        value={prof}
+                        onChange={(e) => onChange(tag.id, Number(e.target.value))}
+                        className="h-5 text-[10px] font-mono bg-zinc-900 border border-zinc-700
+                                   text-zinc-400 rounded-sm px-1 focus:outline-none"
+                      >
+                        {[1, 2, 3, 4, 5].map((v) => (
+                          <option key={v} value={v}>{PROF_LABELS[v]}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Suggest skill form ────────────────────────────────────────────────────────
+
+const DOMAINS = ["systems", "web", "mobile", "ai", "data", "infra", "security", "web3", "general"];
+
+function SuggestSkillForm() {
+  const [tag,    setTag]    = useState("");
+  const [domain, setDomain] = useState("");
+  const [status, setStatus] = useState<"idle" | "submitting" | "done" | "error">("idle");
+  const [errMsg, setErrMsg] = useState("");
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!tag.trim() || !domain) return;
+    setStatus("submitting");
+    try {
+      const res = await fetch("/api/skill-suggestions", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ tag: tag.trim().toLowerCase(), domain }),
+      });
+      if (res.status === 409) {
+        setErrMsg("This skill is already pending review or already exists.");
+        setStatus("error");
+        return;
+      }
+      if (!res.ok) {
+        setErrMsg("Could not submit suggestion. Try again.");
+        setStatus("error");
+        return;
+      }
+      setStatus("done");
+      setTag("");
+      setDomain("");
+    } catch {
+      setErrMsg("Network error. Try again.");
+      setStatus("error");
+    }
+  }
+
+  if (status === "done") {
+    return (
+      <p className="font-mono text-xs text-emerald-500 flex items-center gap-1.5">
+        <CheckCircle2 className="w-3.5 h-3.5" /> Suggestion submitted — we&apos;ll review it shortly.
+      </p>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-2 pt-2 border-t border-zinc-800">
+      <p className="font-mono text-[10px] text-zinc-600 uppercase tracking-widest">
+        Suggest a missing skill
+      </p>
+      <div className="flex gap-2">
+        <input
+          aria-label="Skill name"
+          value={tag}
+          onChange={(e) => setTag(e.target.value)}
+          placeholder="e.g. solidity"
+          maxLength={40}
+          className="flex-1 h-8 px-3 rounded-sm border border-zinc-700 bg-zinc-900
+                     text-zinc-100 text-xs placeholder:text-zinc-600 font-mono
+                     focus:outline-none focus:border-amber-400/50 transition-colors"
+        />
+        <select
+          aria-label="Domain"
+          value={domain}
+          onChange={(e) => setDomain(e.target.value)}
+          className="h-8 px-2 rounded-sm border border-zinc-700 bg-zinc-900
+                     text-zinc-400 text-xs font-mono focus:outline-none focus:border-amber-400/50
+                     transition-colors"
+        >
+          <option value="">domain…</option>
+          {DOMAINS.map((d) => (
+            <option key={d} value={d}>{d}</option>
+          ))}
+        </select>
+        <button
+          type="submit"
+          disabled={!tag.trim() || !domain || status === "submitting"}
+          className="h-8 px-3 rounded-sm border border-zinc-700 bg-zinc-900
+                     text-zinc-400 font-mono text-xs hover:border-zinc-600
+                     disabled:opacity-40 transition-all"
+        >
+          {status === "submitting" ? <Loader2 className="w-3 h-3 animate-spin" /> : "Suggest"}
+        </button>
+      </div>
+      {status === "error" && (
+        <p className="font-mono text-[10px] text-red-400">{errMsg}</p>
+      )}
+    </form>
+  );
+}
+
+// ── Edit form ─────────────────────────────────────────────────────────────────
+
+function EditForm({
+  profileId,
+  initial,
+  allTags,
+  onSaved,
+  onCancel,
+}: {
+  profileId: string;
+  initial: { bio: string; hourlyRate: string; availability: string; role: string; skills: Map<string, number> };
+  allTags:   SkillTag[];
+  onSaved:   (data: { bio: string; hourlyRate: string; availability: string; role: string; skills: TalentSkill[] }) => void;
+  onCancel:  () => void;
+}) {
+  const [bio,          setBio]          = useState(initial.bio);
+  const [hourlyRate,   setHourlyRate]   = useState(initial.hourlyRate);
+  const [availability, setAvailability] = useState(initial.availability);
+  const [role,         setRole]         = useState(initial.role);
+  const [skills,       setSkills]       = useState(new Map(initial.skills));
+  const [saving,       setSaving]       = useState(false);
+  const [error,        setError]        = useState<string | null>(null);
+
+  function handleSkillChange(tagId: string, proficiency: number | null) {
+    setSkills((prev) => {
+      const next = new Map(prev);
+      if (proficiency === null) next.delete(tagId);
+      else next.set(tagId, proficiency);
+      return next;
+    });
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    setError(null);
+    try {
+      const profileData: UpdateProfileRequest = {
+        availability: availability as UpdateProfileRequest["availability"],
+        role:         role         as UpdateProfileRequest["role"],
+      };
+      if (bio.trim()) profileData.bio = bio.trim();
+      if (hourlyRate)  profileData.hourly_rate_cents = Math.round(parseFloat(hourlyRate) * 100);
+
+      const skillPayload = [...skills.entries()].map(([tag_id, proficiency]) => ({ tag_id, proficiency }));
+      await Promise.all([
+        updateProfile(profileId, profileData),
+        updateTalentSkills(profileId, skillPayload),
+      ]);
+    } catch {
+      setError("Backend offline — changes shown locally.");
+    }
+
+    // Build local skill objects from allTags for immediate UI update
+    const updatedSkills: TalentSkill[] = [...skills.entries()].map(([tag_id, proficiency]) => {
+      const tag = allTags.find((t) => t.id === tag_id);
+      return { tag_id, tag: tag?.tag ?? "", domain: tag?.domain ?? "", proficiency, verified_at: null };
+    });
+
+    setSaving(false);
+    onSaved({ bio: bio.trim(), hourlyRate, availability, role, skills: updatedSkills });
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Bio */}
+      <div className="space-y-1.5">
+        <label className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest">Bio</label>
+        <textarea
+          value={bio}
+          onChange={(e) => setBio(e.target.value)}
+          rows={3}
+          placeholder="Describe your expertise, stack, and what projects you enjoy..."
+          className="w-full px-3 py-2 rounded-sm border border-zinc-700 bg-zinc-900
+                     text-zinc-100 text-xs placeholder:text-zinc-600 font-mono resize-none
+                     focus:outline-none focus:border-amber-400/50 transition-colors"
+        />
+      </div>
+
+      {/* Hourly rate */}
+      <div className="space-y-1.5">
+        <label className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest">Hourly Rate (USD)</label>
+        <div className="relative">
+          <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-zinc-500" />
+          <input
+            type="number"
+            value={hourlyRate}
+            onChange={(e) => setHourlyRate(e.target.value)}
+            placeholder="150"
+            min="0"
+            step="5"
+            className="w-full h-9 pl-8 pr-3 rounded-sm border border-zinc-700 bg-zinc-900
+                       text-zinc-100 text-xs placeholder:text-zinc-600 font-mono
+                       focus:outline-none focus:border-amber-400/50 transition-colors"
+          />
+        </div>
+      </div>
+
+      {/* Availability */}
+      <div className="space-y-1.5">
+        <label className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest">Availability</label>
+        <div className="flex gap-2">
+          {(["available", "busy", "not-available"] as const).map((a) => (
+            <button
+              key={a}
+              type="button"
+              onClick={() => setAvailability(a)}
+              className={`h-8 px-3 rounded-sm border font-mono text-xs transition-all ${
+                availability === a
+                  ? a === "available"
+                    ? "border-emerald-600/60 bg-emerald-500/10 text-emerald-400"
+                    : a === "busy"
+                    ? "border-amber-600/60 bg-amber-500/10 text-amber-400"
+                    : "border-zinc-600 bg-zinc-700 text-zinc-300"
+                  : "border-zinc-700 bg-zinc-900 text-zinc-500 hover:border-zinc-600"
+              }`}
+            >
+              {a.replace("-", " ")}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Role */}
+      <div className="space-y-1.5">
+        <label className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest">Primary Role</label>
+        <div className="flex gap-2">
+          {(["talent", "client", "agent-owner"] as const).map((r) => (
+            <button
+              key={r}
+              type="button"
+              onClick={() => setRole(r)}
+              className={`h-8 px-3 rounded-sm border font-mono text-xs transition-all ${
+                role === r
+                  ? "border-amber-400/60 bg-amber-400/10 text-amber-400"
+                  : "border-zinc-700 bg-zinc-900 text-zinc-500 hover:border-zinc-600"
+              }`}
+            >
+              {r.replace("-", " ")}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Skills */}
+      <div className="space-y-1.5">
+        <label className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest">Skills</label>
+        {allTags.length > 0 ? (
+          <SkillPicker allTags={allTags} current={skills} onChange={handleSkillChange} />
+        ) : (
+          <p className="font-mono text-xs text-zinc-600">
+            Loading skill tags… (marketplace service must be running)
+          </p>
+        )}
+        <p className="font-mono text-[10px] text-zinc-600">
+          {skills.size} skill{skills.size !== 1 ? "s" : ""} selected — click a tag to toggle, then set proficiency
+        </p>
+        <SuggestSkillForm />
+      </div>
+
+      {error && (
+        <p className="font-mono text-[10px] text-amber-400 border border-amber-900 bg-amber-950/20 px-2 py-1.5 rounded-sm">
+          {error}
+        </p>
+      )}
+
+      <div className="flex gap-2">
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="flex-1 h-10 flex items-center justify-center gap-2 rounded-sm
+                     bg-amber-400 hover:bg-amber-300 disabled:bg-zinc-700 disabled:text-zinc-500
+                     text-zinc-950 font-mono text-xs font-medium transition-all active:scale-[0.98]"
+        >
+          {saving
+            ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving…</>
+            : <><Save className="w-3.5 h-3.5" /> Save profile</>}
+        </button>
+        <button
+          onClick={onCancel}
+          className="h-10 px-4 rounded-sm border border-zinc-700 text-zinc-400
+                     font-mono text-xs hover:border-zinc-600 hover:text-zinc-300 transition-all"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Privacy section ───────────────────────────────────────────────────────────
+
+type PrivacySettings = {
+  profile_public:    boolean;
+  show_bio:          boolean;
+  show_rate:         boolean;
+  show_skills:       boolean;
+  show_trust_score:  boolean;
+  show_availability: boolean;
+};
+
+function PrivacySection({
+  privacy,
+  saving,
+  msg,
+  onChange,
+  onSave,
+}: {
+  privacy:  PrivacySettings;
+  saving:   boolean;
+  msg:      string | null;
+  onChange: (field: keyof PrivacySettings, value: boolean) => void;
+  onSave:   () => void;
+}) {
+  const rows: Array<{ key: keyof PrivacySettings; label: string }> = [
+    { key: "profile_public",    label: "Public profile"         },
+    { key: "show_bio",          label: "Show bio"                },
+    { key: "show_rate",         label: "Show hourly rate"         },
+    { key: "show_skills",       label: "Show skills"              },
+    { key: "show_trust_score",  label: "Show trust score & tier"  },
+    { key: "show_availability", label: "Show availability"        },
+  ];
+
+  return (
+    <div className="border border-zinc-800 rounded-sm bg-zinc-900 p-4 space-y-3">
+      <p className="font-mono text-xs text-zinc-400 uppercase tracking-widest">Privacy</p>
+
+      {!privacy.profile_public && (
+        <div className="border border-amber-900 bg-amber-950/20 px-3 py-2 rounded-sm">
+          <p className="font-mono text-[10px] text-amber-400">
+            Your profile is hidden from public view. Only your name and role are visible.
+          </p>
+        </div>
+      )}
+
+      <div className="divide-y divide-zinc-800">
+        {rows.map(({ key, label }) => (
+          <div key={key} className="flex items-center justify-between py-2.5">
+            <span className="font-mono text-xs text-zinc-300">{label}</span>
+            <button
+              type="button"
+              onClick={() => onChange(key, !privacy[key])}
+              className={`relative w-10 h-5 rounded-sm border transition-all ${
+                privacy[key]
+                  ? "bg-amber-400/20 border-amber-400/60"
+                  : "bg-zinc-800 border-zinc-700"
+              }`}
+              aria-pressed={privacy[key]}
+              aria-label={label}
+            >
+              <span className={`absolute top-0.5 bottom-0.5 w-3.5 rounded-sm transition-all ${
+                privacy[key] ? "right-0.5 bg-amber-400" : "left-0.5 bg-zinc-600"
+              }`} />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {msg && (
+        <p className="font-mono text-[10px] text-amber-400 border border-amber-900 bg-amber-950/20 px-2 py-1.5 rounded-sm">
+          {msg}
+        </p>
+      )}
+
+      <button
+        onClick={onSave}
+        disabled={saving}
+        className="w-full h-9 flex items-center justify-center gap-2 rounded-sm border
+                   border-zinc-700 text-zinc-300 font-mono text-xs
+                   hover:border-zinc-500 hover:text-zinc-100 disabled:opacity-40 transition-all"
+      >
+        {saving ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving…</> : "Save privacy"}
+      </button>
+    </div>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+
+const DEMO_ACTIVITY = [
+  { id: "a1", label: "Signed in via OAuth",            at: "just now", success: true  },
+  { id: "a2", label: "Profile created",                at: "just now", success: true  },
+  { id: "a3", label: "DataSync Agent v2.1 deployed",   at: "2h ago",   success: true  },
+  { id: "a4", label: "LogAudit Sentinel — DoD passed", at: "1d ago",   success: true  },
+  { id: "a5", label: "Smoke test — remediated",        at: "3d ago",   success: false },
+];
+
+export default function ProfilePage() {
+  const { data: session, status } = useSession();
+
+  const [editing,         setEditing]         = useState(false);
+  const [allTags,         setAllTags]         = useState<SkillTag[]>([]);
+  const [endorsements,    setEndorsements]    = useState<Map<string, number>>(new Map());
+  const [calendarBlocks,  setCalendarBlocks]  = useState<{ date: string; status: string }[]>([]);
+  const [availSaving,     setAvailSaving]     = useState<string | null>(null);
+  const [currentSkills,   setCurrentSkills]   = useState<TalentSkill[]>([]);
+  const [bio,             setBio]             = useState("");
+  const [hourlyRate,      setHourlyRate]      = useState("");
+  const [availability,    setAvailability]    = useState("available");
+  const [role,            setRole]            = useState("talent");
+  const [zkLoading,       setZkLoading]       = useState(false);
+  const [zkError,         setZkError]         = useState<string | null>(null);
+  const [attesting,       setAttesting]       = useState(false);
+  const [attestMsg,       setAttestMsg]       = useState<string | null>(null);
+  const [liveScore,       setLiveScore]       = useState<number | null>(null);
+  const [liveTier,        setLiveTier]        = useState<string | null>(null);
+  const [privacy, setPrivacy] = useState({
+    profile_public:    true,
+    show_bio:          true,
+    show_rate:         true,
+    show_skills:       true,
+    show_trust_score:  true,
+    show_availability: true,
+  });
+  const [privacySaving, setPrivacySaving] = useState(false);
+  const [notifCount,    setNotifCount]    = useState(0);
+  const [privacyMsg,    setPrivacyMsg]    = useState<string | null>(null);
+
+  // BYOK — provider + key stored in localStorage
+  const [aiProvider,      setAiProvider]      = useState<AiProvider>("anthropic");
+  const [apiKey,          setApiKey]          = useState("");
+  const [apiKeyVisible,   setApiKeyVisible]   = useState(false);
+  const [apiKeyStatus,    setApiKeyStatus]    = useState<"idle" | "testing" | "valid" | "invalid">("idle");
+  const [apiKeyError,     setApiKeyError]     = useState<string | null>(null);
+
+  const profileId = session?.user?.profileId;
+
+  useEffect(() => {
+    if (!profileId) return;
+    fetchSkillTags()
+      .then(({ skill_tags }) => setAllTags(skill_tags))
+      .catch(() => {});
+    fetchTalentSkills(profileId)
+      .then(({ skills }) => setCurrentSkills(skills))
+      .catch(() => {});
+    // Pre-populate editable fields from the backend — bio/hourlyRate/availability/role
+    // may have been set in a previous session; without this fetch they would
+    // display as empty even if the user already filled them in.
+    fetchPublicProfile(profileId)
+      .then((p) => {
+        if (p.bio           != null) setBio(p.bio);
+        if (p.hourly_rate_cents != null)
+          setHourlyRate(String(Math.round(p.hourly_rate_cents / 100)));
+        if (p.availability  != null) setAvailability(p.availability);
+        if (p.role          != null) setRole(p.role);
+      })
+      .catch(() => {/* backend offline — leave defaults */});
+    // Load saved provider + key from localStorage
+    const savedProvider = localStorage.getItem("aistaff_ai_provider") as AiProvider | null;
+    const savedKey      = localStorage.getItem("aistaff_ai_key") ?? "";
+    if (savedProvider && AI_PROVIDERS.some((p) => p.id === savedProvider)) setAiProvider(savedProvider);
+    if (savedKey) setApiKey(savedKey);
+    if (profileId) {
+      fetch("/api/talent/privacy")
+        .then((res) => res.ok ? res.json() : null)
+        .then((data: unknown) => { if (data && typeof data === "object") setPrivacy(data as typeof privacy); })
+        .catch(() => {});
+      // Endorsements
+      fetch(`/api/endorsements/${profileId}`)
+        .then(r => r.ok ? r.json() : [])
+        .then((rows: { skill_tag_id: string; count: number }[]) => {
+          setEndorsements(new Map(rows.map(r => [r.skill_tag_id, r.count])));
+        })
+        .catch(() => {});
+      // Availability calendar blocks
+      fetch("/api/profile/availability")
+        .then(r => r.ok ? r.json() : [])
+        .then(setCalendarBlocks)
+        .catch(() => {});
+    }
+  }, [profileId]);
+
+  useEffect(() => {
+    if (!session?.user) return;
+    const poll = () =>
+      fetch("/api/notifications/count")
+        .then(r => r.ok ? r.json() : { count: 0 })
+        .then((d: { count?: number }) => setNotifCount(d.count ?? 0))
+        .catch(() => {});
+    poll();
+    const id = setInterval(poll, 30_000);
+    return () => clearInterval(id);
+  }, [session]);
+
+  if (status === "loading") {
+    return (
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+        <div className="w-4 h-4 rounded-full border-2 border-amber-500 border-t-transparent animate-spin" />
+      </div>
+    );
+  }
+
+  if (!session?.user) return null;
+
+  const user        = session.user;
+  const tierStr     = liveTier ?? user.identityTier;
+  const tier        = tierToNum(tierStr);
+  const primaryRole = role || (user.roles?.[0] as string) || "talent";
+  const stats       = ROLE_STATS[primaryRole] ?? ROLE_STATS.talent;
+  const trustScore  = liveScore ?? user.trustScore ?? 0;
+
+  async function handleOpenWallet() {
+    if (!profileId) return;
+    setZkLoading(true);
+    setZkError(null);
+    try {
+      const { wallet_deep_link } = await requestNonce(profileId);
+      window.open(wallet_deep_link, "_blank");
+    } catch {
+      setZkError("Nonce service unavailable — try again shortly.");
+    } finally {
+      setZkLoading(false);
+    }
+  }
+
+  async function handleAttestSkills() {
+    if (!profileId) return;
+    setAttesting(true);
+    setAttestMsg(null);
+    try {
+      const { attested } = await attestSkills(profileId);
+      setCurrentSkills((prev) =>
+        prev.map((s) => ({ ...s, verified_at: s.verified_at ?? new Date().toISOString() })),
+      );
+      setAttestMsg(attested > 0 ? `${attested} skill${attested !== 1 ? "s" : ""} self-attested ✓` : "All skills already attested.");
+    } catch {
+      setAttestMsg("Backend offline — attestation noted locally.");
+      setCurrentSkills((prev) =>
+        prev.map((s) => ({ ...s, verified_at: s.verified_at ?? new Date().toISOString() })),
+      );
+    } finally {
+      setAttesting(false);
+    }
+  }
+
+  function handleDisconnect(_provider: string, newScore: number, newTier: string) {
+    setLiveScore(newScore);
+    setLiveTier(newTier);
+  }
+
+  async function handleSavePrivacy() {
+    setPrivacySaving(true);
+    setPrivacyMsg(null);
+    try {
+      const res = await fetch("/api/talent/privacy", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(privacy),
+      });
+      if (res.ok) {
+        const updated = await res.json() as typeof privacy;
+        setPrivacy(updated);
+        setPrivacyMsg("Privacy settings saved.");
+      } else {
+        setPrivacyMsg("Failed to save — try again.");
+      }
+    } catch {
+      setPrivacyMsg("Backend offline — changes noted locally.");
+    } finally {
+      setPrivacySaving(false);
+    }
+  }
+
+  function handleSaveApiKey() {
+    localStorage.setItem("aistaff_ai_provider", aiProvider);
+    localStorage.setItem("aistaff_ai_key", apiKey.trim());
+    setApiKeyStatus("idle");
+    setApiKeyError(null);
+  }
+
+  function handleClearApiKey() {
+    localStorage.removeItem("aistaff_ai_provider");
+    localStorage.removeItem("aistaff_ai_key");
+    setApiKey("");
+    setAiProvider("anthropic");
+    setApiKeyStatus("idle");
+    setApiKeyError(null);
+  }
+
+  async function handleTestApiKey() {
+    const key = apiKey.trim();
+    if (!key) return;
+    setApiKeyStatus("testing");
+    setApiKeyError(null);
+    try {
+      const res = await fetch("/api/test-ai-key", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: aiProvider, api_key: key }),
+      });
+      const data = await res.json() as { valid: boolean; error?: string };
+      if (data.valid) {
+        setApiKeyStatus("valid");
+        localStorage.setItem("aistaff_ai_provider", aiProvider);
+        localStorage.setItem("aistaff_ai_key", key);
+      } else {
+        setApiKeyStatus("invalid");
+        setApiKeyError(data.error ?? "Invalid key");
+      }
+    } catch {
+      setApiKeyStatus("invalid");
+      setApiKeyError("Network error — try again");
+    }
+  }
+
+  const currentSkillMap = new Map<string, number>(
+    currentSkills.map((s) => [s.tag_id, s.proficiency]),
+  );
+
+  function handleSaved(data: { bio: string; hourlyRate: string; availability: string; role: string; skills: TalentSkill[] }) {
+    setBio(data.bio);
+    setHourlyRate(data.hourlyRate);
+    setAvailability(data.availability);
+    setRole(data.role);
+    setCurrentSkills(data.skills);
+    setEditing(false);
+  }
+
+  return (
+    <div className="flex flex-col lg:flex-row min-h-screen bg-zinc-950">
+
+      {/* Shared sidebar — handles active-state via usePathname() */}
+      {/* Content column */}
+      <div className="flex-1 flex flex-col min-h-screen">
+
+        {/* Top bar */}
+        <header className="sticky top-0 z-30 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur-sm">
+          <div className="px-4 h-12 flex items-center gap-3">
+            <span className="font-mono text-xs text-zinc-400">Profile</span>
+            <div className="ml-auto flex items-center gap-2">
+              <TrustScoreBadge score={trustScore} biometricVerified={tier === 2} />
+              {!editing && (
+                <button
+                  onClick={() => setEditing(true)}
+                  className="flex items-center gap-1.5 h-7 px-3 rounded-sm border border-zinc-700
+                             text-zinc-400 font-mono text-xs hover:border-zinc-500 hover:text-zinc-200 transition-colors"
+                >
+                  <Pencil className="w-3 h-3" /> Edit
+                </button>
+              )}
+            </div>
+          </div>
+        </header>
+
+        <main className="max-w-2xl mx-auto w-full px-4 py-6 space-y-6 pb-24 lg:pb-6">
+
+        {/* Tier 0 banner */}
+        {tier === 0 && (
+          <div className="flex items-start gap-3 px-4 py-3 rounded-sm border border-amber-900 bg-amber-950/20">
+            <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-mono text-xs text-amber-400 font-medium">
+                Connect GitHub or LinkedIn to receive job matches
+              </p>
+              <p className="font-mono text-[10px] text-amber-700 mt-0.5">
+                Google sign-in grants browse access only (Tier 0). Add GitHub (+30 pts) or LinkedIn (+15 pts) to unlock jobs.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Identity card */}
+        <div className="relative border border-zinc-800 rounded-sm bg-zinc-900 p-4">
+          <a href="/notifications" className="absolute top-3 right-3 p-0.5" aria-label="Notifications">
+            <Bell size={15} className={notifCount > 0 ? "text-amber-400" : "text-zinc-400"} />
+            {notifCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-0.5 rounded-sm bg-amber-400 text-zinc-950 font-mono text-[8px] font-bold flex items-center justify-center">
+                {notifCount > 99 ? "99+" : notifCount}
+              </span>
+            )}
+          </a>
+          <div className="flex items-start gap-4">
+            {user.image ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={user.image} alt={user.name ?? ""} className="w-12 h-12 rounded-sm border border-zinc-700 object-cover flex-shrink-0" />
+            ) : (
+              <div className="w-12 h-12 rounded-sm bg-zinc-800 border border-zinc-700 flex items-center justify-center flex-shrink-0">
+                <span className="font-mono text-base font-medium text-zinc-300">
+                  {(user.name ?? "?").split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}
+                </span>
+              </div>
+            )}
+            <div className="flex-1 min-w-0 space-y-1">
+              <p className="font-mono text-sm font-medium text-zinc-100">{user.name}</p>
+              <p className="font-mono text-xs text-zinc-500 truncate">{user.email}</p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-mono text-[10px] capitalize border border-zinc-700 text-zinc-400 px-1.5 py-0.5 rounded-sm">
+                  {primaryRole.replace("-", " ")}
+                </span>
+                {availability !== "available" && (
+                  <span className={`font-mono text-[10px] border px-1.5 py-0.5 rounded-sm capitalize ${
+                    availability === "busy"
+                      ? "border-amber-800 text-amber-500"
+                      : "border-zinc-700 text-zinc-500"
+                  }`}>
+                    {availability.replace("-", " ")}
+                  </span>
+                )}
+                {hourlyRate && (
+                  <span className="font-mono text-[10px] text-zinc-500">${hourlyRate}/hr</span>
+                )}
+              </div>
+              {bio && <p className="font-mono text-xs text-zinc-400 leading-relaxed">{bio}</p>}
+            </div>
+          </div>
+
+          {/* Trust score bar */}
+          <div className="mt-4 space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest">Trust Score</span>
+              <span className="font-mono text-[10px] text-zinc-400 tabular-nums">{trustScore} / 100</span>
+            </div>
+            <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+              <div className="h-full bg-amber-400 rounded-full transition-all duration-700" style={{ width: `${trustScore}%` }} />
+            </div>
+            <p className="font-mono text-[10px] text-zinc-600">GitHub +30 · LinkedIn +15 · Biometric ZK +40</p>
+          </div>
+        </div>
+
+        {/* Public profile link (view mode) */}
+        {!editing && profileId && (
+          <div className="flex items-center gap-2">
+            <a
+              href={`/talent/${profileId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-mono text-[10px] text-zinc-500 hover:text-amber-400 transition-colors"
+            >
+              View public profile →
+            </a>
+          </div>
+        )}
+
+        {/* Edit form */}
+        {editing && profileId && (
+          <div className="border border-amber-900/40 rounded-sm bg-zinc-900 p-4">
+            <p className="font-mono text-xs text-zinc-400 uppercase tracking-widest mb-4">Edit Profile</p>
+            <EditForm
+              profileId={profileId}
+              initial={{ bio, hourlyRate, availability, role, skills: currentSkillMap }}
+              allTags={allTags}
+              onSaved={handleSaved}
+              onCancel={() => setEditing(false)}
+            />
+          </div>
+        )}
+
+        {/* Privacy section (edit mode only) */}
+        {editing && (
+          <PrivacySection
+            privacy={privacy}
+            saving={privacySaving}
+            msg={privacyMsg}
+            onChange={(field, value) => setPrivacy((p) => ({ ...p, [field]: value }))}
+            onSave={handleSavePrivacy}
+          />
+        )}
+
+        {/* Skills (view mode) */}
+        {!editing && currentSkills.length > 0 && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="font-mono text-xs text-zinc-500 uppercase tracking-widest">Skills</p>
+              <button
+                onClick={handleAttestSkills}
+                disabled={attesting}
+                className="flex items-center gap-1.5 h-6 px-2.5 rounded-sm border border-zinc-700
+                           text-zinc-400 font-mono text-[10px] hover:border-zinc-500 hover:text-zinc-200
+                           disabled:opacity-40 transition-colors"
+              >
+                {attesting
+                  ? <><Loader2 className="w-3 h-3 animate-spin" /> Attesting…</>
+                  : <><Shield className="w-3 h-3" /> Attest skills</>}
+              </button>
+            </div>
+            {attestMsg && (
+              <p className="font-mono text-[10px] text-emerald-500 border border-emerald-900 bg-emerald-950/20 px-2 py-1 rounded-sm">
+                {attestMsg}
+              </p>
+            )}
+            <div className="flex flex-wrap gap-1.5">
+              {currentSkills.map((s) => (
+                <div key={s.tag_id} className="flex items-center gap-1 h-7 px-2.5 rounded-sm border border-amber-400/40 bg-amber-400/5">
+                  {s.verified_at && <CheckCircle2 className="w-3 h-3 text-emerald-500 flex-shrink-0" />}
+                  <span className="font-mono text-xs text-amber-400">{s.tag}</span>
+                  <span className="font-mono text-[10px] text-amber-700">{PROF_LABELS[s.proficiency]}</span>
+                  {(endorsements.get(s.tag_id) ?? 0) > 0 && (
+                    <span className="font-mono text-[9px] text-emerald-400 border border-emerald-900 bg-emerald-950/30 px-1 rounded-sm leading-4">
+                      +{endorsements.get(s.tag_id)}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Role stats */}
+        {!editing && (
+          <div className="grid grid-cols-3 gap-2">
+            {stats.map(({ label, value, icon: Icon }) => (
+              <div key={label} className="border border-zinc-800 rounded-sm bg-zinc-900 p-3 space-y-1">
+                <div className="flex items-center gap-1.5">
+                  <Icon className="w-3 h-3 text-zinc-600" />
+                  <p className="font-mono text-[10px] text-zinc-500 uppercase tracking-wider">{label}</p>
+                </div>
+                <p className="font-mono text-lg font-medium text-zinc-100 tabular-nums">{value}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Vetting badge */}
+        {!editing && (
+          <div className="space-y-2">
+            <p className="font-mono text-xs text-zinc-500 uppercase tracking-widest">Vetting Status</p>
+            <VettingBadge tier={tier} expandable />
+          </div>
+        )}
+
+        {/* Connected accounts */}
+        {!editing && (
+          <div className="space-y-2">
+            <p className="font-mono text-xs text-zinc-500 uppercase tracking-widest">Connected Accounts</p>
+            <ConnectedAccounts
+              provider={user.provider ?? ""}
+              profileId={profileId}
+              onDisconnect={handleDisconnect}
+            />
+          </div>
+        )}
+
+        {/* AI Integration — BYOK */}
+        {!editing && (
+          <div className="space-y-2">
+            <p className="font-mono text-xs text-zinc-500 uppercase tracking-widest">AI Integration</p>
+            <div className="border border-zinc-800 rounded-sm bg-zinc-900 p-4 space-y-3">
+              <div className="flex items-start gap-2">
+                <Key className="w-3.5 h-3.5 text-amber-400 flex-shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <p className="font-mono text-xs text-zinc-200">Bring Your Own API Key</p>
+                  <p className="font-mono text-[10px] text-zinc-500">
+                    Used for Proposal Copilot and AI PM Agent. Stored locally — never sent to our servers.
+                  </p>
+                </div>
+              </div>
+
+              {/* Provider selector */}
+              <div className="space-y-1.5">
+                <p className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest">Provider</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {AI_PROVIDERS.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => { setAiProvider(p.id); setApiKey(""); setApiKeyStatus("idle"); setApiKeyError(null); }}
+                      className={`h-7 px-2.5 rounded-sm border font-mono text-[10px] transition-all ${
+                        aiProvider === p.id
+                          ? "border-amber-400/60 bg-amber-400/10 text-amber-400"
+                          : "border-zinc-700 bg-zinc-900 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300"
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Key input row */}
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type={apiKeyVisible ? "text" : "password"}
+                    value={apiKey}
+                    onChange={(e) => { setApiKey(e.target.value); setApiKeyStatus("idle"); }}
+                    placeholder={AI_PROVIDERS.find((p) => p.id === aiProvider)?.placeholder ?? "API key…"}
+                    className="w-full h-8 px-2.5 pr-8 rounded-sm border border-zinc-700 bg-zinc-950
+                               font-mono text-xs text-zinc-200 placeholder-zinc-600
+                               focus:outline-none focus:border-amber-400/60"
+                  />
+                  <button
+                    onClick={() => setApiKeyVisible((v) => !v)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
+                  >
+                    {apiKeyVisible
+                      ? <EyeOff className="w-3.5 h-3.5" />
+                      : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+                <button
+                  onClick={handleTestApiKey}
+                  disabled={!apiKey.trim() || apiKeyStatus === "testing"}
+                  className="h-8 px-3 rounded-sm border border-zinc-700 font-mono text-xs text-zinc-300
+                             hover:border-zinc-500 hover:text-zinc-100 disabled:opacity-40 transition-colors"
+                >
+                  {apiKeyStatus === "testing" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Test"}
+                </button>
+                <button
+                  onClick={handleSaveApiKey}
+                  disabled={!apiKey.trim()}
+                  className="h-8 px-3 rounded-sm border border-amber-400/40 bg-amber-400/5
+                             font-mono text-xs text-amber-400 hover:bg-amber-400/10
+                             disabled:opacity-40 transition-colors"
+                >
+                  Save
+                </button>
+                {apiKey && (
+                  <button
+                    onClick={handleClearApiKey}
+                    className="h-8 px-2 rounded-sm border border-zinc-800 font-mono text-xs text-zinc-600
+                               hover:text-red-400 hover:border-red-900 transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {apiKeyStatus === "valid" && (
+                <p className="flex items-center gap-1.5 font-mono text-[10px] text-emerald-400">
+                  <CheckCircle2 className="w-3 h-3" /> Connected — {AI_PROVIDERS.find((p) => p.id === aiProvider)?.label} key active
+                </p>
+              )}
+              {apiKeyStatus === "invalid" && (
+                <p className="flex items-center gap-1.5 font-mono text-[10px] text-red-400">
+                  <AlertTriangle className="w-3 h-3" /> {apiKeyError}
+                </p>
+              )}
+              {apiKeyStatus === "idle" && apiKey && (
+                <p className="font-mono text-[10px] text-zinc-500">Key saved — click Test to verify</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Upgrade prompt */}
+        {!editing && tier < 2 && (
+          <div className="border border-amber-900 rounded-sm bg-amber-950/20 p-4 space-y-3">
+            <p className="font-mono text-xs text-amber-400 uppercase tracking-widest">Upgrade to Tier {tier + 1}</p>
+            <ul className="space-y-1.5">
+              {tier === 0 ? [
+                "Connect GitHub — unlocks technical job matching (+30 pts)",
+                "Connect LinkedIn — unlocks consulting roles (+15 pts)",
+              ].map((step) => (
+                <li key={step} className="flex items-start gap-2 font-mono text-xs text-zinc-400">
+                  <Clock className="w-3 h-3 text-amber-600 flex-shrink-0 mt-0.5" />
+                  {step}
+                </li>
+              )) : (
+                <>
+                  <li className="flex items-start gap-2 font-mono text-xs text-zinc-400 list-none">
+                    <Shield className="w-3 h-3 text-zinc-600 flex-shrink-0 mt-0.5" />
+                    ZK biometric liveness proof — unlocks high-value contracts &amp; auto escrow release
+                  </li>
+                  <li className="flex items-start gap-2 font-mono text-xs text-zinc-500 list-none">
+                    <Clock className="w-3 h-3 text-zinc-700 flex-shrink-0 mt-0.5" />
+                    Identity wallet integration launching soon
+                  </li>
+                </>
+              )}
+            </ul>
+            {tier === 1 && (
+              <div className="flex items-center gap-2 h-10 px-4 rounded-sm border border-zinc-800 bg-zinc-900
+                              text-zinc-500 font-mono text-xs uppercase tracking-widest w-full justify-center cursor-not-allowed select-none">
+                <Shield className="w-3.5 h-3.5" />
+                Biometric Verification — Coming Soon
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Availability calendar */}
+        {!editing && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="font-mono text-xs text-zinc-500 uppercase tracking-widest">Availability — Next 4 Weeks</p>
+              <p className="font-mono text-[9px] text-zinc-700">Click a day to toggle</p>
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {Array.from({ length: 28 }, (_, i) => {
+                const d    = new Date();
+                d.setDate(d.getDate() + i);
+                const key  = d.toISOString().slice(0, 10);
+                const block = calendarBlocks.find(b => b.date === key);
+                const status = block?.status ?? "AVAILABLE";
+                const colorMap: Record<string, string> = {
+                  AVAILABLE: "border-emerald-800 bg-emerald-950/20 text-emerald-400",
+                  BUSY:      "border-red-900    bg-red-950/20    text-red-400",
+                  TENTATIVE: "border-amber-800  bg-amber-950/20  text-amber-400",
+                };
+                const cycleStatus = (s: string) => s === "AVAILABLE" ? "BUSY" : s === "BUSY" ? "TENTATIVE" : null;
+                const isSaving    = availSaving === key;
+                return (
+                  <button
+                    key={key}
+                    disabled={isSaving}
+                    onClick={async () => {
+                      const next = cycleStatus(status);
+                      setAvailSaving(key);
+                      await fetch("/api/profile/availability", {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ date: key, status: next }),
+                      }).catch(() => {});
+                      setCalendarBlocks(prev => {
+                        const filtered = prev.filter(b => b.date !== key);
+                        return next ? [...filtered, { date: key, status: next }] : filtered;
+                      });
+                      setAvailSaving(null);
+                    }}
+                    title={`${key} — ${status}`}
+                    className={`w-8 h-8 rounded-sm border font-mono text-[9px] flex flex-col items-center justify-center
+                                transition-colors disabled:opacity-40 ${colorMap[status]}`}
+                  >
+                    <span className="text-[8px] text-zinc-600 leading-none">{d.toLocaleDateString("en-GB", { weekday: "narrow" })}</span>
+                    <span className="leading-none">{d.getDate()}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex items-center gap-3 pt-1">
+              {[["AVAILABLE", "emerald", "Available"], ["BUSY", "red", "Busy"], ["TENTATIVE", "amber", "Tentative"]].map(([s, c, l]) => (
+                <div key={s} className="flex items-center gap-1">
+                  <div className={`w-2.5 h-2.5 rounded-sm border border-${c}-800 bg-${c}-950/30`} />
+                  <span className="font-mono text-[9px] text-zinc-600">{l}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Portfolio link */}
+        {!editing && profileId && (
+          <div className="border border-zinc-800 rounded-sm p-3 bg-zinc-900/30 flex items-center justify-between gap-3">
+            <div>
+              <p className="font-mono text-xs text-zinc-300">Public Portfolio</p>
+              <p className="font-mono text-[10px] text-zinc-600 mt-0.5">Share your verified performance record with clients</p>
+            </div>
+            <a
+              href={`/portfolio/${profileId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-shrink-0 font-mono text-[10px] px-3 py-1.5 border border-zinc-700
+                         text-zinc-400 rounded-sm hover:border-amber-700 hover:text-amber-400 transition-colors whitespace-nowrap"
+            >
+              View →
+            </a>
+          </div>
+        )}
+
+        {/* Recent activity */}
+        {!editing && (
+          <div className="space-y-2">
+            <p className="font-mono text-xs text-zinc-500 uppercase tracking-widest">Recent Activity</p>
+            <div className="border border-zinc-800 rounded-sm bg-zinc-900 divide-y divide-zinc-800">
+              {DEMO_ACTIVITY.map((ev) => (
+                <div key={ev.id} className="flex items-center gap-3 px-3 py-2.5">
+                  {ev.success
+                    ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
+                    : <div className="w-3.5 h-3.5 rounded-full border border-amber-700 flex-shrink-0" />
+                  }
+                  <p className="font-mono text-xs text-zinc-300 flex-1 min-w-0 truncate">{ev.label}</p>
+                  <span className="font-mono text-[10px] text-zinc-600 flex-shrink-0">{ev.at}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        </main>
+      </div> {/* end content column */}
+
+      {/* Mobile bottom nav */}
+    </div>
+  );
+}

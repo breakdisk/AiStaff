@@ -55,7 +55,7 @@ pub async fn run_escrow_consumer(db: PgPool, brokers: String) -> anyhow::Result<
 }
 
 /// Handles the legacy 30% freelancer release from SuccessTrigger.
-async fn process_release_escrow(db: &PgPool, ev: &ReleaseEscrow) -> anyhow::Result<()> {
+pub async fn process_release_escrow(db: &PgPool, ev: &ReleaseEscrow) -> anyhow::Result<()> {
     sqlx::query!(
         "INSERT INTO escrow_payouts (deployment_id, recipient_id, amount_cents, reason, created_at)
          VALUES ($1, $2, $3, $4, NOW())
@@ -72,38 +72,84 @@ async fn process_release_escrow(db: &PgPool, ev: &ReleaseEscrow) -> anyhow::Resu
     Ok(())
 }
 
-/// Handles the 70/30 split release from VetoFirst payout service.
-async fn process_escrow_release(db: &PgPool, ev: &EscrowRelease) -> anyhow::Result<()> {
-    // Insert two payout rows atomically
+/// Handles the escrow release from VetoFirst payout service.
+///
+/// Atomically records the full split in one transaction:
+///
+/// Freelancer path (agency_id = None):
+///   1. Developer payout  (~59.5% — 70% of post-15%-commission remainder)
+///   2. Talent payout     (~25.5% — 30% of post-15%-commission remainder)
+///   3. Platform fee      (15% — recorded in platform_fees)
+///
+/// Agency path (agency_id = Some):
+///   1. Developer payout  (70% of post-agency remainder)
+///   2. Talent payout     (30% of post-agency remainder)
+///   3. Agency management fee (agency_pct% of post-12%-commission remainder)
+///   4. Platform fee      (12% — recorded in platform_fees)
+///
+/// All rows inserted atomically in one transaction.
+pub async fn process_escrow_release(db: &PgPool, ev: &EscrowRelease) -> anyhow::Result<()> {
     let mut tx = db.begin().await?;
 
-    sqlx::query!(
+    // Developer payout
+    sqlx::query(
         "INSERT INTO escrow_payouts (deployment_id, recipient_id, amount_cents, reason, created_at)
-         VALUES ($1, $2, $3, 'developer_70_pct', NOW())",
-        ev.deployment_id,
-        ev.developer_id,
-        ev.developer_cents as i64,
+         VALUES ($1, $2, $3, 'developer_pct', NOW())",
     )
+    .bind(ev.deployment_id)
+    .bind(ev.developer_id)
+    .bind(ev.developer_cents as i64)
     .execute(&mut *tx)
     .await?;
 
-    sqlx::query!(
+    // Talent payout
+    sqlx::query(
         "INSERT INTO escrow_payouts (deployment_id, recipient_id, amount_cents, reason, created_at)
-         VALUES ($1, $2, $3, 'talent_30_pct', NOW())",
-        ev.deployment_id,
-        ev.talent_id,
-        ev.talent_cents as i64,
+         VALUES ($1, $2, $3, 'talent_pct', NOW())",
     )
+    .bind(ev.deployment_id)
+    .bind(ev.talent_id)
+    .bind(ev.talent_cents as i64)
+    .execute(&mut *tx)
+    .await?;
+
+    // Agency management fee — Option B: platform distributes directly to agency owner
+    if let Some(agency_id) = ev.agency_id {
+        if ev.agency_cents > 0 {
+            sqlx::query(
+                "INSERT INTO escrow_payouts (deployment_id, recipient_id, amount_cents, reason, created_at)
+                 VALUES ($1, $2, $3, 'agency_mgmt_fee', NOW())",
+            )
+            .bind(ev.deployment_id)
+            .bind(agency_id)
+            .bind(ev.agency_cents as i64)
+            .execute(&mut *tx)
+            .await?;
+        }
+    }
+
+    // Platform commission — 12% for agency deployments, 15% for freelancer
+    let fee_pct: i16 = if ev.agency_id.is_some() { 12 } else { 15 };
+    sqlx::query(
+        "INSERT INTO platform_fees (deployment_id, fee_cents, fee_pct, created_at)
+         VALUES ($1, $2, $3, NOW())",
+    )
+    .bind(ev.deployment_id)
+    .bind(ev.platform_cents as i64)
+    .bind(fee_pct)
     .execute(&mut *tx)
     .await?;
 
     tx.commit().await?;
 
     info!(
-        deployment_id = %ev.deployment_id,
-        dev_cents = ev.developer_cents,
-        talent_cents = ev.talent_cents,
-        "70/30 escrow split recorded"
+        deployment_id  = %ev.deployment_id,
+        platform_cents = ev.platform_cents,
+        dev_cents      = ev.developer_cents,
+        talent_cents   = ev.talent_cents,
+        agency_cents   = ev.agency_cents,
+        is_agency      = ev.agency_id.is_some(),
+        "Escrow split recorded"
     );
     Ok(())
 }

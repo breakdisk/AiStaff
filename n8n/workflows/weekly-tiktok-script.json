@@ -1,0 +1,117 @@
+{
+  "name": "Weekly TikTok Script Generation",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * 1"
+            }
+          ]
+        }
+      },
+      "id": "b2c3d4e5-0002-0002-0002-000000000001",
+      "name": "Schedule — Every Monday 09:00 UTC",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://aistaffglobal.com/api/analytics/leaderboard",
+        "options": {
+          "timeout": 5000
+        }
+      },
+      "id": "b2c3d4e5-0002-0002-0002-000000000002",
+      "name": "Fetch Weekly Top Performer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const performers = $input.item.json;\nconst top = Array.isArray(performers) ? performers[0] : performers;\n\nconst name = top?.name ?? 'Top AI Engineer';\nconst skill = top?.top_skill ?? 'AI automation';\nconst score = top?.trust_score ?? 95;\nconst deployments = top?.deployment_count ?? 12;\nconst earnings = top?.earnings_usd ? `$${top.earnings_usd.toLocaleString()}` : '$8,400';\n\nconst script = `[HOOK — 0–3s]\nThis ${skill} engineer just earned ${earnings} this week on AiStaff.\nHere's exactly how the platform works.\n\n[PROBLEM — 3–10s]\nHiring AI talent the old way: NDAs unsigned, payments disputed, code shipped with no accountability.\n\n[SOLUTION — 10–25s]\nAiStaff uses Groth16 zero-knowledge proofs to verify every engineer's identity — no raw biometric data stored anywhere.\nEvery deployment gets a 30-second human veto window before any money moves.\nEscrow is held until your Definition of Done checklist passes.\n\n[SOCIAL PROOF — 25–45s]\n${name} has a trust score of ${score}/100 — that's GitHub commits, LinkedIn verification, and a ZK biometric proof combined.\n${deployments} successful deployments this month. 7-day warranty on every one.\n\n[CTA — 45–60s]\nLink in bio — aistaffglobal.com\nBrowse verified AI talent. Escrow-backed. Ship with confidence.`;\n\nreturn [{ json: { script, performer_name: name, performer_skill: skill, trust_score: score, week: new Date().toISOString().slice(0, 10) } }];"
+      },
+      "id": "b2c3d4e5-0002-0002-0002-000000000003",
+      "name": "Generate TikTok Script",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "slackApi",
+        "resource": "message",
+        "operation": "post",
+        "channel": "#marketing",
+        "text": "=*Weekly TikTok Script — {{ $json.week }}*\n\nTop performer: *{{ $json.performer_name }}* ({{ $json.performer_skill }}, trust score {{ $json.trust_score }}/100)\n\n```\n{{ $json.script }}\n```\n\nReview, adjust tone, then schedule on TikTok/Reels/Shorts.",
+        "otherOptions": {}
+      },
+      "id": "b2c3d4e5-0002-0002-0002-000000000004",
+      "name": "Post Script to Slack #marketing",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2,
+      "position": [900, 300],
+      "credentials": {
+        "slackApi": {
+          "id": "slack-aistaff-internal",
+          "name": "AiStaff Slack Internal"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule — Every Monday 09:00 UTC": {
+      "main": [
+        [
+          {
+            "node": "Fetch Weekly Top Performer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Weekly Top Performer": {
+      "main": [
+        [
+          {
+            "node": "Generate TikTok Script",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate TikTok Script": {
+      "main": [
+        [
+          {
+            "node": "Post Script to Slack #marketing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "versionId": "1.0.0",
+  "meta": {
+    "templateId": "weekly-tiktok-script",
+    "instanceId": "aistaff-n8n"
+  },
+  "tags": ["tiktok", "marketing", "weekly"],
+  "notes": "Fires every Monday at 09:00 UTC. Fetches top performer from analytics leaderboard API. Generates a 60-second TikTok script. Posts draft to #marketing Slack channel for human review before publishing. Slack credential: 'AiStaff Slack Internal' — configure in n8n credential store."
+}

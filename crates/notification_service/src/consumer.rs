@@ -614,6 +614,140 @@ impl NotificationConsumer {
                         .ok();
                 }
 
+                // ─────────────────────────────────────────────────────────────
+                // Async collab: new chat message → email each recipient
+                // ─────────────────────────────────────────────────────────────
+                "MessageSent" => {
+                    let sender_name = envelope
+                        .payload
+                        .get("sender_name")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("A team member");
+
+                    let preview = envelope
+                        .payload
+                        .get("body_preview")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("(no preview)");
+
+                    let deployment_id = envelope
+                        .payload
+                        .get("deployment_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("unknown");
+
+                    let recipient_ids = envelope
+                        .payload
+                        .get("recipient_ids")
+                        .and_then(|v| v.as_array())
+                        .cloned()
+                        .unwrap_or_default();
+
+                    for rid in recipient_ids {
+                        let Some(rid_str) = rid.as_str() else {
+                            continue;
+                        };
+                        let Ok(rid_uuid) = uuid::Uuid::parse_str(rid_str) else {
+                            continue;
+                        };
+
+                        // Look up recipient email from unified_profiles
+                        let email_row =
+                            sqlx::query("SELECT email FROM unified_profiles WHERE id = $1")
+                                .bind(rid_uuid)
+                                .fetch_optional(&self.fanout.db)
+                                .await;
+
+                        let email = match email_row {
+                            Ok(Some(r)) => r.try_get::<String, _>("email").unwrap_or_default(),
+                            _ => continue,
+                        };
+
+                        if email.is_empty() {
+                            continue;
+                        }
+
+                        let subject = format!("New message from {sender_name}");
+                        let body = format!(
+                            "{sender_name} sent you a message on engagement {deployment_id}:\n\n\
+                             \"{preview}\"\n\n\
+                             Reply at https://aistaffglobal.com/collab?deployment_id={deployment_id}",
+                        );
+
+                        self.fanout
+                            .dispatch_email(rid_uuid, &email, &subject, &body)
+                            .await
+                            .ok();
+                    }
+                }
+
+                "DeploymentStarted" => {
+                    let deployment_id_str = envelope
+                        .payload
+                        .get("deployment_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    let freelancer_id_str = envelope
+                        .payload
+                        .get("freelancer_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+
+                    let Ok(freelancer_id) = uuid::Uuid::parse_str(freelancer_id_str) else {
+                        tracing::warn!(
+                            freelancer_id_str,
+                            "DeploymentStarted: invalid freelancer_id"
+                        );
+                        continue;
+                    };
+
+                    if deployment_id_str.is_empty() {
+                        tracing::warn!("DeploymentStarted: missing deployment_id in payload");
+                        continue;
+                    }
+
+                    let steps = match sqlx::query(
+                        "SELECT step_label FROM dod_checklist_steps WHERE deployment_id = $1::uuid",
+                    )
+                    .bind(deployment_id_str)
+                    .fetch_all(&self.fanout.db)
+                    .await
+                    {
+                        Ok(rows) => rows,
+                        Err(e) => {
+                            tracing::error!(
+                                deployment_id = deployment_id_str,
+                                "failed to fetch checklist steps: {e}"
+                            );
+                            continue;
+                        }
+                    };
+
+                    let count = steps.len();
+                    for step in &steps {
+                        let Ok(step_label) = step.try_get::<String, _>("step_label") else {
+                            continue;
+                        };
+                        if let Err(e) = sqlx::query(
+                            "INSERT INTO reminders (user_id, deployment_id, title, remind_at, source)
+                             VALUES ($1, $2::uuid, $3, NOW() + INTERVAL '24 hours', 'system')",
+                        )
+                        .bind(freelancer_id)
+                        .bind(deployment_id_str)
+                        .bind(format!("DoD: {step_label}"))
+                        .execute(&self.fanout.db)
+                        .await
+                        {
+                            tracing::error!("reminder insert error: {e}");
+                        }
+                    }
+                    tracing::info!(
+                        deployment_id = deployment_id_str,
+                        count,
+                        "system reminders seeded"
+                    );
+                }
+
                 _ => {}
             }
         }

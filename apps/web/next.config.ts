@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 
+// build: 2026-04-02 — force cache bust for portfolio redesign
 // ── Service base URLs ──────────────────────────────────────────────────────────
 // Defaults to localhost for `npm run dev` / bare `next start`.
 // In Docker, pass the container-name URLs via environment:
@@ -18,6 +19,45 @@ const COMM  = process.env.COMMUNITY_SERVICE_URL    ?? "http://localhost:3011";
 const NOTIF = process.env.NOTIFICATION_SERVICE_URL ?? "http://localhost:3012";
 
 const nextConfig: NextConfig = {
+  // pdfkit reads font metric files (AFM) at runtime via fs — must NOT be
+  // bundled by webpack or it loses access to its own node_modules assets.
+  serverExternalPackages: ["pdfkit"],
+
+  images: {
+    remotePatterns: [
+      // QR code generator used in notification-settings integrations panel
+      { protocol: "https", hostname: "api.qrserver.com" },
+    ],
+  },
+
+  // ── Prevent Cloudflare (and any CDN) from caching auth API responses ────────
+  // Cloudflare strips Set-Cookie headers from cached responses. If /api/auth/csrf
+  // is cached, the CSRF cookie is never set → double-submit validation fails →
+  // Chrome shows error=Configuration. This header block ensures auth routes are
+  // always served fresh from the origin.
+  async headers() {
+    return [
+      {
+        source: "/api/auth/:path*",
+        headers: [
+          { key: "Cache-Control", value: "no-store, no-cache, must-revalidate, private" },
+          { key: "CDN-Cache-Control", value: "no-store" },
+          { key: "Cloudflare-CDN-Cache-Control", value: "no-store" },
+          { key: "Pragma", value: "no-cache" },
+        ],
+      },
+      {
+        source: "/(.*)",
+        headers: [
+          { key: "X-Frame-Options",           value: "SAMEORIGIN" },
+          { key: "X-Content-Type-Options",    value: "nosniff" },
+          { key: "Referrer-Policy",           value: "strict-origin-when-cross-origin" },
+          { key: "Permissions-Policy",        value: "camera=(), microphone=(), geolocation=()" },
+          { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+        ],
+      },
+    ];
+  },
   async rewrites() {
     return [
       { source: "/api/identity/:path*",                 destination: `${ID}/:path*` },

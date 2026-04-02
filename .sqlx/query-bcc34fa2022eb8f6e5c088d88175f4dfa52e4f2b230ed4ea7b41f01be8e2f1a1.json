@@ -34,7 +34,8 @@
                 "BIOMETRIC_PENDING",
                 "RELEASED",
                 "VETOED",
-                "FAILED"
+                "FAILED",
+                "QUALITY_GATE_BLOCKED"
               ]
             }
           }

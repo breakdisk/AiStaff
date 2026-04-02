@@ -10,6 +10,7 @@ import {
   generate_draft_node,
 } from "@/lib/proposal-copilot/graph";
 import type { CopilotRequest, CopilotResponse } from "@/lib/proposal-copilot/types";
+import type { AiProvider } from "@/lib/ai-provider";
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   let body: CopilotRequest;
@@ -27,8 +28,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // Load or init session — pass job_brief on first call to seed state
-  let state = getSession(session_id) ?? initSession(session_id, job_brief ?? null);
+  const userApiKey   = req.headers.get("x-user-api-key") ?? "";
+  const userProvider = (req.headers.get("x-user-ai-provider") ?? "anthropic") as AiProvider;
+
+  // Load or init session — pass job_brief, user API key and provider on first call
+  let state = getSession(session_id) ?? initSession(session_id, job_brief ?? null, userApiKey, userProvider);
 
   // If a brief was provided and not yet stored, attach it
   if (job_brief && !state.job_brief) {
@@ -84,9 +88,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       } satisfies CopilotResponse);
     }
   } catch (err) {
-    void err;
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[proposal-copilot] error:", msg);
     return NextResponse.json(
-      { error: "Copilot error — check ANTHROPIC_API_KEY in .env.local" },
+      { error: `Copilot error: ${msg}` },
       { status: 500 },
     );
   }

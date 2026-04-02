@@ -1,0 +1,247 @@
+# ── Dokploy production overlay ────────────────────────────────────────────────
+# Usage (Dokploy UI → Docker Compose → Compose Files):
+#   Primary file:  docker-compose.yml
+#   Override file: docker-compose.dokploy.yml
+#
+# Dokploy merges these at deploy time (equivalent to:
+#   docker compose -f docker-compose.yml -f docker-compose.dokploy.yml up -d)
+#
+# Replace every <PLACEHOLDER> with your real values in the Dokploy
+# "Environment Variables" panel — do NOT commit real secrets here.
+# ──────────────────────────────────────────────────────────────────────────────
+
+networks:
+  # Traefik's network — pre-created by Dokploy on first install.
+  # All services that need Traefik routing must join this network.
+  dokploy-network:
+    external: true
+
+services:
+  # ── Only the web service is publicly routed via Traefik. ──────────────────
+  # All Rust services remain on the internal Docker network only.
+  web:
+    restart: always
+    networks:
+      - default
+      - dokploy-network
+    ports: []           # Traefik handles port 80/443 — never expose 3000 raw
+    environment:
+      NODE_ENV: production
+      # NextAuth — must match your real domain exactly
+      NEXTAUTH_URL:    ${NEXTAUTH_URL}      # e.g. https://app.aistaff.app
+      AUTH_URL:        ${NEXTAUTH_URL}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      # OAuth providers (production credentials)
+      GITHUB_CLIENT_ID:       ${GITHUB_CLIENT_ID}
+      GITHUB_CLIENT_SECRET:   ${GITHUB_CLIENT_SECRET}
+      GOOGLE_CLIENT_ID:       ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET:   ${GOOGLE_CLIENT_SECRET}
+      LINKEDIN_CLIENT_ID:     ${LINKEDIN_CLIENT_ID}
+      LINKEDIN_CLIENT_SECRET: ${LINKEDIN_CLIENT_SECRET}
+      # Anthropic (LangGraph routes: /api/pm-agent, /api/proposal-copilot)
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      # Internal service URLs — Docker service names, never public hostnames
+      IDENTITY_SERVICE_URL:     http://identity-service:3001
+      MARKETPLACE_SERVICE_URL:  http://marketplace-service:3002
+      CHECKLIST_SERVICE_URL:    http://checklist-service:3003
+      LICENSE_SERVICE_URL:      http://license-service:3004
+      MATCHING_SERVICE_URL:     http://matching-service:3005
+      COMPLIANCE_SERVICE_URL:   http://compliance-service:3006
+      TELEMETRY_SERVICE_URL:    http://telemetry-service:3007
+      ANALYTICS_SERVICE_URL:    http://analytics-service:3008
+      REPUTATION_SERVICE_URL:   http://reputation-service:3009
+      PAYOUT_SERVICE_URL:       http://payout-service:3010
+      COMMUNITY_SERVICE_URL:    http://community-service:3011
+      NOTIFICATION_SERVICE_URL: http://notification-service:3012
+    labels:
+      - "traefik.enable=true"
+      # HTTPS router (primary)
+      - "traefik.http.routers.aistaff-web.rule=Host(`${APP_DOMAIN}`)"
+      - "traefik.http.routers.aistaff-web.entrypoints=websecure"
+      - "traefik.http.routers.aistaff-web.tls=true"
+      - "traefik.http.routers.aistaff-web.tls.certresolver=letsencrypt"
+      - "traefik.http.services.aistaff-web.loadbalancer.server.port=3000"
+      # HTTP → HTTPS redirect
+      - "traefik.http.routers.aistaff-web-http.rule=Host(`${APP_DOMAIN}`)"
+      - "traefik.http.routers.aistaff-web-http.entrypoints=web"
+      - "traefik.http.routers.aistaff-web-http.middlewares=aistaff-https-redirect"
+      - "traefik.http.middlewares.aistaff-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.aistaff-https-redirect.redirectscheme.permanent=true"
+      # HSTS (enforced at Traefik layer)
+      - "traefik.http.middlewares.aistaff-hsts.headers.stsSeconds=63072000"
+      - "traefik.http.middlewares.aistaff-hsts.headers.stsIncludeSubdomains=true"
+      - "traefik.http.middlewares.aistaff-hsts.headers.stsPreload=true"
+      - "traefik.http.routers.aistaff-web.middlewares=aistaff-hsts"
+
+  # ── Postgres: production credentials + persistent named volume ─────────────
+  postgres:
+    restart: always
+    environment:
+      POSTGRES_USER:     ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB:       ${POSTGRES_DB:-aistaff}
+    # Ports deliberately NOT exposed — accessed only via Docker network
+    ports: []
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    command: >
+      postgres
+        -c shared_buffers=256MB
+        -c max_connections=100
+        -c wal_level=replica
+
+  # ── Rust services: production DB credentials + real SMTP ──────────────────
+  identity-service:
+    restart: always
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
+      KAFKA_BROKERS: kafka:9092
+      JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY}
+      JWT_PUBLIC_KEY:  ${JWT_PUBLIC_KEY}
+      RUST_LOG: info,sqlx=warn
+    ports: []
+
+  marketplace-service:
+    restart: always
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
+      KAFKA_BROKERS: kafka:9092
+      RUST_LOG: info,sqlx=warn
+    ports: []
+
+  checklist-service:
+    restart: always
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
+      KAFKA_BROKERS: kafka:9092
+      RUST_LOG: info,sqlx=warn
+    ports: []
+
+  license-service:
+    restart: always
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
+      KAFKA_BROKERS: kafka:9092
+      RUST_LOG: info,sqlx=warn
+    ports: []
+
+  matching-service:
+    restart: always
+    environment:
+      DATABASE_URL:          postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
+      KAFKA_BROKERS:         kafka:9092
+      COMPLIANCE_SERVICE_URL: http://compliance-service:3006
+      RUST_LOG: info,sqlx=warn
+    ports: []
+
+  compliance-service:
+    restart: always
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
+      RUST_LOG: info,sqlx=warn
+    ports: []
+
+  telemetry-service:
+    restart: always
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
+      KAFKA_BROKERS: kafka:9092
+      RUST_LOG: info,sqlx=warn
+    ports: []
+
+  analytics-service:
+    restart: always
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
+      RUST_LOG: info,sqlx=warn
+    ports: []
+
+  reputation-service:
+    restart: always
+    environment:
+      DATABASE_URL:  postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
+      KAFKA_BROKERS: kafka:9092
+      PLATFORM_DID:  ${PLATFORM_DID:-did:web:aistaffglobal.com}
+      RUST_LOG: info,sqlx=warn
+    ports: []
+
+  payout-service:
+    restart: always
+    environment:
+      DATABASE_URL:  postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
+      KAFKA_BROKERS: kafka:9092
+      RUST_LOG: info,sqlx=warn
+    ports: []
+
+  community-service:
+    restart: always
+    environment:
+      DATABASE_URL:  postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
+      KAFKA_BROKERS: kafka:9092
+      RUST_LOG: info,sqlx=warn
+    ports: []
+
+  notification-service:
+    restart: always
+    environment:
+      DATABASE_URL:  postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
+      KAFKA_BROKERS: kafka:9092
+      # AWS SES SMTP (port 587 = STARTTLS; credentials required)
+      SMTP_HOST:     ${SMTP_HOST:-email-smtp.us-east-1.amazonaws.com}
+      SMTP_PORT:     ${SMTP_PORT:-587}
+      SMTP_FROM:     ${SMTP_FROM:-noreply@aistaffglobal.com}
+      SMTP_USERNAME: ${SMTP_USERNAME}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      NOTIFICATION_HTTP_PORT: "3012"
+      BASE_URL: ${NEXTAUTH_URL}
+      # Optional integrations (leave as placeholder if not used)
+      TWILIO_ACCOUNT_SID:               ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN:                ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_FROM_NUMBER:               ${TWILIO_FROM_NUMBER:-}
+      TWILIO_WHATSAPP_NUMBER:           ${TWILIO_WHATSAPP_NUMBER:-}
+      FCM_SERVER_KEY:                   ${FCM_SERVER_KEY:-}
+      INTEGRATION_TOKEN_ENCRYPTION_KEY: ${INTEGRATION_TOKEN_ENCRYPTION_KEY}
+      RUST_LOG: info,sqlx=warn
+    ports: []
+
+  deployment-engine:
+    restart: always
+    environment:
+      DATABASE_URL:    postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
+      KAFKA_BROKERS:   kafka:9092
+      MCP_SERVER_URL:  http://mcp-server:4040
+      WASM_PLUGIN_DIR: ${WASM_PLUGIN_DIR:-/plugins}
+      RUST_LOG: info,sqlx=warn
+
+  environment-orchestrator:
+    restart: always
+    environment:
+      DATABASE_URL:  postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
+      KAFKA_BROKERS: kafka:9092
+      RUST_LOG: info,sqlx=warn
+
+  # MCP server: internal only, NEVER publicly routed
+  mcp-server:
+    restart: always
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aistaff}
+      MCP_FS_ROOT:  ${MCP_FS_ROOT:-/workspace}
+      RUST_LOG: info,sqlx=warn
+    ports: []    # 4040 is localhost-only by design — never expose
+
+  # Mailhog: dev only — disabled in production via profile
+  mailhog:
+    profiles: ["dev"]
+
+  # ── Kafka + ZooKeeper ─────────────────────────────────────────────────────
+  zookeeper:
+    restart: always
+    ports: []
+
+  kafka:
+    restart: always
+    ports: []
+
+volumes:
+  postgres_data:
+    external: false

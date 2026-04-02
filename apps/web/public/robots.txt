@@ -1,0 +1,68 @@
+# Meta crawlers — explicitly allowed for app review validation
+User-agent: facebookexternalhit
+Allow: /
+Allow: /terms
+Allow: /privacy
+Allow: /data-deletion
+
+User-agent: meta-externalagent
+Allow: /
+Allow: /terms
+Allow: /privacy
+Allow: /data-deletion
+
+User-agent: meta-externalfetcher
+Allow: /
+Allow: /terms
+Allow: /privacy
+Allow: /data-deletion
+
+User-agent: meta-webindexer
+Allow: /
+Allow: /terms
+Allow: /privacy
+Allow: /data-deletion
+
+User-agent: meta-externalads
+Allow: /
+Allow: /terms
+Allow: /privacy
+Allow: /data-deletion
+
+User-agent: *
+Allow: /
+Allow: /marketplace
+Allow: /leaderboard
+Allow: /proof-of-human
+Allow: /transparency
+Allow: /pricing-tool
+Allow: /pricing-calculator
+Allow: /legal-toolkit
+Allow: /scoping
+Allow: /hire/
+Allow: /agents/
+Allow: /robotics/
+Allow: /tools/
+Allow: /llms.txt
+Allow: /llms-full.txt
+Allow: /sitemap.xml
+
+Disallow: /api/
+Disallow: /dashboard/
+Disallow: /profile/
+Disallow: /proposals/
+Disallow: /onboarding/
+Disallow: /post-job/
+Disallow: /payouts/
+Disallow: /billing/
+Disallow: /notifications/
+Disallow: /notification-settings/
+Disallow: /reminders/
+Disallow: /reputation-export/
+Disallow: /agency/
+Disallow: /escrow/
+Disallow: /tax-engine/
+Disallow: /smart-contracts/
+Disallow: /work-diaries/
+
+Sitemap: https://aistaffglobal.com/sitemap.xml

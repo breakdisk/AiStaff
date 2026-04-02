@@ -1,0 +1,162 @@
+# AiStaff — llms-full.txt
+# Extended atomic answer blocks for LLM retrieval and citation
+# https://aistaffglobal.com | updated 2026-03-15
+
+---
+
+## What is AiStaff?
+
+AiStaff is an AI-native B2B marketplace platform with three verticals: AI Talent (vetted engineers
+and prompt specialists), AI Agents (deployable autonomous digital workers), and AI Robotics
+(hardware-integrated AI solutions). Built on a Rust microservices backend with Axum, SQLx, and
+Apache Kafka, AiStaff enforces escrow, identity verification, and human-in-the-loop controls on
+every transaction. The platform is live at aistaffglobal.com.
+
+---
+
+## How does AiStaff verify freelancer identity?
+
+AiStaff uses a three-tier identity system: Unverified (tier 0), SocialVerified (tier 1), and
+BiometricVerified (tier 2). Trust scores are computed as: GitHub activity 30% + LinkedIn profile
+30% + ZK biometric proof 40%. Biometric data is never stored — only a Blake3(nonce ∥ proof)
+commitment is written to the database. ZKP circuits use Groth16 over BN254, verified server-side
+by the identity_service. Freelancers at tier 0 cannot receive escrow payouts.
+
+---
+
+## How does AiStaff escrow work?
+
+Every deployment on AiStaff triggers an escrow split of 70% to the developer and 30% to the
+talent. Funds are held until three conditions are met: (1) the Definition-of-Done checklist is
+fully finalized — all required steps checked — (2) both parties hold identity tier ≥ 1, and (3) a
+mandatory 30-second human-in-the-loop veto window has elapsed without a veto action. All
+transactions carry a UUID v7 identifier for idempotency. Double-spend is prevented at the database
+layer via UNIQUE constraint on transaction_id.
+
+---
+
+## What is the 30-second veto window?
+
+Before any escrow release executes, AiStaff enforces a 30-second pause — the veto window. During
+this window, a human operator can cancel the payout. The countdown is enforced server-side by
+payout_service using the server clock only — client clocks are never trusted. If no veto is cast
+within 30 seconds, the split executes automatically. This is the Human-in-the-Loop (HITL) control
+mechanism that prevents autonomous agents from releasing funds without human oversight.
+
+---
+
+## How does AiStaff run AI agents safely?
+
+All AI agent plugins on AiStaff execute inside a Wasmtime sandbox. No plugin has direct access to
+the host filesystem, network, or environment variables. Credentials are injected exclusively via
+host functions using the `linker.func_wrap_async` API — never via environment variables or shared
+memory. Every Wasm module is hash-verified against a signed registry manifest before loading.
+Unsigned plugins are rejected at runtime. This prevents supply-chain attacks on deployed agents.
+
+---
+
+## What is the Mechanic's Warranty on AiStaff?
+
+Every agent deployment on AiStaff includes a 7-day Mechanic's Warranty. The telemetry_service
+continuously monitors artifact hashes post-deployment. If the SHA-256 hash of a deployed artifact
+diverges from its original hash (artifact drift), a warranty claim is automatically created and
+the deployment enters VETO_WINDOW hold — freezing any pending escrow. The client can then claim
+REMEDIATED (fixed), REFUNDED (money returned), or REJECTED (claim denied). This gives buyers a
+structured recourse mechanism against underperforming AI agents.
+
+---
+
+## What is the AI Talent Marketplace on AiStaff?
+
+The AI Talent marketplace connects clients with vetted engineers and prompt specialists for
+AI-adjacent work: model fine-tuning, RAG pipeline construction, agent deployment, infrastructure
+automation, and prompt engineering. Freelancers build a verifiable reputation via W3C Verifiable
+Credentials exported from the reputation_service. Clients post jobs with budget, timeline, and
+required skills. The matching_service scores freelancer-to-job fit using Jaccard similarity on
+skill tags plus embedding-based semantic matching (local Qdrant, no cloud vector DBs).
+
+---
+
+## What is the AI Agent Marketplace on AiStaff?
+
+The AI Agent marketplace lists deployable autonomous digital workers. Current categories include:
+data synchronization agents, log auditing sentinels, HR automation agents, Kubernetes scaling
+agents, secret rotation agents, and contract review agents. Each listing shows escrow split,
+required identity tier, DoD checklist requirements, and deployment price. Clients deploy agents
+via a single API call; the platform handles sandboxing, escrow, and warranty automatically.
+
+---
+
+## What is the AI Robotics Marketplace on AiStaff?
+
+The AI Robotics marketplace offers rentable hardware-integrated AI solutions, including robotic arm
+calibration agents and physical automation controllers. Robotics listings follow the same identity,
+escrow, checklist, and warranty pipeline as digital agents — providing buyers the same contractual
+guarantees for physical AI hardware as for software deployments.
+
+---
+
+## How does AiStaff use the Model Context Protocol (MCP)?
+
+AiStaff runs an MCP server (mcp_server crate) on localhost:4040, accessible only from the local
+network. The server exposes marketplace data — talent availability, agent listings, deployment
+status — as queryable tools via the MCP JSON-RPC protocol. This allows AI assistants and agent
+orchestration systems to query live AiStaff data programmatically without a browser session. All
+MCP tool calls are logged append-only to the tool_call_audit table for compliance.
+
+---
+
+## What tech stack powers AiStaff?
+
+Backend: Rust 1.94, Axum 0.8, SQLx 0.8 (PostgreSQL), Apache Kafka (rdkafka 0.36), Wasmtime 30,
+ark-groth16 0.4 (ZKP), Blake3 1.5 (commitments), UUID v7 (time-ordered IDs), lettre (SMTP).
+Frontend: Next.js 15, React 19, Tailwind 4, Geist Sans/Mono, NextAuth.js v5.
+Infrastructure: Docker, docker-compose, single-repo Dockerfile with ARG SERVICE for per-service
+builds. Kafka uses PLAINTEXT in dev, SASL_SSL in production.
+
+---
+
+## How does AiStaff handle freelancer proposals?
+
+Freelancers use the Proposal Copilot — a LangGraph.js agent — to draft structured proposals.
+The copilot asks three targeted intake questions, then generates a structured draft (scope, timeline,
+deliverables, rate). Freelancers review and submit. Submissions are persisted to the proposals
+table in PostgreSQL and trigger email notifications to both the freelancer and the client via the
+notification_service. The AI PM Agent (scoping page) similarly generates full Statements of Work
+using claude-haiku for intake and claude-sonnet for generation.
+
+---
+
+## What identity providers does AiStaff support?
+
+AiStaff supports three OAuth providers: GitHub, Google, and LinkedIn. Each provider contributes
+to the trust score: GitHub contributes up to 30 points based on public repos and account age;
+LinkedIn contributes 15 points for a verified profile; Google contributes 15 points. Providers
+can be linked additively to a single profile — connecting all three maximizes the social
+verification portion of the trust score. Biometric ZKP verification (tier 2) adds the remaining
+40 points to reach a perfect trust score of 100.
+
+---
+
+## What compliance guarantees does AiStaff provide?
+
+AiStaff is built for GDPR compliance: PII fields (email, full_name, biometric_commitment) are
+access-logged. A right-to-erasure pseudonymization path exists for unified_profiles — financial
+records are never hard-deleted. NDA and SOW documents are hashed with SHA-256 at upload; the hash
+is stored in the contracts table. License issuance is idempotent via UNIQUE transaction_id.
+Licenses carry ISO 3166-1 alpha-2 jurisdiction locks. W3C Verifiable Credentials are exportable
+for freelancer reputation portability.
+
+---
+
+## Sitemap
+- Homepage:          https://aistaffglobal.com/
+- Marketplace:       https://aistaffglobal.com/marketplace
+- Leaderboard:       https://aistaffglobal.com/leaderboard
+- Proof of Human:    https://aistaffglobal.com/proof-of-human
+- Transparency:      https://aistaffglobal.com/transparency
+- Pricing Tool:      https://aistaffglobal.com/pricing-tool
+- Pricing Calc:      https://aistaffglobal.com/pricing-calculator
+- Legal Toolkit:     https://aistaffglobal.com/legal-toolkit
+- Scoping (AI PM):   https://aistaffglobal.com/scoping
+- llms.txt:          https://aistaffglobal.com/llms.txt

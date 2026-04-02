@@ -32,6 +32,9 @@ impl FromRef<AppState> for sqlx::PgPool {
     }
 }
 
+mod admin_handlers;
+mod audit_handler;
+mod enterprise_handlers;
 mod handlers;
 mod oauth_handler;
 mod openid4vp;
@@ -85,6 +88,11 @@ async fn main() -> anyhow::Result<()> {
         .route("/identity/connect-provider", post(connect_provider))
         // ZK nonce request (migration 0018)
         .route("/identity/nonce-request", post(nonce_request))
+        // Batch audit events (client onboarding, role selection, ToS, etc.)
+        .route(
+            "/identity/audit-events",
+            post(audit_handler::batch_audit_events),
+        )
         // Freelancer profile update (migration 0017)
         .route("/profile/{id}", patch(update_profile))
         // Provider disconnect + audit log (migration 0018)
@@ -96,6 +104,64 @@ async fn main() -> anyhow::Result<()> {
         .route("/identity/public-profile/{id}", get(public_profile))
         // Agency registration
         .route("/agencies", post(create_agency))
+        // Admin user management (internal only — not exposed via Traefik)
+        .route("/admin/users", get(admin_handlers::list_users))
+        .route(
+            "/admin/users/{id}/suspend",
+            post(admin_handlers::suspend_user),
+        )
+        .route(
+            "/admin/users/{id}/unsuspend",
+            post(admin_handlers::unsuspend_user),
+        )
+        .route(
+            "/admin/users/{id}/set-tier",
+            post(admin_handlers::set_user_tier),
+        )
+        // Enterprise org routes
+        .route(
+            "/enterprise/orgs-create",
+            post(enterprise_handlers::create_org_full),
+        )
+        .route("/enterprise/orgs/my", get(enterprise_handlers::get_my_org))
+        .route(
+            "/enterprise/orgs/{id}",
+            get(enterprise_handlers::get_org).patch(enterprise_handlers::update_org),
+        )
+        .route(
+            "/enterprise/orgs/{id}/invite",
+            post(enterprise_handlers::invite_member),
+        )
+        .route(
+            "/enterprise/orgs/{id}/members",
+            get(enterprise_handlers::list_members),
+        )
+        .route(
+            "/enterprise/orgs/{id}/members/{profile_id}",
+            delete(enterprise_handlers::remove_member),
+        )
+        .route(
+            "/enterprise/orgs/{id}/api-keys",
+            get(enterprise_handlers::list_api_keys).post(enterprise_handlers::create_api_key),
+        )
+        .route(
+            "/enterprise/orgs/{id}/api-keys/{kid}",
+            delete(enterprise_handlers::revoke_api_key),
+        )
+        .route(
+            "/enterprise/invites/{token}/accept",
+            post(enterprise_handlers::accept_invite),
+        )
+        // Public org profile — no auth (for /agency/{handle} frontend page)
+        .route(
+            "/orgs/public/{handle}",
+            get(enterprise_handlers::public_org_profile),
+        )
+        // Admin enterprise route
+        .route(
+            "/admin/enterprises",
+            get(enterprise_handlers::admin_list_orgs),
+        )
         .with_state(state);
 
     let addr = "0.0.0.0:3001";
@@ -130,6 +196,7 @@ struct UpdateProfilePayload {
     hourly_rate_cents: Option<i32>,
     availability: Option<String>,
     role: Option<String>,
+    tos_accepted: Option<bool>, // writes tos_accepted_at = NOW() if NULL
 }
 
 async fn update_profile(
@@ -143,6 +210,11 @@ async fn update_profile(
              hourly_rate_cents = COALESCE($3, hourly_rate_cents),
              availability      = COALESCE($4, availability),
              role              = COALESCE($5, role),
+             tos_accepted_at   = CASE
+                                   WHEN $6 = TRUE AND tos_accepted_at IS NULL
+                                   THEN NOW()
+                                   ELSE tos_accepted_at
+                                 END,
              updated_at        = NOW()
          WHERE id = $1",
     )
@@ -151,6 +223,7 @@ async fn update_profile(
     .bind(payload.hourly_rate_cents)
     .bind(&payload.availability)
     .bind(&payload.role)
+    .bind(payload.tos_accepted.unwrap_or(false))
     .execute(&pool)
     .await;
 
@@ -266,6 +339,9 @@ struct PublicProfileResponse {
     hourly_rate_cents: Option<i32>,
     availability: Option<String>,
     role: Option<String>,
+    // Added in migration 0045 — GitHub social proof metrics
+    github_followers: i32,
+    github_stars: i32,
 }
 
 async fn public_profile(
@@ -277,7 +353,8 @@ async fn public_profile(
     let res = sqlx::query(
         "SELECT display_name, trust_score, identity_tier::TEXT AS identity_tier,
                 github_uid, linkedin_uid, google_uid,
-                bio, hourly_rate_cents, availability, role
+                bio, hourly_rate_cents, availability, role,
+                github_followers, github_stars
          FROM unified_profiles WHERE id = $1",
     )
     .bind(id)
@@ -296,6 +373,8 @@ async fn public_profile(
             let hourly_rate_cents: Option<i32> = row.get("hourly_rate_cents");
             let availability: Option<String> = row.get("availability");
             let role: Option<String> = row.get("role");
+            let github_followers: i32 = row.get("github_followers");
+            let github_stars: i32 = row.get("github_stars");
 
             Json(PublicProfileResponse {
                 profile_id: id,
@@ -309,6 +388,8 @@ async fn public_profile(
                 hourly_rate_cents,
                 availability,
                 role,
+                github_followers,
+                github_stars,
             })
             .into_response()
         }
@@ -357,7 +438,9 @@ async fn disconnect_provider(
             "UPDATE unified_profiles SET google_uid = NULL, google_connected_at = NULL, updated_at = NOW() WHERE id = $1",
         "linkedin" =>
             "UPDATE unified_profiles SET linkedin_uid = NULL, linkedin_connected_at = NULL, updated_at = NOW() WHERE id = $1",
-        _ => return (StatusCode::BAD_REQUEST, "provider must be github|google|linkedin").into_response(),
+        "facebook" =>
+            "UPDATE unified_profiles SET facebook_uid = NULL, facebook_connected_at = NULL, updated_at = NOW() WHERE id = $1",
+        _ => return (StatusCode::BAD_REQUEST, "provider must be github|google|linkedin|facebook").into_response(),
     };
 
     if let Err(e) = sqlx::query(update_sql).bind(id).execute(&pool).await {
@@ -544,5 +627,18 @@ async fn create_agency(
             tracing::error!("create_agency insert: {e:#}");
             (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn tos_accepted_payload_deserialises() {
+        let with_tos: serde_json::Value =
+            serde_json::from_str(r#"{"tos_accepted": true}"#).unwrap();
+        assert_eq!(with_tos["tos_accepted"], true);
+
+        let without: serde_json::Value = serde_json::from_str(r#"{"bio": "hello"}"#).unwrap();
+        assert!(without.get("tos_accepted").is_none());
     }
 }

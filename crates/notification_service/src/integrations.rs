@@ -26,6 +26,12 @@ pub struct InitWhatsAppResponse {
     pub nonce: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InitMessengerResponse {
+    pub link: String,
+    pub nonce: String,
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // WhatsApp
 // ─────────────────────────────────────────────────────────────────────────────
@@ -37,21 +43,29 @@ pub async fn init_whatsapp_connect(
 ) -> Result<InitWhatsAppResponse> {
     let nonce = Uuid::now_v7().to_string();
 
+    // Twilio stores numbers as "whatsapp:+14155238886" — strip any prefix before
+    // the digits so the wa.me link contains only the numeric E.164 digits.
+    let number_digits = wa_business_number
+        .trim_start_matches("whatsapp:")
+        .trim_start_matches('+');
+    let qr_url = format!("https://wa.me/{}?text=connect:{}", number_digits, nonce);
+
+    // Store qr_url as display_name so the polling loop can return it without
+    // the frontend needing to re-derive it from the nonce.
     sqlx::query(
-        "INSERT INTO connected_integrations (user_id, provider, status, nonce)
-         VALUES ($1, 'whatsapp', 'pending', $2)
+        "INSERT INTO connected_integrations (user_id, provider, status, nonce, display_name)
+         VALUES ($1, 'whatsapp', 'pending', $2, $3)
          ON CONFLICT (user_id, provider) DO UPDATE
-             SET nonce       = $2,
-                 status      = 'pending',
+             SET nonce        = $2,
+                 display_name = $3,
+                 status       = 'pending',
                  connected_at = NULL",
     )
     .bind(user_id)
     .bind(&nonce)
+    .bind(&qr_url)
     .execute(pool)
     .await?;
-
-    let number_digits = wa_business_number.trim_start_matches('+');
-    let qr_url = format!("https://wa.me/{}?text=connect:{}", number_digits, nonce);
 
     Ok(InitWhatsAppResponse { qr_url, nonce })
 }
@@ -69,6 +83,58 @@ pub async fn verify_whatsapp_webhook(pool: &PgPool, from_body: &str) -> Result<(
         "UPDATE connected_integrations
          SET status = 'verified', connected_at = NOW()
          WHERE nonce = $1 AND provider = 'whatsapp'",
+    )
+    .bind(&nonce)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Facebook Messenger
+// ─────────────────────────────────────────────────────────────────────────────
+
+pub async fn init_messenger_connect(
+    pool: &PgPool,
+    user_id: Uuid,
+    page_username: &str,
+) -> Result<InitMessengerResponse> {
+    let nonce = Uuid::now_v7().to_string();
+
+    let link = format!("https://m.me/{}?ref={}", page_username, nonce);
+
+    sqlx::query(
+        "INSERT INTO connected_integrations (user_id, provider, status, nonce, display_name)
+         VALUES ($1, 'messenger', 'pending', $2, $3)
+         ON CONFLICT (user_id, provider) DO UPDATE
+             SET nonce        = $2,
+                 display_name = $3,
+                 status       = 'pending',
+                 connected_at = NULL",
+    )
+    .bind(user_id)
+    .bind(&nonce)
+    .bind(&link)
+    .execute(pool)
+    .await?;
+
+    Ok(InitMessengerResponse { link, nonce })
+}
+
+pub async fn verify_messenger_webhook(pool: &PgPool, from_body: &str) -> Result<()> {
+    // Expect body containing "ref={nonce}" (Messenger sends this in the m.me ref parameter).
+    let nonce = from_body
+        .split("ref=")
+        .nth(1)
+        .and_then(|s| s.split('&').next())
+        .map(|s| s.trim().to_string())
+        .ok_or_else(|| anyhow!("Messenger webhook body missing ref nonce"))?;
+
+    sqlx::query(
+        "UPDATE connected_integrations
+         SET status = 'verified', connected_at = NOW()
+         WHERE nonce = $1 AND provider = 'messenger'",
     )
     .bind(&nonce)
     .execute(pool)
@@ -216,7 +282,7 @@ pub async fn init_google_oauth(
 
     sqlx::query(
         "INSERT INTO connected_integrations (user_id, provider, status, nonce)
-         VALUES ($1, 'google_calendar', 'pending', $2)
+         VALUES ($1, 'google_meet', 'pending', $2)
          ON CONFLICT (user_id, provider) DO UPDATE
              SET nonce  = $2,
                  status = 'pending'",
@@ -290,7 +356,7 @@ pub async fn complete_google_oauth(
              access_token  = $2,
              refresh_token = $3,
              expires_at    = NOW() + ($4 * INTERVAL '1 second'),
-             display_name  = 'google_calendar',
+             display_name  = 'Google Calendar',
              connected_at  = NOW()
          WHERE nonce = $1",
     )

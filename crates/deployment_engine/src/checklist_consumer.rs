@@ -10,6 +10,7 @@ use common::{
     },
     kafka::{consumer::KafkaConsumer, producer::KafkaProducer},
 };
+use sha2::{Digest, Sha256};
 use sqlx::{PgPool, Row};
 use std::collections::{HashMap, HashSet};
 use tracing::{error, info, warn};
@@ -115,7 +116,39 @@ async fn handle_finalized(
     info!(deployment_id = %event.deployment_id, "Provisioning Wasm sandbox");
 
     // Fetch artifact bytes; fall back to no-op stub if store not configured.
-    let wasm_bytes = fetch_artifact(&artifact_hash).await;
+    // Returns None when the stub is used (no ARTIFACT_STORE_URL) — skip hash check.
+    let (wasm_bytes, from_store) = fetch_artifact(&artifact_hash).await;
+
+    // Verify the downloaded bytes match the stored artifact hash (SHA-256).
+    // Prevents corrupted downloads and hash-substitution attacks.
+    if from_store {
+        let computed = hex::encode(Sha256::digest(&wasm_bytes));
+        if computed != artifact_hash {
+            error!(
+                deployment_id = %event.deployment_id,
+                expected = %artifact_hash,
+                got      = %computed,
+                "Artifact hash mismatch after download — deployment FAILED"
+            );
+            sqlx::query(
+                "UPDATE deployments
+                 SET state = 'FAILED'::deployment_status,
+                     failure_reason = 'artifact hash mismatch after download',
+                     updated_at = NOW()
+                 WHERE id = $1",
+            )
+            .bind(event.deployment_id)
+            .execute(db)
+            .await?;
+            return Ok(());
+        }
+        info!(deployment_id = %event.deployment_id, "Artifact hash verified ✓");
+    } else {
+        warn!(
+            deployment_id = %event.deployment_id,
+            "ARTIFACT_STORE_URL not set — running no-op stub Wasm, hash check skipped"
+        );
+    }
 
     let agent = AiAgent {
         id: agent_id,
@@ -194,15 +227,17 @@ async fn handle_finalized(
 }
 
 /// Fetches Wasm artifact bytes by hash.
-/// Tries `{ARTIFACT_STORE_URL}/{hash}`; falls back to a no-op stub.
-async fn fetch_artifact(artifact_hash: &str) -> Vec<u8> {
+/// Returns `(bytes, from_store)`:
+///   - `from_store = true`  → real bytes fetched; caller MUST verify SHA-256.
+///   - `from_store = false` → no-op stub used (dev/CI); hash check must be skipped.
+async fn fetch_artifact(artifact_hash: &str) -> (Vec<u8>, bool) {
     if let Ok(base) = std::env::var("ARTIFACT_STORE_URL") {
         let url = format!("{base}/{artifact_hash}");
         match reqwest::get(&url).await {
             Ok(resp) if resp.status().is_success() => {
                 if let Ok(bytes) = resp.bytes().await {
                     info!(artifact_hash, "Loaded Wasm artifact from store");
-                    return bytes.to_vec();
+                    return (bytes.to_vec(), true);
                 }
             }
             Ok(resp) => warn!(
@@ -214,11 +249,7 @@ async fn fetch_artifact(artifact_hash: &str) -> Vec<u8> {
         }
     }
 
-    warn!(
-        artifact_hash,
-        "ARTIFACT_STORE_URL not set — using no-op stub Wasm"
-    );
-    STUB_WASM.to_vec()
+    (STUB_WASM.to_vec(), false)
 }
 
 async fn set_state(db: &PgPool, id: Uuid, state: &str) -> Result<()> {

@@ -1,14 +1,80 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import {
-  Bot, ArrowLeft, Send, Loader2, CheckCircle,
-  DollarSign, Calendar, Tag,
+  Bot, ArrowLeft, Send, Loader2, CheckCircle, CheckCircle2,
+  DollarSign, Calendar, Tag, Plus,
 } from "lucide-react";
 import { createListing, type ListingCategory } from "@/lib/api";
+
+type SkillTag = { id: string; tag: string; domain: string };
+
+const DOMAINS = ["systems", "web", "mobile", "ai", "data", "infra", "security", "web3", "general"];
+
+function SuggestSkillForm() {
+  const [open,   setOpen]   = useState(false);
+  const [tag,    setTag]    = useState("");
+  const [domain, setDomain] = useState("");
+  const [status, setStatus] = useState<"idle" | "submitting" | "done" | "error">("idle");
+  const [errMsg, setErrMsg] = useState("");
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!tag.trim() || !domain) return;
+    setStatus("submitting");
+    try {
+      const res = await fetch("/api/skill-suggestions", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ tag: tag.trim().toLowerCase(), domain }),
+      });
+      if (res.status === 409) { setErrMsg("Already pending review or exists in taxonomy."); setStatus("error"); return; }
+      if (!res.ok)             { setErrMsg("Could not submit. Try again.");                  setStatus("error"); return; }
+      setStatus("done");
+      setTag(""); setDomain("");
+    } catch { setErrMsg("Network error. Try again."); setStatus("error"); }
+  }
+
+  if (status === "done") return (
+    <p className="font-mono text-xs text-emerald-500 flex items-center gap-1.5 mt-2">
+      <CheckCircle2 className="w-3.5 h-3.5" /> Suggestion submitted — we&apos;ll review it shortly.
+    </p>
+  );
+
+  if (!open) return (
+    <button type="button" onClick={() => setOpen(true)}
+      className="mt-2 flex items-center gap-1 font-mono text-[11px] text-zinc-600 hover:text-amber-400 transition-colors">
+      <Plus className="w-3 h-3" /> Can&apos;t find your skill? Suggest one
+    </button>
+  );
+
+  return (
+    <form onSubmit={handleSubmit} className="mt-2 space-y-2 pt-2 border-t border-zinc-800">
+      <p className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest">Suggest a missing skill</p>
+      {status === "error" && <p className="font-mono text-xs text-red-500">{errMsg}</p>}
+      <div className="flex gap-2">
+        <input aria-label="Skill name" value={tag} onChange={(e) => setTag(e.target.value)}
+          placeholder="e.g. solidity" maxLength={40}
+          className="flex-1 h-8 px-3 rounded-sm border border-zinc-700 bg-zinc-900 text-zinc-100 text-xs placeholder:text-zinc-600 font-mono focus:outline-none focus:border-amber-400/50 transition-colors" />
+        <select aria-label="Domain" value={domain} onChange={(e) => setDomain(e.target.value)}
+          className="h-8 px-2 rounded-sm border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs font-mono focus:outline-none focus:border-amber-400/50 transition-colors">
+          <option value="">domain…</option>
+          {DOMAINS.map((d) => <option key={d} value={d}>{d}</option>)}
+        </select>
+        <button type="submit" disabled={!tag.trim() || !domain || status === "submitting"}
+          className="h-8 px-3 rounded-sm border border-zinc-700 bg-zinc-900 text-zinc-400 font-mono text-xs hover:border-zinc-600 disabled:opacity-40 transition-all">
+          {status === "submitting" ? <Loader2 className="w-3 h-3 animate-spin" /> : "Suggest"}
+        </button>
+        <button type="button" onClick={() => setOpen(false)}
+          className="h-8 px-3 rounded-sm font-mono text-xs text-zinc-600 hover:text-zinc-400 transition-colors">
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -34,7 +100,6 @@ const BUDGET_RANGES: { value: BudgetRange; label: string; cents: number }[] = [
   { value: "15000+",     label: "$15k+",        cents: 1500000 },
 ];
 const TIMELINES: Timeline[] = ["1-2 weeks", "2-4 weeks", "1-3 months", "3+ months"];
-const SKILL_SUGGESTIONS = ["rust", "wasm", "kafka", "postgres", "mlops", "k8s", "python", "typescript", "terraform", "llm"];
 
 // ── Field components ───────────────────────────────────────────────────────────
 
@@ -49,7 +114,6 @@ function Label({ children }: { children: React.ReactNode }) {
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function PostJobPage() {
-  const router = useRouter();
   const { data: session } = useSession();
 
   const [title,       setTitle]       = useState("");
@@ -57,22 +121,28 @@ export default function PostJobPage() {
   const [category,    setCategory]    = useState<JobCategory | "">("");
   const [budget,      setBudget]      = useState<BudgetRange | "">("");
   const [timeline,    setTimeline]    = useState<Timeline | "">("");
-  const [skills,      setSkills]      = useState<string[]>([]);
-  const [skillInput,  setSkillInput]  = useState("");
+  const [allTags,     setAllTags]     = useState<SkillTag[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [tagsLoading, setTagsLoading] = useState(true);
+  const [tagsError,   setTagsError]   = useState(false);
   const [submitting,  setSubmitting]  = useState(false);
   const [done,        setDone]        = useState(false);
   const [error,       setError]       = useState<string | null>(null);
 
-  function addSkill(tag: string) {
-    const clean = tag.trim().toLowerCase();
-    if (clean && !skills.includes(clean) && skills.length < 8) {
-      setSkills([...skills, clean]);
-    }
-    setSkillInput("");
-  }
+  useEffect(() => {
+    fetch("/api/skill-tags")
+      .then((r) => r.json())
+      .then((d) => setAllTags(d.skill_tags ?? []))
+      .catch(() => setTagsError(true))
+      .finally(() => setTagsLoading(false));
+  }, []);
 
-  function removeSkill(tag: string) {
-    setSkills(skills.filter((s) => s !== tag));
+  function toggleTag(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else if (next.size < 10) next.add(id);
+      return next;
+    });
   }
 
   const budgetEntry = BUDGET_RANGES.find((b) => b.value === budget);
@@ -81,19 +151,42 @@ export default function PostJobPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!isValid || submitting) return;
+
+    // profileId must be present — if identity_service was unreachable during
+    // login the session may not carry it; fail early rather than persisting
+    // a listing with the zero UUID as developer_id (which breaks the edit
+    // wizard owner check on the subsequent hard navigation).
+    const profileId = (session?.user as { profileId?: string })?.profileId;
+    if (!profileId) {
+      setError("Session not ready — please refresh the page and try again.");
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
 
     try {
-      await createListing({
-        developer_id: session?.user?.profileId ?? "00000000-0000-0000-0000-000000000000",
+      const listing = await createListing({
+        developer_id: profileId,
         name:         title.trim(),
-        description:  `${description.trim()}\n\nTimeline: ${timeline}\nRequired skills: ${skills.join(", ") || "flexible"}`,
+        description:  description.trim(),
         wasm_hash:    "pending-review",
         price_cents:  budgetEntry?.cents ?? 500000,
         category:     CATEGORY_MAP[category as JobCategory],
         seller_type:  "Freelancer",
       });
+      if (listing?.listing_id && selectedIds.size > 0) {
+        await fetch(`/api/listings/${listing.listing_id}/required-skills`, {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ tag_ids: Array.from(selectedIds) }),
+        }).catch(() => {}); // non-blocking — listing is already created
+      }
+      // Go straight into the media wizard — hard navigation crosses route group boundary reliably
+      if (listing?.slug) {
+        window.location.href = `/marketplace/${listing.slug}/edit?from=create`;
+        return;
+      }
       setDone(true);
     } catch {
       setError("Could not post job — marketplace service may be offline. Your details are saved.");
@@ -109,11 +202,12 @@ export default function PostJobPage() {
     return (
       <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center px-4">
         <div className="w-full max-w-sm space-y-5 text-center">
-          <CheckCircle className="w-12 h-12 text-emerald-500 mx-auto" />
+          <CheckCircle className="w-12 h-12 text-emerald-400 mx-auto" />
           <div>
-            <h2 className="text-xl font-semibold text-zinc-100">Job posted!</h2>
+            <h2 className="text-xl font-semibold text-zinc-100">Listing is live!</h2>
             <p className="font-mono text-xs text-zinc-500 mt-1">
-              Our matching engine will surface vetted freelancers shortly.
+              Your listing is published on the marketplace.
+              Add a demo video, screenshots, and requirements to convert more buyers.
             </p>
           </div>
           {error && (
@@ -262,45 +356,49 @@ export default function PostJobPage() {
 
           {/* Skills */}
           <div>
-            <Label>Required skills <span className="text-zinc-600 normal-case">(optional)</span></Label>
-            <div className="flex flex-wrap gap-1.5 mb-2">
-              {skills.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => removeSkill(s)}
-                  className="h-6 px-2 rounded-sm border border-amber-400/40 bg-amber-400/10
-                             text-amber-400 font-mono text-[11px] hover:bg-red-500/10 hover:border-red-500/40
-                             hover:text-red-400 transition-all"
-                >
-                  {s} ×
-                </button>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <input
-                value={skillInput}
-                onChange={(e) => setSkillInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addSkill(skillInput); } }}
-                placeholder="Type a skill and press Enter"
-                className="flex-1 h-8 px-3 rounded-sm border border-zinc-700 bg-zinc-900
-                           text-zinc-100 text-xs placeholder:text-zinc-600 font-mono
-                           focus:outline-none focus:border-amber-400/50 transition-colors"
-              />
-            </div>
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {SKILL_SUGGESTIONS.filter((s) => !skills.includes(s)).slice(0, 6).map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => addSkill(s)}
-                  className="h-5 px-2 rounded-sm border border-zinc-800 bg-zinc-900/60
-                             text-zinc-600 font-mono text-[10px] hover:border-zinc-700 hover:text-zinc-400 transition-all"
-                >
-                  + {s}
-                </button>
-              ))}
-            </div>
+            <Label>
+              Required skills{" "}
+              <span className="text-zinc-600 normal-case">
+                (optional — {selectedIds.size}/10 selected)
+              </span>
+            </Label>
+            {tagsLoading ? (
+              <div className="h-8 rounded-sm bg-zinc-800 animate-pulse" />
+            ) : tagsError ? (
+              <p className="font-mono text-xs text-zinc-500">
+                Skills unavailable — you can specify requirements in the description.
+              </p>
+            ) : (
+              Object.entries(
+                allTags.reduce<Record<string, SkillTag[]>>((acc, t) => {
+                  (acc[t.domain] ??= []).push(t);
+                  return acc;
+                }, {}),
+              ).map(([domain, tags]) => (
+                <div key={domain} className="mb-3">
+                  <p className="font-mono text-[10px] text-zinc-600 uppercase tracking-widest mb-1">
+                    {domain}
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {tags.map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => toggleTag(t.id)}
+                        aria-pressed={selectedIds.has(t.id)}
+                        className={`h-6 px-2 rounded-sm border font-mono text-[11px] transition-all
+                          ${selectedIds.has(t.id)
+                            ? "border-amber-400/60 bg-amber-400/10 text-amber-400"
+                            : "border-zinc-800 bg-zinc-900/60 text-zinc-500 hover:border-zinc-700 hover:text-zinc-400"}`}
+                      >
+                        {t.tag}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))
+            )}
+            {!tagsLoading && !tagsError && <SuggestSkillForm />}
           </div>
 
           {/* Submit */}

@@ -7,6 +7,7 @@
 
 export interface RoiReport {
   talent_id:              string;
+  display_name:           string;
   total_deployments:      number;
   total_earned_cents:     number;
   avg_checklist_pass_pct: number;
@@ -62,11 +63,17 @@ async function apiFetch<T>(
 // ── Marketplace service (:3002) ───────────────────────────────────────────
 
 export interface CreateDeploymentRequest {
-  agent_id:            string;
-  client_id:           string;
-  freelancer_id:       string;
-  agent_artifact_hash: string;
-  escrow_amount_cents: number;
+  agent_id:                  string;
+  client_id:                 string;
+  freelancer_id:             string;
+  /** Agent builder — defaults to freelancer_id when omitted. */
+  developer_id?:             string;
+  agent_artifact_hash:       string;
+  escrow_amount_cents:       number;
+  /** UUID v7 idempotency key — generated server-side if omitted. */
+  transaction_id?:           string;
+  /** Stripe PaymentIntent ID set after payment confirmation. */
+  stripe_payment_intent_id?: string;
 }
 
 export interface DeploymentSummary {
@@ -102,17 +109,25 @@ export type ListingCategory = "AiTalent" | "AiStaff" | "AiRobot";
 export type SellerType     = "Agency"   | "Freelancer";
 
 export interface AgentListing {
-  id:           string;
-  developer_id: string;
-  name:         string;
-  description:  string;
-  wasm_hash:    string;
-  price_cents:  number;
-  active:       boolean;
-  category:     ListingCategory;
-  seller_type:  SellerType;
-  created_at:   string;
-  updated_at:   string;
+  id:              string;
+  developer_id:    string;
+  name:            string;
+  description:     string;
+  wasm_hash:       string;
+  price_cents:     number;
+  active:          boolean;
+  category:        ListingCategory;
+  seller_type:     SellerType;
+  /** Human-readable kebab-case slug used in share URLs. */
+  slug:            string;
+  /** "PENDING_REVIEW" | "APPROVED" | "REJECTED" — present on all endpoints */
+  listing_status?: string;
+  created_at:      string;
+  updated_at:      string;
+  org_plan_tier?:   string | null;
+  org_id?:          string | null;
+  /** True when the listing's org has been admin-verified. */
+  org_is_verified?: boolean;
 }
 
 export interface CreateListingRequest {
@@ -133,11 +148,57 @@ export function fetchListing(listingId: string): Promise<AgentListing> {
   return apiFetch(`/api/marketplace/listings/${listingId}`);
 }
 
-export function createListing(req: CreateListingRequest): Promise<{ listing_id: string }> {
+export function fetchListingBySlug(slug: string): Promise<AgentListing> {
+  return apiFetch(`/api/marketplace/listings/by-slug/${slug}`);
+}
+
+export function createListing(req: CreateListingRequest): Promise<{ listing_id: string; slug?: string; listing_status?: string }> {
   return apiFetch("/api/marketplace/listings", {
     method: "POST",
     body:   JSON.stringify(req),
   });
+}
+
+// ── Listing media (:3002 /listings/:id/media) ──────────────────────────────
+
+export interface ListingMedia {
+  id:         string;
+  listing_id: string;
+  media_type: "video_url" | "image" | "requirement" | "deliverable";
+  content:    string;
+  required:   boolean;
+  sort_order: number;
+  created_at: string;
+}
+
+export function fetchListingMedia(listingId: string): Promise<{ media: ListingMedia[] }> {
+  return apiFetch(`/api/marketplace/listings/${listingId}/media`);
+}
+
+export function addListingMedia(
+  listingId: string,
+  req: {
+    media_type:  "video_url" | "image" | "requirement" | "deliverable";
+    content:     string;
+    required?:   boolean;
+    sort_order?: number;
+  },
+): Promise<{ media_id?: string; updated?: boolean }> {
+  return apiFetch(`/api/marketplace/listings/${listingId}/media`, {
+    method: "POST",
+    body:   JSON.stringify(req),
+  });
+}
+
+export async function deleteListingMedia(listingId: string, mediaId: string): Promise<void> {
+  // DELETE returns 204 No Content — cannot call .json() on an empty body.
+  const res = await fetch(`/api/marketplace/listings/${listingId}/media/${mediaId}`, {
+    method:  "DELETE",
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!res.ok) {
+    throw new Error(`API DELETE /listings/${listingId}/media/${mediaId} → ${res.status}`);
+  }
 }
 
 // ── Identity service — profile update (:3001) ────────────────────────────
@@ -147,6 +208,7 @@ export interface UpdateProfileRequest {
   hourly_rate_cents?: number;
   availability?:      "available" | "busy" | "not-available";
   role?:              "talent" | "client" | "agent-owner";
+  tos_accepted?:      boolean;
 }
 
 export function updateProfile(profileId: string, data: UpdateProfileRequest): Promise<{ ok: boolean }> {
@@ -173,11 +235,17 @@ export interface TalentSkill {
 }
 
 export function fetchSkillTags(): Promise<{ skill_tags: SkillTag[] }> {
-  return apiFetch("/api/marketplace/skill-tags");
+  // Served from Next.js directly (pg Pool → skill_tags table).
+  // No dependency on marketplace_service being up.
+  return apiFetch("/api/skill-tags");
 }
 
 export function fetchTalentSkills(profileId: string): Promise<{ skills: TalentSkill[] }> {
   return apiFetch(`/api/marketplace/talent-skills/${profileId}`);
+}
+
+export function fetchListingRequiredSkills(listingId: string): Promise<{ skills: SkillTag[] }> {
+  return apiFetch(`/api/listings/${listingId}/required-skills`);
 }
 
 export function updateTalentSkills(
@@ -221,12 +289,26 @@ export interface PublicProfile {
   hourly_rate_cents:  number | null;
   availability:       string | null;  // "available" | "busy" | "not-available"
   role:               string | null;  // "talent" | "client" | "agent-owner"
+  github_followers?:  number;
+  github_stars?:      number;
 }
 
 export function fetchPublicProfile(profileId: string): Promise<PublicProfile> {
   // Proxy: /api/identity/* → http://localhost:3001/*
   // Identity service route: /identity/public-profile/{id}
-  return apiFetch(`/api/identity/identity/public-profile/${profileId}`);
+  return apiFetch(`/api/identity/public-profile/${profileId}`);
+}
+
+export interface TalentPayout {
+  id:           string;
+  released_at:  string;   // ISO timestamp from escrow_payouts.created_at
+  agent_name:   string;   // COALESCE(agent_listings.name, 'Deleted Listing')
+  amount_cents: number;
+  status:       "RELEASED";
+}
+
+export function fetchTalentPayouts(): Promise<TalentPayout[]> {
+  return apiFetch("/api/talent/payouts");
 }
 
 export function requestNonce(
@@ -298,6 +380,85 @@ export function fetchMatches(req: MatchRequest): Promise<MatchResult> {
   });
 }
 
+// ── Matching invitations ───────────────────────────────────────────────────
+
+export interface InvitationResponse {
+  invitation_id: string;
+  created_at:    string;
+}
+
+export function inviteToProject(
+  talentId:   string,
+  listingId?: string,
+  message?:   string,
+): Promise<InvitationResponse> {
+  return apiFetch("/api/matching/invitations", {
+    method: "POST",
+    body:   JSON.stringify({ talent_id: talentId, listing_id: listingId, message }),
+  });
+}
+
+export interface ReceivedInvitation {
+  id:             string;
+  client_id:      string;
+  client_name:    string;
+  listing_id:     string | null;
+  listing_title:  string;
+  message:        string | null;
+  status:         "PENDING" | "ACCEPTED" | "DECLINED";
+  created_at:     string;
+  responded_at:   string | null;
+}
+
+export function fetchReceivedInvitations(): Promise<{ invitations: ReceivedInvitation[] }> {
+  return apiFetch("/api/matching/invitations/received");
+}
+
+export function respondToInvitation(
+  invitationId: string,
+  action: "accept" | "decline",
+): Promise<{ ok: boolean; status: string }> {
+  return apiFetch(`/api/matching/invitations/${invitationId}`, {
+    method: "PATCH",
+    body:   JSON.stringify({ action }),
+  });
+}
+
+// ── Trial engagements ──────────────────────────────────────────────────────
+
+export interface TrialResponse {
+  trial_id:       string;
+  started_at:     string;
+  day3_deadline:  string;
+  day14_deadline: string;
+}
+
+export function startTrial(
+  talentId:       string,
+  trialRateCents: number,
+  listingId?:     string,
+): Promise<TrialResponse> {
+  return apiFetch("/api/matching/trials", {
+    method: "POST",
+    body:   JSON.stringify({
+      talent_id:        talentId,
+      trial_rate_cents: trialRateCents,
+      listing_id:       listingId,
+    }),
+  });
+}
+
+export function updateTrial(
+  trialId: string,
+  action:  "convert" | "end" | "rate",
+  opts?:   { end_reason?: string; rating?: number },
+): Promise<{ ok: boolean }> {
+  return apiFetch(`/api/matching/trials/${trialId}`, {
+    method: "PATCH",
+    body:   JSON.stringify({ action, ...opts }),
+  });
+}
+
 // ── Reputation service (:3009) ────────────────────────────────────────────
 
 export function getVc(talentId: string): Promise<string> {
@@ -311,16 +472,74 @@ export function exportVc(talentId: string): Promise<VcExportResponse> {
 // ── Compliance service (:3006) ────────────────────────────────────────────
 
 export interface Contract {
-  id:            string;
-  contract_type: string;
-  status:        string;
+  id:                 string;
+  contract_type:      string;
+  status:             "DRAFT" | "PENDING_SIGNATURE" | "SIGNED" | "EXPIRED" | "REVOKED";
+  document_hash:      string;
+  party_a:            string;
+  party_b:            string;
+  deployment_id:      string | null;
+  created_at:         string;
+  signed_at:          string | null;
+  party_a_email:      string | null;
+  party_b_email:      string | null;
+  party_a_signed_at:  string | null;
+  party_b_signed_at:  string | null;
+}
+
+export interface CreateContractPayload {
+  contract_type:  string;
+  party_a:        string;
+  party_b:        string;
+  deployment_id?: string;
+  /** Base64-encoded document content bytes */
+  document_b64:   string;
+  party_b_email?: string;
+  party_a_email?: string;
+}
+
+export interface CreateContractResponse {
+  contract_id:   string;
   document_hash: string;
-  created_at:    string;
-  signed_at:     string | null;
+}
+
+export function fetchContracts(profileId?: string): Promise<Contract[]> {
+  const qs = profileId ? `?profile_id=${profileId}` : "";
+  return apiFetch(`/api/compliance/contracts${qs}`);
 }
 
 export function fetchContract(contractId: string): Promise<Contract> {
   return apiFetch(`/api/compliance/contracts/${contractId}`);
+}
+
+export function createContract(payload: CreateContractPayload): Promise<CreateContractResponse> {
+  return apiFetch("/api/compliance/contracts", {
+    method: "POST",
+    body:   JSON.stringify(payload),
+  });
+}
+
+export function signContract(contractId: string, signerId: string): Promise<void> {
+  return apiFetch(`/api/compliance/contracts/${contractId}/sign`, {
+    method: "POST",
+    body:   JSON.stringify({ signer_id: signerId }),
+  });
+}
+
+export function requestSignature(
+  contractId:   string,
+  partyBEmail:  string,
+  partyAEmail?: string,
+): Promise<{ sign_url: string; sign_token: string }> {
+  // Uses static /api/contract-signature route which builds sign_url + emails both parties.
+  return apiFetch("/api/contract-signature", {
+    method: "POST",
+    body:   JSON.stringify({
+      contract_id:   contractId,
+      party_b_email: partyBEmail,
+      party_a_email: partyAEmail,
+    }),
+  });
 }
 
 export interface WarrantyClaim {
@@ -536,6 +755,17 @@ export interface CarbonFootprint {
   updated_at:       string;
 }
 
+export interface ReminderRow {
+  id:            string;
+  user_id:       string;
+  deployment_id: string | null;
+  title:         string;
+  remind_at:     string; // ISO timestamp
+  source:        "user" | "system";
+  fired:         boolean;
+  created_at:    string;
+}
+
 // Hubs
 export function fetchHubs(category?: string): Promise<{ hubs: Hub[] }> {
   const qs = category ? `?category=${category}` : "";
@@ -667,6 +897,7 @@ export interface NotifPrefs {
   whatsapp_enabled:  boolean;
   slack_enabled:     boolean;
   teams_enabled:     boolean;
+  messenger_enabled: boolean;
   quiet_hours_start: string | null;
   quiet_hours_end:   string | null;
   quiet_hours_tz:    string;
@@ -685,6 +916,11 @@ export interface InitWhatsAppResponse {
   nonce:  string;
 }
 
+export interface InitMessengerResponse {
+  link:  string;
+  nonce: string;
+}
+
 export function fetchInAppNotifications(unreadOnly = false, userId = "demo-user"): Promise<InAppNotification[]> {
   return apiFetch(`/api/notifications?user_id=${userId}${unreadOnly ? "&unread=true" : ""}`);
 }
@@ -693,8 +929,12 @@ export function fetchUnreadCount(userId = "demo-user"): Promise<{ count: number 
   return apiFetch(`/api/notifications/count?user_id=${userId}`);
 }
 
-export function markNotificationRead(id: string, userId = "demo-user"): Promise<{ ok: boolean }> {
-  return apiFetch(`/api/notifications/${id}/read?user_id=${userId}`, { method: "PATCH" });
+export function markNotificationRead(id: string): Promise<{ ok: boolean }> {
+  // POST to a static path — dynamic [id]/read loses to the /api/notifications/:path* rewrite
+  return apiFetch("/api/notifications/mark-read", {
+    method: "POST",
+    body: JSON.stringify({ id }),
+  });
 }
 
 export function markAllNotificationsRead(userId = "demo-user"): Promise<{ ok: boolean }> {
@@ -724,12 +964,24 @@ export function registerDeviceToken(
   });
 }
 
-export function fetchIntegrationsStatus(userId = "demo-user"): Promise<IntegrationStatus[]> {
-  return apiFetch(`/api/integrations/status?user_id=${userId}`);
+// Backend returns { integrations: IntegrationStatus[] } — unwrap here so
+// callers always receive a plain array.
+export async function fetchIntegrationsStatus(userId = "demo-user"): Promise<IntegrationStatus[]> {
+  const data = await apiFetch<{ integrations: IntegrationStatus[] }>(
+    `/api/integrations/status?user_id=${userId}`,
+  );
+  return data.integrations ?? [];
 }
 
 export function initWhatsAppConnect(userId = "demo-user"): Promise<InitWhatsAppResponse> {
   return apiFetch("/api/integrations/whatsapp/init", {
+    method: "POST",
+    body:   JSON.stringify({ user_id: userId }),
+  });
+}
+
+export function initMessengerConnect(userId = "demo-user"): Promise<InitMessengerResponse> {
+  return apiFetch("/api/integrations/messenger/init", {
     method: "POST",
     body:   JSON.stringify({ user_id: userId }),
   });
@@ -774,4 +1026,267 @@ export async function checkServiceHealth(): Promise<Record<string, boolean>> {
       r.status === "fulfilled" && r.value[1],
     ]),
   );
+}
+
+// ── AiTalent Proposal & Engagement ──────────────────────────────────────────
+
+export interface Proposal {
+  id: string
+  job_listing_id: string | null
+  freelancer_id: string | null
+  freelancer_email: string
+  job_title: string
+  cover_letter: string
+  proposed_budget: string
+  proposed_timeline: string
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED'
+  submitted_at: string
+}
+
+export interface AcceptProposalRequest {
+  transaction_id: string
+  escrow_amount_cents: number
+  milestones: string[]
+}
+
+export interface AcceptProposalResponse {
+  deployment_id: string
+  milestone_count: number
+}
+
+export interface MilestoneStatus {
+  step_id: string
+  step_label: string
+  passed: boolean
+  submitted_at: string | null
+  approved_at: string | null
+  notes: string | null
+}
+
+export async function fetchProposalsForJob(listingId: string): Promise<Proposal[]> {
+  const res = await fetch(`/api/marketplace/listings/${listingId}/proposals`)
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function acceptProposal(
+  proposalId: string,
+  req: AcceptProposalRequest,
+): Promise<AcceptProposalResponse> {
+  const res = await fetch(`/api/marketplace/proposals/${proposalId}/accept`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function rejectProposal(proposalId: string, reason?: string): Promise<void> {
+  const res = await fetch(`/api/marketplace/proposals/${proposalId}/reject`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reason }),
+  })
+  if (!res.ok) throw new Error(await res.text())
+}
+
+export async function fetchDeploymentMilestones(deploymentId: string): Promise<MilestoneStatus[]> {
+  const res = await fetch(`/api/checklist/checklist/${deploymentId}/milestones`)
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function submitMilestone(
+  deploymentId: string,
+  stepId: string,
+  freelancerId: string,
+  notes?: string,
+): Promise<void> {
+  const res = await fetch(
+    `/api/checklist/checklist/${deploymentId}/step/${stepId}/submit`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ freelancer_id: freelancerId, notes }),
+    },
+  )
+  if (!res.ok) throw new Error(await res.text())
+}
+
+export async function approveMilestone(
+  deploymentId: string,
+  stepId: string,
+  clientId: string,
+): Promise<void> {
+  const res = await fetch(
+    `/api/checklist/checklist/${deploymentId}/step/${stepId}/approve`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ client_id: clientId }),
+    },
+  )
+  if (!res.ok) throw new Error(await res.text())
+}
+
+// ── Reminders ──────────────────────────────────────────────────────────────
+
+export async function fetchReminders(): Promise<ReminderRow[]> {
+  const data = await apiFetch<{ reminders: ReminderRow[] }>("/api/reminders");
+  return data.reminders;
+}
+
+export async function createReminder(
+  title: string,
+  remindAt: string, // UTC ISO string — browser converts local→UTC before calling
+): Promise<ReminderRow> {
+  const data = await apiFetch<{ reminder: ReminderRow }>("/api/reminders", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title, remind_at: remindAt }),
+  });
+  return data.reminder;
+}
+
+export async function deleteReminder(id: string): Promise<void> {
+  await fetch(`/api/reminders/${id}`, { method: "DELETE" });
+}
+
+// ── Agency public profile ──────────────────────────────────────────────────
+
+export interface AgencyProfile {
+  id:                         string;
+  name:                       string;
+  handle:                     string;
+  description:                string | null;
+  website_url:                string | null;
+  plan_tier:                  string;
+  is_verified:                boolean;
+  member_count:               number;
+  active_listing_count:       number;
+  completed_deployment_count: number;
+  created_at:                 string;
+}
+
+/** Public — no auth required. Calls identity_service via /api/identity rewrite. */
+export function fetchAgencyProfile(handle: string): Promise<AgencyProfile> {
+  return apiFetch(`/api/identity/orgs/public/${encodeURIComponent(handle)}`);
+}
+
+// ── Reviews ────────────────────────────────────────────────────────────────
+
+export interface ListingReview {
+  id:               string;
+  reviewer_initial: string;
+  rating:           number;
+  body:             string | null;
+  created_at:       string;
+}
+
+export function fetchReviews(listingId: string): Promise<ListingReview[]> {
+  return apiFetch(`/api/reviews?listing_id=${encodeURIComponent(listingId)}`);
+}
+
+export async function submitReview(
+  deploymentId: string,
+  listingId: string,
+  rating: number,
+  body?: string,
+): Promise<void> {
+  const res = await fetch("/api/reviews", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ deployment_id: deploymentId, listing_id: listingId, rating, body }),
+  });
+  if (!res.ok) {
+    const data = await res.json() as { error?: string };
+    throw new Error(data.error ?? "Failed to submit review");
+  }
+}
+
+// ── Saved Listings ─────────────────────────────────────────────────────────
+
+export interface SavedListing {
+  listing_id:   string;
+  name:         string;
+  description:  string;
+  price_cents:  number;
+  category:     string;
+  slug:         string;
+  saved_at:     string;
+}
+
+export function fetchSavedListings(): Promise<SavedListing[]> {
+  return apiFetch("/api/saved");
+}
+
+export async function saveListing(listingId: string): Promise<void> {
+  await fetch(`/api/saved/${encodeURIComponent(listingId)}`, { method: "POST" });
+}
+
+export async function unsaveListing(listingId: string): Promise<void> {
+  await fetch(`/api/saved/${encodeURIComponent(listingId)}`, { method: "DELETE" });
+}
+
+// ── Billing History ────────────────────────────────────────────────────────
+
+export interface SpendRow {
+  deployment_id:       string;
+  listing_name:        string;
+  slug:                string;
+  escrow_amount_cents: number;
+  fee_cents:           number;
+  fee_pct:             number;
+  state:               string;
+  created_at:          string;
+}
+
+export function fetchBillingHistory(): Promise<SpendRow[]> {
+  return apiFetch("/api/billing/history");
+}
+
+// ── Warranty Claims ────────────────────────────────────────────────────────
+
+export interface WarrantyClaim {
+  id:            string;
+  deployment_id: string;
+  drift_proof:   string;
+  claimed_at:    string;
+  resolved_at:   string | null;
+  resolution:    "REMEDIATED" | "REFUNDED" | "REJECTED" | null;
+  listing_name:  string;
+}
+
+export function fetchMyWarrantyClaims(): Promise<WarrantyClaim[]> {
+  return apiFetch("/api/warranty-claims");
+}
+
+export async function fileWarrantyClaim(deploymentId: string, description: string): Promise<void> {
+  const res = await fetch("/api/warranty-claims", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ deployment_id: deploymentId, description }),
+  });
+  if (!res.ok) {
+    const data = await res.json() as { error?: string };
+    throw new Error(data.error ?? "Failed to file claim");
+  }
+}
+
+// ── Licenses ───────────────────────────────────────────────────────────────
+
+export interface License {
+  id:            string;
+  listing_name:  string;
+  slug:          string;
+  jurisdiction:  string;
+  seats:         number;
+  issued_at:     string;
+  expires_at:    string;
+  revoked_at:    string | null;
+}
+
+export function fetchMyLicenses(): Promise<License[]> {
+  return apiFetch("/api/licenses/mine");
 }

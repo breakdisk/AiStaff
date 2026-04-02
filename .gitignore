@@ -51,7 +51,9 @@ cargo_check*.log
 # ── Pentest reports — keep directory, not contents (add reports manually) ─────
 docs/pentest/*
 !docs/pentest/.gitkeep
+!docs/pentest/README.md
 
 # ── Windows batch dev scripts (local only) ────────────────────────────────────
 run_build.bat
 build.bat
+.worktrees/

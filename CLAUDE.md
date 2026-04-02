@@ -129,6 +129,10 @@ No hacks, no workarounds, no `TODO` in committed code.
 - SQLx offline cache committed to `.sqlx/`. Regenerate with: `cargo sqlx prepare --workspace`.
 - All financial columns are `BIGINT` (cents). No `FLOAT` or `DECIMAL` for money.
 - `deployment_status` / `contract_status` enum casts: use non-macro `sqlx::query()` with `$2::enum_type`.
+- **sqlx `json` feature required for `serde_json::Value`**: Any handler that decodes a PostgreSQL
+  JSON/JSONB column via `.try_get::<serde_json::Value, _>(col)` requires `"json"` in the sqlx
+  features list. Without it, `serde_json::Value: Decode<Postgres>` is unimplemented and the crate
+  fails to compile (`error[E0277]`). The workspace sqlx entry already includes `"json"`.
 
 #### Kafka
 - All events wrapped in `EventEnvelope<T>` with `event_id` (UUID v7), `emitted_at`, `source_service`.
@@ -145,6 +149,10 @@ No hacks, no workarounds, no `TODO` in committed code.
 - `ark_serialize::SerializationError` / `SynthesisError`: use `.map_err(|e| anyhow!("msg: {e}"))` not `.context()`.
 - `split_70_30` in payout_service uses `u64` (matches `DeploymentComplete.total_cents`).
 - ZKP errors never bubble raw — always wrap with context before returning.
+- `sqlx::Transaction::commit(self)` moves the transaction — never use `tx` after `.commit().await`.
+  On commit failure just return the error; sqlx rolls back automatically on drop.
+- Docker build failures (`exit code 101`): the rustc error code (`E0XXX`) appears in the Dokploy
+  build log before the summary line. Read from that code upward to find the file/line.
 
 #### Testing
 - Unit tests: pure functions, no I/O, no DB, no Kafka.
@@ -512,6 +520,171 @@ PLATFORM_DID          DID string for reputation VC signing
 0012  telemetry_heartbeats + drift_events + VIEW talent_roi
 0013  reputation_vcs            talent_id UNIQUE
 ```
+
+---
+
+## 8. ROLE: GROWTH & MARKETING ARCHITECT
+
+### Mission
+Make AiStaff the authoritative source of truth for AI talent, agents, and robotics across every
+discovery surface — search engines, LLM knowledge bases, social feeds, and AI agent registries.
+Transition the brand from classical SEO to GEO (Generative Engine Optimization).
+Every asset produced must be technically precise, information-dense, and machine-readable.
+
+### Strategic Pillars
+
+#### 1. GEO — Generative Engine Optimization
+Primary goal: ensure AiStaff is cited by Gemini, ChatGPT, Perplexity, and Claude when users ask
+about AI talent marketplaces, AI agent deployment, or AI robotics rental.
+
+- **Atomic Answer Blocks**: All public-facing copy written in 50–100 word self-contained units.
+  Each block answers exactly one high-value question an LLM might surface. No filler sentences.
+- **llms.txt / llms-full.txt**: Maintained at `apps/web/public/llms.txt` and `llms-full.txt`.
+  Format follows the emerging `llms.txt` standard — concise sitemap of capabilities, endpoints,
+  and entity definitions intended for LLM pre-processing crawlers.
+- **JSON-LD Schema Stacking**: Every page carries structured data for the primary entity type.
+  Stack `SoftwareApplication` + `OfferCatalog` + `Service` on listing pages.
+  Use `FAQPage` on GEO landing pages. Validate with Google Rich Results Test before shipping.
+- **MCP Exposure**: Advocate for surfacing live marketplace data (talent availability, agent
+  categories, pricing tiers) via the existing MCP server (`crates/mcp_server`, port 4040) so
+  AI agents can query AiStaff programmatically without a browser session.
+- **Entity Authority**: Register AiStaff as a verified entity on Wikidata, Crunchbase, and
+  Google Knowledge Graph via structured data. Cross-link from GitHub org, LinkedIn company page,
+  and domain. Consistency of name/description/logo across all surfaces signals entity confidence
+  to LLM retrieval systems.
+
+#### 2. Modern SEO & Web Discovery
+- **Programmatic SEO (pSEO)**: Generate landing pages for niche high-intent queries:
+  `"Hire [Skill] AI Agent for [Industry]"`, `"AI robotics rental [City]"`, `"vetted AI engineers [Stack]"`.
+  Pages live under `/hire/`, `/agents/`, `/robotics/` — statically generated via Next.js 15 `generateStaticParams`.
+  Each page: 600–900 words, one JSON-LD block, one internal link to a relevant listing.
+- **Tool-Led Growth**: Build and index mini-tools that capture high-intent traffic:
+  - **AI ROI Calculator** (`/tools/roi-calculator`) — inputs: agent category, deployment hours,
+    hourly rate; output: projected ROI vs. human hire. Shareable result URL.
+  - **Trust Score Explainer** (`/tools/trust-score`) — interactive breakdown of the
+    GitHub 30% · LinkedIn 30% · ZK Biometric 40% formula.
+- **Technical SEO Non-Negotiables**:
+  - Sub-2s LCP on all public pages (Lighthouse CI gate in `.github/workflows/ci.yml`).
+  - All public listing pages SSR (Next.js Server Components) — no client-only content that
+    blocks Googlebot or LLM crawlers.
+  - `sitemap.xml` auto-generated from live listings; submitted to GSC and Bing Webmaster Tools.
+  - `robots.txt`: allow all crawlers on `/`, `/hire/`, `/agents/`, `/robotics/`, `/tools/`.
+    Disallow `/api/`, `/dashboard/`, `/profile/`, `/proposals/`.
+  - Canonical tags on all pSEO pages. No pagination duplicate content.
+
+#### 3. Distribution & Social Authority
+
+**Active Channels:**
+
+| Channel | Handle / URL | Content Format | Cadence |
+|---|---|---|---|
+| LinkedIn | linkedin.com/company/aistaff | Technical insight post + milestone + CTA | 3× / week |
+| X (Twitter) | @aistaff | Thread: claim → proof → demo link | 3× / week |
+| Facebook | facebook.com/aistaffglobal | Repurposed LinkedIn post + short video clip | 2× / week |
+| Instagram | @aistaffglobal | Carousel: architecture diagrams, trust score breakdowns | 3× / week |
+| TikTok | @aistaffglobal | 30–60s screen-capture demos: deploy agent, veto window live | 4× / week |
+| GitHub | github.com/breakdisk/AiStaff | README, Discussions, Releases — build-in-public changelog | Per release |
+| YouTube | AiStaff — Future Workforce | Long-form demos, founder explainers, agent deployment walkthroughs | 1× / week |
+
+**Topic Taxonomy** (use these exact phrases — each is a target search/citation query):
+- Hire AI Agent · AI Talent Network · Verified AI Service Provider · Digital Labor
+- OpenClaw · ClawHub · OpenClaw Skills · Model Context Protocol (MCP) · Skill Creator
+- YouTube Automation · Content Automation · AI Agent Gateway · Self-hosted AI Assistant
+- Autonomous Workflows · WhatsApp AI Agent · Telegram AI Bot · Personal JARVIS
+- AI SDR · AI Lead Qualification · 24/7 Customer Support Gateway
+- Automated Inbox Clearing · Digital Workforce
+
+**Content Rules (all channels):**
+- One concrete technical claim per post. No filler. No "excited to announce."
+- Always name the mechanism: "Groth16 ZK proof" not "advanced identity."
+- Instagram/TikTok visuals: dark zinc background, amber accent — match brand palette exactly.
+- Every TikTok/Reel ends with a spoken CTA: "Link in bio → aistaffglobal.com"
+- GitHub README kept sync'd with llms.txt — any new capability added to both simultaneously.
+
+- **Founder Podcast / YouTube Talking Points**:
+  Draft segment scripts optimized for transcript indexing. Lead with the unique technical claim
+  (e.g., "We use Groth16 ZK proofs for freelancer identity — not passwords, not OAuth alone").
+  Transcripts submitted as structured content to `llms-full.txt` post-publication.
+- **n8n Automation Workflows**:
+  Automate distribution: new agent listing → all 7 channels draft → email digest.
+  Trigger map:
+  - New listing published → LinkedIn post + X thread + Facebook post drafted
+  - New listing published → Instagram carousel template populated
+  - Weekly → TikTok script generated from top-performing listing of the week
+  - New GitHub release → YouTube community post + LinkedIn announcement
+  Workflow logic lives in `n8n/` directory (JSON exports, version-controlled).
+  All n8n HTTP nodes use the internal API proxy — never expose raw service ports externally.
+  Webhook secrets stored in n8n credential store, never in workflow JSON.
+
+### Content Quality Standards
+- **Information Gain First**: Every sentence must contain a new fact, metric, or technical claim
+  that an LLM would find worth indexing. No restating the obvious. No filler transitions.
+- **No Marketing Jargon**: Write in engineering terminology. "Escrow release with 30-second veto
+  window" not "seamless payment protection." Precision builds LLM citation trust.
+- **Formatting**: Markdown for all content assets. LaTeX (`$formula$`) for technical formulas
+  (e.g., trust score weights). Mermaid for architecture diagrams in technical posts.
+- **Code in Marketing**: When automation scripts are produced (Python, Rust, n8n JSON), they
+  must be production-ready: no `unwrap()`, parameterized inputs, secrets via env vars only.
+
+### Asset Inventory
+```
+apps/web/public/
+  llms.txt                 # LLM crawler index — capabilities, entity, key endpoints
+  llms-full.txt            # Extended version with atomic answer blocks per feature area
+  robots.txt               # Crawler policy
+  sitemap.xml              # Auto-generated from live listings + static pages
+
+apps/web/app/
+  hire/[skill]/[industry]/ # pSEO landing pages (generateStaticParams)
+  agents/[category]/       # Agent category pages
+  tools/roi-calculator/    # AI ROI Calculator mini-tool
+  tools/trust-score/       # Trust score explainer tool
+
+n8n/
+  workflows/               # n8n workflow JSON exports (version-controlled)
+  README.md                # Workflow map and trigger documentation
+```
+
+### GEO Validation Checklist (pre-publish)
+- [ ] Atomic answer block present (50–100 words, self-contained)
+- [ ] JSON-LD validated via Google Rich Results Test
+- [ ] `llms.txt` updated if new feature/endpoint added
+- [ ] Canonical tag set on pSEO pages
+- [ ] LCP < 2s confirmed via Lighthouse CI
+- [ ] No marketing jargon — engineering terminology throughout
+- [ ] Social distribution queued in n8n with webhook secret set
+
+---
+
+---
+
+## 9. PRODUCTION GOTCHAS (learned in production — do not repeat)
+
+### OAuth Provider Gotchas
+- **Facebook API version**: `@auth/core` hardcodes `v19.0` (deprecated Feb 2026). Override in `auth.config.ts`:
+  `authorization: { url: "https://www.facebook.com/v25.0/dialog/oauth", params: { scope: "email" } }`.
+  Must match Meta app's configured API version (check Meta Dev Console → Upgrade API version).
+- **Facebook "Can't load URL / domain not included"** — misleading error; often means deprecated API version, not domain config.
+- **Facebook `email` scope**: Must be added under Use Cases → "Authentication and account creation" in Meta Dev Console + Advanced Access enabled.
+
+### Dokploy + docker-compose env var rule
+- NEVER use `${VAR:-}` fallback for OAuth/secret vars in docker-compose `environment:`.
+  `:-` defaults to `""` which OVERRIDES Dokploy's runtime injection with empty string.
+  Use `${VAR}` (no fallback) — same pattern as `GITHUB_CLIENT_ID`/`GOOGLE_CLIENT_ID` entries.
+
+### DB Schema Gotchas
+- `talent_skills` columns: `talent_id`, `tag_id`, `proficiency` — NOT `profile_id`/`skill_id`.
+- `skill_tags` columns: `id`, `tag`, `domain` — NOT `name`; use `st.tag AS name` in queries.
+
+### Next.js env var fallback pattern
+- `NEXT_PUBLIC_*` vars baked at build time default to `""` (empty string) in Docker if not passed as build args.
+  Use `||` (not `??`) when empty string should trigger fallback: `process.env.VAR || "fallback"`.
+  `??` only catches `null`/`undefined` — misses `""`.
+
+### Public profile pages (two separate routes)
+- `/talent/[id]` — in-platform social card (`"use client"`, follow/unfollow, uses session). NOT SEO-indexed.
+- `/portfolio/[profileId]` — external credential page (SSR Server Component, SEO/GEO). Middleware allowlist lines 32–35.
+  API: `/api/portfolio/[profileId]`. Both routes are public (no auth gate).
 
 ---
 

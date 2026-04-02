@@ -20,6 +20,7 @@
 | `SMTP_USER` | notification_service | SMTP auth username | 90 days |
 | `SMTP_PASS` | notification_service | SMTP auth password | 90 days |
 | `SMTP_FROM` | notification_service | From address | On change |
+| `CRON_SECRET` | web (cron API routes) | Bearer token for `/api/cron/*` endpoints | Quarterly |
 | `WASM_PLUGIN_DIR` | deployment_engine | Path to signed Wasm plugins | On infra change |
 | `WASM_REGISTRY_MANIFEST_KEY` | deployment_engine | Public key for Wasm plugin signature verification | Quarterly |
 | `PLATFORM_DID` | reputation_service | DID string for VC signing | On DID rotation |
@@ -28,16 +29,25 @@
 | `OAUTH_GITHUB_CLIENT_SECRET` | identity_service | GitHub OAuth app client secret | 90 days |
 | `OAUTH_LINKEDIN_CLIENT_ID` | identity_service | LinkedIn OAuth app client ID | On app rotation |
 | `OAUTH_LINKEDIN_CLIENT_SECRET` | identity_service | LinkedIn OAuth app client secret | 90 days |
+| `STRIPE_SECRET_KEY` | web (server-side) | Stripe API secret key — charges, payouts, refunds | On key rotation |
+| `STRIPE_WEBHOOK_SECRET` | web (server-side) | Stripe webhook signing secret for `/api/stripe/webhook` | On endpoint re-creation |
+| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | web (build-time client bundle) | Stripe publishable key — safe to expose to browser | On key rotation |
+| `NETWORK_INTL_API_KEY` | web (server-side) | N-Genius Service Account API key — used to obtain bearer tokens | On key rotation |
+| `NETWORK_INTL_OUTLET_REF` | web (server-side) | N-Genius outlet reference ID (from merchant portal) | On outlet change |
+| `NETWORK_INTL_API_BASE` | web (server-side) | N-Genius API base URL (sandbox vs production) | On environment change |
+| `NETWORK_INTL_WEBHOOK_SECRET` | web (server-side) | Custom webhook auth header value — set as Header Value in N-Genius portal (Header Key: X-Webhook-Secret) | On rotation |
 | `TWILIO_ACCOUNT_SID` | notification_service | Twilio account SID for SMS + WhatsApp | On account change |
 | `TWILIO_AUTH_TOKEN` | notification_service | Twilio auth token | 90 days |
 | `TWILIO_FROM_NUMBER` | notification_service | Twilio SMS sender number (E.164) | On number change |
 | `TWILIO_WHATSAPP_NUMBER` | notification_service | Twilio WhatsApp sender number (E.164) | On number change |
+| `MESSENGER_PAGE_USERNAME` | notification_service | Facebook Page username for m.me deep-link (e.g. aistaffglobal). Defaults to "aistaffglobal" if unset. | On Page change |
 | `FCM_SERVER_KEY` | notification_service | Firebase Cloud Messaging server key for push notifications | 90 days |
 | `SLACK_CLIENT_ID` | notification_service | Slack OAuth app client ID for workspace integration | On app rotation |
 | `SLACK_CLIENT_SECRET` | notification_service | Slack OAuth app client secret | 90 days |
 | `GOOGLE_CLIENT_ID` | notification_service | Google OAuth client ID (Calendar / Meet integration) | On app rotation |
 | `GOOGLE_CLIENT_SECRET` | notification_service | Google OAuth client secret | 90 days |
 | `INTEGRATION_TOKEN_ENCRYPTION_KEY` | notification_service | AES-256-GCM key for encrypting OAuth tokens at rest (base64, 32 bytes) | Quarterly |
+| `ADMIN_EMAIL` | marketplace_service | Recipient email for new-listing review notifications | On admin team change |
 
 ---
 

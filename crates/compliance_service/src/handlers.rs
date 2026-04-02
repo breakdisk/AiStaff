@@ -19,6 +19,8 @@ pub struct CreateContractRequest {
     pub deployment_id: Option<Uuid>,
     /// Base64-encoded document bytes.
     pub document_b64: String,
+    pub party_b_email: Option<String>,
+    pub party_a_email: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -44,6 +46,8 @@ pub async fn create_contract(
             req.party_b,
             req.deployment_id,
             &bytes,
+            req.party_b_email.as_deref(),
+            req.party_a_email.as_deref(),
         )
         .await
     {
@@ -205,6 +209,216 @@ pub async fn resolve_warranty_claim(
     }
 }
 
+// ── Contract list endpoint ────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+pub struct ContractListQuery {
+    pub profile_id: Option<Uuid>,
+}
+
+pub async fn list_contracts(
+    State(svc): State<AppState>,
+    Query(q): Query<ContractListQuery>,
+) -> impl IntoResponse {
+    let rows = if let Some(pid) = q.profile_id {
+        sqlx::query(
+            "SELECT id, contract_type, status::TEXT AS status, document_hash,
+                    party_a, party_b, deployment_id, created_at, signed_at,
+                    party_a_email, party_b_email, party_a_signed_at, party_b_signed_at
+             FROM contracts
+             WHERE party_a = $1 OR party_b = $1
+             ORDER BY created_at DESC
+             LIMIT 200",
+        )
+        .bind(pid)
+        .fetch_all(&svc.db)
+        .await
+    } else {
+        sqlx::query(
+            "SELECT id, contract_type, status::TEXT AS status, document_hash,
+                    party_a, party_b, deployment_id, created_at, signed_at,
+                    party_a_email, party_b_email, party_a_signed_at, party_b_signed_at
+             FROM contracts
+             ORDER BY created_at DESC
+             LIMIT 200",
+        )
+        .fetch_all(&svc.db)
+        .await
+    };
+
+    match rows {
+        Ok(rows) => {
+            use sqlx::Row;
+            let data: Vec<_> = rows
+                .iter()
+                .map(|r| {
+                    let id: Uuid = r.get("id");
+                    let party_a: Uuid = r.get("party_a");
+                    let party_b: Uuid = r.get("party_b");
+                    let dep_id: Option<Uuid> = r.get("deployment_id");
+                    let created_at: chrono::DateTime<chrono::Utc> = r.get("created_at");
+                    let signed_at: Option<chrono::DateTime<chrono::Utc>> = r.get("signed_at");
+                    let party_a_signed_at: Option<chrono::DateTime<chrono::Utc>> =
+                        r.get("party_a_signed_at");
+                    let party_b_signed_at: Option<chrono::DateTime<chrono::Utc>> =
+                        r.get("party_b_signed_at");
+                    serde_json::json!({
+                        "id":               id,
+                        "contract_type":    r.get::<&str, _>("contract_type"),
+                        "status":           r.get::<Option<&str>, _>("status"),
+                        "document_hash":    r.get::<&str, _>("document_hash"),
+                        "party_a":          party_a,
+                        "party_b":          party_b,
+                        "deployment_id":    dep_id,
+                        "created_at":       created_at.to_rfc3339(),
+                        "signed_at":        signed_at.map(|d| d.to_rfc3339()),
+                        "party_a_email":    r.get::<Option<&str>, _>("party_a_email"),
+                        "party_b_email":    r.get::<Option<&str>, _>("party_b_email"),
+                        "party_a_signed_at": party_a_signed_at.map(|d| d.to_rfc3339()),
+                        "party_b_signed_at": party_b_signed_at.map(|d| d.to_rfc3339()),
+                    })
+                })
+                .collect();
+            (StatusCode::OK, Json(data)).into_response()
+        }
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+// ── E-signature endpoints ─────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+pub struct RequestSignatureBody {
+    pub party_b_email: String,
+}
+
+pub async fn request_signature(
+    State(svc): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(req): Json<RequestSignatureBody>,
+) -> impl IntoResponse {
+    match svc.request_signature_token(id, &req.party_b_email).await {
+        Ok(token) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "sign_token": token })),
+        )
+            .into_response(),
+        Err(e) => (StatusCode::UNPROCESSABLE_ENTITY, e.to_string()).into_response(),
+    }
+}
+
+#[derive(Deserialize)]
+pub struct TokenQuery {
+    pub token: Option<String>,
+}
+
+pub async fn preview_token(
+    State(svc): State<AppState>,
+    Path(id): Path<Uuid>,
+    Query(q): Query<TokenQuery>,
+) -> impl IntoResponse {
+    let token = match q.token {
+        Some(t) => t,
+        None => return (StatusCode::BAD_REQUEST, "missing token").into_response(),
+    };
+    match svc.preview_for_token(id, &token).await {
+        Ok(data) => (StatusCode::OK, Json(data)).into_response(),
+        Err(e) => {
+            let msg = e.to_string();
+            let code = if msg.contains("not found") {
+                StatusCode::NOT_FOUND
+            } else {
+                StatusCode::UNAUTHORIZED
+            };
+            (code, Json(serde_json::json!({ "error": msg }))).into_response()
+        }
+    }
+}
+
+#[derive(Deserialize)]
+pub struct SignExternalBody {
+    pub token: String,
+    pub signer_name: String,
+}
+
+pub async fn sign_external(
+    State(svc): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(req): Json<SignExternalBody>,
+) -> impl IntoResponse {
+    match svc.sign_external(id, &req.token, &req.signer_name).await {
+        Ok((party_a_email, party_b_email)) => (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "ok":            true,
+                "party_a_email": party_a_email,
+                "party_b_email": party_b_email,
+                "signer_name":   req.signer_name,
+            })),
+        )
+            .into_response(),
+        Err(e) => {
+            let msg = e.to_string();
+            let code = if msg.contains("already signed") {
+                StatusCode::CONFLICT
+            } else if msg.contains("invalid") || msg.contains("expired") {
+                StatusCode::UNAUTHORIZED
+            } else {
+                StatusCode::UNPROCESSABLE_ENTITY
+            };
+            (code, Json(serde_json::json!({ "error": msg }))).into_response()
+        }
+    }
+}
+
 pub async fn health() -> StatusCode {
     StatusCode::OK
+}
+
+// ── POST /admin/contracts/:id/revoke ─────────────────────────────────────────
+
+/// Returns true if the contract state allows revocation.
+#[allow(dead_code)]
+pub fn revoke_allowed_states(status: &str) -> bool {
+    matches!(status, "DRAFT" | "PENDING_SIGNATURE")
+}
+
+pub async fn revoke_contract(
+    State(svc): State<AppState>,
+    Path(contract_id): Path<Uuid>,
+) -> impl IntoResponse {
+    let updated = sqlx::query(
+        "UPDATE contracts
+         SET status = 'REVOKED'::contract_status
+         WHERE id = $1
+           AND status IN ('DRAFT'::contract_status, 'PENDING_SIGNATURE'::contract_status)
+         RETURNING id",
+    )
+    .bind(contract_id)
+    .fetch_optional(&svc.db)
+    .await;
+
+    match updated {
+        Ok(Some(_)) => StatusCode::NO_CONTENT.into_response(),
+        Ok(None) => (
+            StatusCode::CONFLICT,
+            "Contract is not in a revocable state (must be DRAFT or PENDING_SIGNATURE)",
+        )
+            .into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::revoke_allowed_states;
+
+    #[test]
+    fn only_draft_and_pending_are_revocable() {
+        assert!(revoke_allowed_states("DRAFT"));
+        assert!(revoke_allowed_states("PENDING_SIGNATURE"));
+        assert!(!revoke_allowed_states("SIGNED"));
+        assert!(!revoke_allowed_states("EXPIRED"));
+        assert!(!revoke_allowed_states("REVOKED"));
+    }
 }

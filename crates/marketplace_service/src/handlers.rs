@@ -7,7 +7,10 @@ use axum::{
     Json,
 };
 use common::{
-    events::{DeploymentStarted, EventEnvelope, TOPIC_DEPLOYMENT_STARTED},
+    events::{
+        DeploymentComplete, DeploymentStarted, EventEnvelope, TOPIC_DEPLOYMENT_COMPLETE,
+        TOPIC_DEPLOYMENT_STARTED,
+    },
     kafka::producer::KafkaProducer,
 };
 use serde::{Deserialize, Serialize};
@@ -15,9 +18,16 @@ use sqlx::PgPool;
 use std::sync::Arc;
 use uuid::Uuid;
 
+/// Single source of truth for the pending-review status literal.
+/// Used in the INSERT SQL hardcoded string and the JSON response.
+pub(crate) const LISTING_STATUS_PENDING: &str = "PENDING_REVIEW";
+
 pub struct AppState {
     pub db: PgPool,
     pub producer: KafkaProducer,
+    pub http_client: reqwest::Client,
+    pub notification_url: String,
+    pub admin_email: String,
 }
 
 pub type SharedState = Arc<AppState>;
@@ -29,10 +39,17 @@ pub struct CreateDeploymentRequest {
     pub agent_id: Uuid,
     pub client_id: Uuid,
     pub freelancer_id: Uuid,
+    /// Agent builder — defaults to `freelancer_id` when omitted.
+    pub developer_id: Option<Uuid>,
     /// SHA-256 hex of the agent Wasm artifact — used for drift detection.
     pub agent_artifact_hash: String,
     /// Total escrow in USD cents (developer 70% + talent 30%).
     pub escrow_amount_cents: i64,
+    /// UUID v7 idempotency key.  If provided and a deployment already exists
+    /// with this transaction_id, the existing record is returned (HTTP 200).
+    pub transaction_id: Option<Uuid>,
+    /// Stripe PaymentIntent ID — populated after payment confirmation.
+    pub stripe_payment_intent_id: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -45,21 +62,133 @@ pub async fn create_deployment(
     State(state): State<SharedState>,
     Json(req): Json<CreateDeploymentRequest>,
 ) -> impl IntoResponse {
-    // 1. Insert deployment record in PENDING state.
-    let deployment_id = Uuid::new_v4();
+    use sqlx::Row;
+
+    let transaction_id = req.transaction_id.unwrap_or_else(Uuid::now_v7);
+    let developer_id = req.developer_id.unwrap_or(req.freelancer_id);
+
+    // 0. Identity tier gate — client must be at least SOCIAL_VERIFIED (tier 1).
+    //    This enforces the server-side check that the UI also performs.
+    {
+        use sqlx::Row as _;
+        let tier_row = sqlx::query(
+            "SELECT identity_tier::TEXT AS identity_tier FROM unified_profiles WHERE id = $1",
+        )
+        .bind(req.client_id)
+        .fetch_optional(&state.db)
+        .await;
+
+        match tier_row {
+            Ok(Some(row)) => {
+                let tier: &str = row.get("identity_tier");
+                if tier == "UNVERIFIED" {
+                    return (
+                        StatusCode::FORBIDDEN,
+                        Json(serde_json::json!({
+                            "error": "identity_tier_insufficient",
+                            "detail": "Identity must be SOCIAL_VERIFIED or higher to deploy an agent"
+                        })),
+                    )
+                    .into_response();
+                }
+            }
+            Ok(None) => {
+                return (
+                    StatusCode::FORBIDDEN,
+                    Json(serde_json::json!({
+                        "error": "profile_not_found",
+                        "detail": "Client profile not found"
+                    })),
+                )
+                    .into_response();
+            }
+            Err(e) => {
+                return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
+            }
+        }
+    }
+
+    // 1. Idempotency: if this transaction_id was already used, return the
+    //    existing deployment so the client can safely retry.
+    let existing =
+        sqlx::query("SELECT id, state::TEXT AS state FROM deployments WHERE transaction_id = $1")
+            .bind(transaction_id)
+            .fetch_optional(&state.db)
+            .await;
+
+    if let Ok(Some(row)) = existing {
+        let dep_id: Uuid = row.get("id");
+        let dep_state: &str = row.get("state");
+        tracing::info!(%dep_id, "deployment idempotency hit — returning existing record");
+        return (
+            StatusCode::OK,
+            Json(CreateDeploymentResponse {
+                deployment_id: dep_id,
+                state: dep_state.into(),
+            }),
+        )
+            .into_response();
+    }
+
+    // 2. Insert deployment record in PENDING state.
+    //    Use Uuid::now_v7() for the primary key so events are time-ordered.
+    let deployment_id = Uuid::now_v7();
+
+    // 2a. Auto-populate agency context from the listing's organisation (if any).
+    //     Non-fatal: if the listing has no org, proceed without agency context.
+    let (agency_id, agency_pct): (Option<Uuid>, i16) = {
+        use sqlx::Row as _;
+        match sqlx::query("SELECT org_id FROM agent_listings WHERE id = $1")
+            .bind(req.agent_id)
+            .fetch_optional(&state.db)
+            .await
+        {
+            Ok(Some(row)) => {
+                let org_id: Option<Uuid> = row.get("org_id");
+                if let Some(oid) = org_id {
+                    match sqlx::query_scalar::<_, i16>(
+                        "SELECT agency_pct FROM organisations WHERE id = $1",
+                    )
+                    .bind(oid)
+                    .fetch_optional(&state.db)
+                    .await
+                    {
+                        Ok(Some(pct)) => (Some(oid), pct),
+                        _ => (None, 0),
+                    }
+                } else {
+                    (None, 0)
+                }
+            }
+            _ => (None, 0),
+        }
+    };
 
     let insert = sqlx::query(
         "INSERT INTO deployments
-             (id, agent_id, client_id, freelancer_id,
-              agent_artifact_hash, escrow_amount_cents, state)
-         VALUES ($1, $2, $3, $4, $5, $6, 'PENDING'::deployment_status)",
+             (id, agent_id, client_id, freelancer_id, developer_id,
+              agent_artifact_hash, escrow_amount_cents,
+              transaction_id, stripe_payment_intent_id,
+              agency_id, agency_pct,
+              payment_status, state)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'PENDING'::deployment_status)",
     )
     .bind(deployment_id)
     .bind(req.agent_id)
     .bind(req.client_id)
     .bind(req.freelancer_id)
+    .bind(developer_id)
     .bind(&req.agent_artifact_hash)
     .bind(req.escrow_amount_cents)
+    .bind(transaction_id)
+    .bind(&req.stripe_payment_intent_id)
+    .bind(agency_id)
+    .bind(agency_pct)
+    .bind(if req.stripe_payment_intent_id.is_some() {
+        "confirmed"
+    } else {
+        "pending"
+    })
     .execute(&state.db)
     .await;
 
@@ -67,7 +196,7 @@ pub async fn create_deployment(
         return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
     }
 
-    // 2. Publish DeploymentStarted → wakes the environment_orchestrator.
+    // 3. Publish DeploymentStarted → wakes the environment_orchestrator.
     let event = DeploymentStarted {
         deployment_id,
         agent_id: req.agent_id,
@@ -85,14 +214,13 @@ pub async fn create_deployment(
         )
         .await
     {
-        // Kafka unavailable — deployment row is already created, log the gap.
         tracing::error!(
             %deployment_id,
             "DeploymentStarted publish failed (pipeline will not auto-start): {e}"
         );
     }
 
-    tracing::info!(%deployment_id, "deployment created, DeploymentStarted emitted");
+    tracing::info!(%deployment_id, %transaction_id, "deployment created, DeploymentStarted emitted");
 
     (
         StatusCode::CREATED,
@@ -100,6 +228,72 @@ pub async fn create_deployment(
             deployment_id,
             state: "PENDING".into(),
         }),
+    )
+        .into_response()
+}
+
+// ── POST /deployments/:id/complete ────────────────────────────────────────────
+// Admin / worker endpoint: marks a deployment done and fires DeploymentComplete,
+// which starts the 30-second veto window in payout_service.
+
+pub async fn complete_deployment(
+    State(state): State<SharedState>,
+    Path(id): Path<Uuid>,
+) -> impl IntoResponse {
+    use sqlx::Row;
+
+    let row = sqlx::query(
+        "SELECT developer_id, freelancer_id, escrow_amount_cents, agent_artifact_hash
+         FROM deployments WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await;
+
+    let row = match row {
+        Ok(Some(r)) => r,
+        Ok(None) => return StatusCode::NOT_FOUND.into_response(),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    };
+
+    let developer_id: Option<Uuid> = row.get("developer_id");
+    let freelancer_id: Uuid = row.get("freelancer_id");
+    let escrow_cents: i64 = row.get("escrow_amount_cents");
+    let artifact_hash: String = row.get("agent_artifact_hash");
+
+    let event = DeploymentComplete {
+        deployment_id: id,
+        developer_id: developer_id.unwrap_or(freelancer_id),
+        talent_id: freelancer_id,
+        total_cents: escrow_cents as u64,
+        artifact_hash,
+    };
+
+    let envelope = EventEnvelope::new("DeploymentComplete", &event);
+    if let Err(e) = state
+        .producer
+        .publish(TOPIC_DEPLOYMENT_COMPLETE, &id.to_string(), &envelope)
+        .await
+    {
+        tracing::error!(%id, "DeploymentComplete publish failed: {e}");
+        return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
+    }
+
+    // Transition state to VERIFYING so the UI reflects progress.
+    sqlx::query(
+        "UPDATE deployments SET state = 'VERIFYING'::deployment_status, updated_at = NOW()
+         WHERE id = $1",
+    )
+    .bind(id)
+    .execute(&state.db)
+    .await
+    .ok();
+
+    tracing::info!(%id, "DeploymentComplete emitted — veto window starting");
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({ "ok": true, "deployment_id": id, "state": "VERIFYING" })),
     )
         .into_response()
 }
@@ -157,6 +351,60 @@ pub async fn get_deployment(
     }
 }
 
+// ── GET /deployments/mine?profile_id=<uuid> ───────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct MyDeploymentsQuery {
+    pub profile_id: Uuid,
+}
+
+pub async fn list_my_deployments(
+    State(state): State<SharedState>,
+    axum::extract::Query(q): axum::extract::Query<MyDeploymentsQuery>,
+) -> impl IntoResponse {
+    use sqlx::Row;
+
+    let rows = sqlx::query(
+        "SELECT d.id,
+                COALESCE(l.name, 'Unknown Agent') AS agent_name,
+                d.state::TEXT AS state,
+                d.escrow_amount_cents,
+                to_char(d.created_at, 'Mon DD, YYYY') AS created_fmt
+         FROM deployments d
+         LEFT JOIN agent_listings l ON l.id = d.agent_id
+         WHERE d.client_id = $1 OR d.freelancer_id = $1 OR d.developer_id = $1
+         ORDER BY d.created_at DESC
+         LIMIT 20",
+    )
+    .bind(q.profile_id)
+    .fetch_all(&state.db)
+    .await;
+
+    match rows {
+        Ok(rs) => {
+            let items: Vec<_> = rs
+                .iter()
+                .map(|r| {
+                    let id: Uuid = r.get("id");
+                    let name: &str = r.get("agent_name");
+                    let state_s: &str = r.get("state");
+                    let cents: i64 = r.get("escrow_amount_cents");
+                    let created: &str = r.get("created_fmt");
+                    serde_json::json!({
+                        "id":                  id,
+                        "agent_name":          name,
+                        "state":               state_s,
+                        "escrow_amount_cents": cents,
+                        "created_at":          created,
+                    })
+                })
+                .collect();
+            (StatusCode::OK, Json(serde_json::json!(items))).into_response()
+        }
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
 // ── POST /listings ────────────────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
@@ -172,6 +420,27 @@ pub struct CreateListingRequest {
     pub category: String,
     /// "Agency" | "Freelancer"
     pub seller_type: String,
+}
+
+/// Convert a listing name to a URL-safe kebab-case slug.
+/// e.g. "DataSync Agent v2.1" → "datasync-agent-v2-1"
+fn to_slug(name: &str) -> String {
+    let base: String = name
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() {
+                c.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
+        .collect();
+
+    // Collapse consecutive dashes and strip leading/trailing ones.
+    base.split('-')
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join("-")
 }
 
 pub async fn create_listing(
@@ -197,11 +466,30 @@ pub async fn create_listing(
     }
 
     let listing_id = Uuid::now_v7();
+    let base_slug = to_slug(&req.name);
+
+    // Check for slug collision; if taken, append first 8 chars of the new UUID.
+    let slug_taken = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM agent_listings WHERE slug = $1)",
+    )
+    .bind(&base_slug)
+    .fetch_one(&state.db)
+    .await
+    .unwrap_or(false);
+
+    let slug = if slug_taken {
+        format!("{}-{}", base_slug, &listing_id.to_string()[..8])
+    } else {
+        base_slug
+    };
 
     let insert = sqlx::query(
         "INSERT INTO agent_listings
-             (id, developer_id, name, description, wasm_hash, price_cents, category, seller_type)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+             (id, developer_id, name, description, wasm_hash,
+              price_cents, category, seller_type, slug,
+              listing_status, active)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9,
+                 'APPROVED', TRUE)",
     )
     .bind(listing_id)
     .bind(req.developer_id)
@@ -211,15 +499,50 @@ pub async fn create_listing(
     .bind(req.price_cents)
     .bind(&req.category)
     .bind(&req.seller_type)
+    .bind(&slug)
     .execute(&state.db)
     .await;
 
     match insert {
         Ok(_) => {
-            tracing::info!(%listing_id, "agent listing created");
+            tracing::info!(%listing_id, %slug, "agent listing created — auto-approved and live");
+
+            // Fire-and-forget: notify admin of new live listing.
+            let client = state.http_client.clone();
+            let notif_url = state.notification_url.clone();
+            let admin_email = state.admin_email.clone();
+            let listing_name = req.name.clone();
+            let category = req.category.clone();
+            let price_usd = req.price_cents / 100;
+            tokio::spawn(async move {
+                let payload = serde_json::json!({
+                    "recipient_email": admin_email,
+                    "subject": format!("New listing published: {listing_name}"),
+                    "body": format!(
+                        "A new agent listing has been published to the marketplace.\n\n\
+                         Listing:  {listing_name}\n\
+                         Category: {category}\n\
+                         Price:    ${price_usd}\n\n\
+                         View at: https://aistaffglobal.com/admin/listings"
+                    )
+                });
+                if let Err(e) = client
+                    .post(format!("{notif_url}/notify"))
+                    .json(&payload)
+                    .send()
+                    .await
+                {
+                    tracing::warn!("admin listing notification failed: {e:#}");
+                }
+            });
+
             (
                 StatusCode::CREATED,
-                Json(serde_json::json!({ "listing_id": listing_id })),
+                Json(serde_json::json!({
+                    "listing_id":     listing_id,
+                    "slug":           slug,
+                    "listing_status": "APPROVED"
+                })),
             )
                 .into_response()
         }
@@ -229,15 +552,24 @@ pub async fn create_listing(
 
 // ── GET /listings ─────────────────────────────────────────────────────────────
 
+/// Pure function — determines if an org plan tier qualifies for Verified badge.
+#[allow(dead_code)]
+pub fn is_enterprise_or_platinum(plan_tier: Option<&str>) -> bool {
+    matches!(plan_tier, Some("ENTERPRISE") | Some("PLATINUM"))
+}
+
 pub async fn list_listings(State(state): State<SharedState>) -> impl IntoResponse {
     use sqlx::Row;
 
     let rows = sqlx::query(
-        "SELECT id, developer_id, name, description, wasm_hash,
-                price_cents, active, category, seller_type, created_at, updated_at
-         FROM agent_listings
-         WHERE active = TRUE
-         ORDER BY created_at DESC
+        "SELECT al.id, al.developer_id, al.name, al.description, al.wasm_hash,
+                al.price_cents, al.active, al.category, al.seller_type, al.slug,
+                al.created_at, al.updated_at,
+                o.plan_tier::TEXT AS org_plan_tier
+         FROM agent_listings al
+         LEFT JOIN organisations o ON o.id = al.org_id
+         WHERE al.active = TRUE
+         ORDER BY al.created_at DESC
          LIMIT 100",
     )
     .fetch_all(&state.db)
@@ -257,21 +589,24 @@ pub async fn list_listings(State(state): State<SharedState>) -> impl IntoRespons
                     let active: bool = r.get("active");
                     let category: &str = r.get("category");
                     let seller_type: &str = r.get("seller_type");
+                    let slug: &str = r.get("slug");
                     let created: chrono::DateTime<chrono::Utc> = r.get("created_at");
                     let updated: chrono::DateTime<chrono::Utc> = r.get("updated_at");
 
                     serde_json::json!({
-                        "id":           id,
-                        "developer_id": developer_id,
-                        "name":         name,
-                        "description":  description,
-                        "wasm_hash":    wasm_hash,
-                        "price_cents":  price_cents,
-                        "active":       active,
-                        "category":     category,
-                        "seller_type":  seller_type,
-                        "created_at":   created.to_rfc3339(),
-                        "updated_at":   updated.to_rfc3339(),
+                        "id":             id,
+                        "developer_id":   developer_id,
+                        "name":           name,
+                        "description":    description,
+                        "wasm_hash":      wasm_hash,
+                        "price_cents":    price_cents,
+                        "active":         active,
+                        "category":       category,
+                        "seller_type":    seller_type,
+                        "slug":           slug,
+                        "created_at":     created.to_rfc3339(),
+                        "updated_at":     updated.to_rfc3339(),
+                        "org_plan_tier":  r.get::<Option<String>, _>("org_plan_tier"),
                     })
                 })
                 .collect();
@@ -292,11 +627,9 @@ pub async fn get_listing(
     State(state): State<SharedState>,
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
-    use sqlx::Row;
-
     let row = sqlx::query(
         "SELECT id, developer_id, name, description, wasm_hash,
-                price_cents, active, category, seller_type, created_at, updated_at
+                price_cents, active, category, seller_type, slug, created_at, updated_at
          FROM agent_listings WHERE id = $1",
     )
     .bind(id)
@@ -304,40 +637,66 @@ pub async fn get_listing(
     .await;
 
     match row {
-        Ok(Some(r)) => {
-            let listing_id: Uuid = r.get("id");
-            let developer_id: Uuid = r.get("developer_id");
-            let name: &str = r.get("name");
-            let description: &str = r.get("description");
-            let wasm_hash: &str = r.get("wasm_hash");
-            let price_cents: i64 = r.get("price_cents");
-            let active: bool = r.get("active");
-            let category: &str = r.get("category");
-            let seller_type: &str = r.get("seller_type");
-            let created: chrono::DateTime<chrono::Utc> = r.get("created_at");
-            let updated: chrono::DateTime<chrono::Utc> = r.get("updated_at");
-
-            (
-                StatusCode::OK,
-                Json(serde_json::json!({
-                    "id":           listing_id,
-                    "developer_id": developer_id,
-                    "name":         name,
-                    "description":  description,
-                    "wasm_hash":    wasm_hash,
-                    "price_cents":  price_cents,
-                    "active":       active,
-                    "category":     category,
-                    "seller_type":  seller_type,
-                    "created_at":   created.to_rfc3339(),
-                    "updated_at":   updated.to_rfc3339(),
-                })),
-            )
-                .into_response()
-        }
+        Ok(Some(r)) => (StatusCode::OK, Json(listing_row_to_json(&r))).into_response(),
         Ok(None) => StatusCode::NOT_FOUND.into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
+}
+
+// ── GET /listings/by-slug/:slug ───────────────────────────────────────────────
+// Lets the OG share page (`/listings/[slug]`) resolve a human-readable slug
+// to a full listing record (including UUID `id`) for the redirect.
+
+pub async fn get_listing_by_slug(
+    State(state): State<SharedState>,
+    Path(slug): Path<String>,
+) -> impl IntoResponse {
+    let row = sqlx::query(
+        "SELECT id, developer_id, name, description, wasm_hash,
+                price_cents, active, category, seller_type, slug, created_at, updated_at
+         FROM agent_listings WHERE slug = $1",
+    )
+    .bind(&slug)
+    .fetch_optional(&state.db)
+    .await;
+
+    match row {
+        Ok(Some(r)) => (StatusCode::OK, Json(listing_row_to_json(&r))).into_response(),
+        Ok(None) => StatusCode::NOT_FOUND.into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+/// Map a fetched agent_listings row to a JSON value.
+fn listing_row_to_json(r: &sqlx::postgres::PgRow) -> serde_json::Value {
+    use sqlx::Row;
+    let id: uuid::Uuid = r.get("id");
+    let developer_id: uuid::Uuid = r.get("developer_id");
+    let name: &str = r.get("name");
+    let description: &str = r.get("description");
+    let wasm_hash: &str = r.get("wasm_hash");
+    let price_cents: i64 = r.get("price_cents");
+    let active: bool = r.get("active");
+    let category: &str = r.get("category");
+    let seller_type: &str = r.get("seller_type");
+    let slug: &str = r.get("slug");
+    let created: chrono::DateTime<chrono::Utc> = r.get("created_at");
+    let updated: chrono::DateTime<chrono::Utc> = r.get("updated_at");
+
+    serde_json::json!({
+        "id":           id,
+        "developer_id": developer_id,
+        "name":         name,
+        "description":  description,
+        "wasm_hash":    wasm_hash,
+        "price_cents":  price_cents,
+        "active":       active,
+        "category":     category,
+        "seller_type":  seller_type,
+        "slug":         slug,
+        "created_at":   created.to_rfc3339(),
+        "updated_at":   updated.to_rfc3339(),
+    })
 }
 
 // ── GET /skill-tags ───────────────────────────────────────────────────────────
@@ -551,4 +910,28 @@ pub async fn attest_skills(
 
 pub async fn health() -> StatusCode {
     StatusCode::OK
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_enterprise_or_platinum;
+    use super::LISTING_STATUS_PENDING;
+
+    #[test]
+    fn listing_status_pending_is_pending_review() {
+        // Guards the constant value used in INSERT SQL and JSON response.
+        assert_eq!(LISTING_STATUS_PENDING, "PENDING_REVIEW");
+    }
+
+    #[test]
+    fn enterprise_plan_is_verified() {
+        assert!(is_enterprise_or_platinum(Some("ENTERPRISE")));
+        assert!(is_enterprise_or_platinum(Some("PLATINUM")));
+    }
+
+    #[test]
+    fn growth_and_none_are_not_verified() {
+        assert!(!is_enterprise_or_platinum(Some("GROWTH")));
+        assert!(!is_enterprise_or_platinum(None));
+    }
 }

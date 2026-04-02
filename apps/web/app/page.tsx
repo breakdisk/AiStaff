@@ -95,18 +95,25 @@ const TESTIMONIALS = [
   },
 ];
 
-const PRICING = {
-  monthly: [
-    { name: "Starter", label: "Free",  sub: "",     desc: "For individuals exploring.",              highlight: false, features: ["Browse listings", "Tier 0 identity", "5 matches/mo", "Community support"],                                               cta: "Get started"    },
-    { name: "Pro",     label: "$49",   sub: "/mo",  desc: "For active talent and small agencies.",   highlight: true,  features: ["All in Starter", "Tier 1 identity", "Unlimited matches", "Escrow access", "Priority support"],                          cta: "Start free trial" },
-    { name: "Scale",   label: "$199",  sub: "/mo",  desc: "For enterprises and agencies.",           highlight: false, features: ["All in Pro", "Tier 2 ZK biometric", "Multi-seat licenses", "Dedicated CSM", "SLA guarantee", "Audit log export"],       cta: "Contact sales"  },
-  ],
-  pertask: [
-    { name: "Starter", label: "Free",  sub: "",         desc: "For individuals exploring.",              highlight: false, features: ["Browse listings", "Tier 0 identity", "5 matches/mo", "Community support"],                                           cta: "Get started"    },
-    { name: "Pro",     label: "$4.9",  sub: "/task",    desc: "Per successful deployment, no monthly.",  highlight: true,  features: ["All in Starter", "Tier 1 identity", "Unlimited matches", "Escrow access", "Priority support"],                      cta: "Pay as you go"  },
-    { name: "Scale",   label: "Custom", sub: "",        desc: "Volume pricing for high-throughput teams.", highlight: false, features: ["All in Pro", "Tier 2 ZK biometric", "Multi-seat licenses", "Dedicated CSM", "SLA guarantee", "Audit log export"], cta: "Contact sales"  },
-  ],
-};
+const PRICING_ROWS: {
+  label:              string;
+  client:             string;
+  freelancer:         string;
+  agency:             string;
+  robot:              string;
+  freelancerHighlight?: boolean;
+  agencyHighlight?:     boolean;
+  clientHighlight?:     boolean;
+}[] = [
+  { label: "Joining",              client: "Free",                     freelancer: "Free",                               agency: "Free",                          robot: "Free"                   },
+  { label: "Posting / Listing",    client: "Free",                     freelancer: "Free",                               agency: "Free",                          robot: "Free"                   },
+  { label: "Platform fee",         client: "15% of contract",          freelancer: "Nothing extra",                      agency: "12% of contract",               robot: "10% of contract",       clientHighlight: true },
+  { label: "Solo (build + deploy)",client: "—",                        freelancer: "85% of net",                         agency: "—",                             robot: "—",                     freelancerHighlight: true },
+  { label: "Agency management fee",client: "—",                        freelancer: "—",                                  agency: "Configurable %",                robot: "—",                     agencyHighlight: true },
+  { label: "Team split",           client: "—",                        freelancer: "Dev 59.5% · Talent 25.5%",           agency: "Dev 70% · Talent 30% of net",   robot: "—"                      },
+  { label: "You receive",          client: "Product / Service result", freelancer: "Compensation for every Develop and Deploy", agency: "Agency margin + team payouts", robot: "Physical robot deployed", freelancerHighlight: true, agencyHighlight: true },
+  { label: "Pricing model",        client: "Per deployment",           freelancer: "Per deployment",                     agency: "Per deployment",                robot: "Contact for pricing"    },
+];
 
 // ── Nav ───────────────────────────────────────────────────────────────────────
 
@@ -124,8 +131,8 @@ function Nav() {
     <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? "bg-zinc-950/90 backdrop-blur-md border-b border-zinc-800/80" : "bg-transparent"}`}>
       <nav className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
         {/* Logo */}
-        <Link href="/" className="flex items-center group">
-          <img src="/logo.png" alt="AiStaff" className="h-24 w-auto" />
+        <Link href="/" className="flex items-center self-center group">
+          <img src="/logo.png" alt="AiStaff" className="h-28 w-auto" />
         </Link>
 
         {/* Desktop links */}
@@ -210,7 +217,7 @@ function Hero() {
             </div>
 
             <h1 className="text-4xl sm:text-5xl lg:text-[56px] font-semibold text-zinc-50 leading-[1.08] tracking-tight">
-              AI Agent Marketplace<br />
+              AI Workforce Marketplace<br />
               for{" "}
               <span className="bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 bg-clip-text text-transparent animate-gradient-x">
                 Business Scaling
@@ -343,7 +350,7 @@ function Categories() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
         <div className="text-center mb-12">
           <p className="font-mono text-xs text-amber-400 uppercase tracking-widest mb-3">What we offer</p>
-          <h2 className="text-3xl sm:text-4xl font-semibold text-zinc-50 tracking-tight">Three Product Categories</h2>
+          <h2 className="text-3xl sm:text-4xl font-semibold text-zinc-50 tracking-tight">Our AI Staffing Solutions</h2>
           <p className="mt-3 text-zinc-400 text-sm sm:text-base max-w-xl mx-auto">
             From human specialists to autonomous systems — one platform, one escrow model, zero trust gaps.
           </p>
@@ -530,71 +537,165 @@ function Testimonials() {
 // ── Pricing ───────────────────────────────────────────────────────────────────
 
 function Pricing() {
-  const [billing, setBilling] = useState<"monthly" | "pertask">("monthly");
-  const plans = PRICING[billing];
-
   return (
     <section className="py-20 sm:py-28 border-t border-zinc-900">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6">
+
+        {/* Header */}
         <div className="text-center mb-10">
           <p className="font-mono text-xs text-amber-400 uppercase tracking-widest mb-3">Pricing</p>
           <h2 className="text-3xl sm:text-4xl font-semibold text-zinc-50 tracking-tight">Simple, transparent pricing</h2>
-          <p className="mt-3 text-zinc-400 text-sm sm:text-base">No hidden fees. Escrow costs covered by the 70/30 split.</p>
+          <p className="mt-3 text-zinc-400 text-sm sm:text-base">
+            Free to join. No monthly fees. We only earn when you earn.
+          </p>
+        </div>
 
-          {/* Toggle */}
-          <div className="inline-flex mt-6 p-0.5 rounded-sm border border-zinc-800 bg-zinc-900">
-            {(["monthly", "pertask"] as const).map((mode) => (
-              <button key={mode} onClick={() => setBilling(mode)}
-                className={`px-5 py-1.5 rounded-sm font-mono text-xs uppercase tracking-widest transition-all ${billing === mode ? "bg-amber-500 text-zinc-950 font-semibold" : "text-zinc-400 hover:text-zinc-200"}`}>
-                {mode === "monthly" ? "Monthly" : "Per Task"}
-              </button>
-            ))}
+        {/* Table */}
+        <div className="border border-zinc-800 rounded-sm overflow-x-auto">
+          <table className="w-full min-w-[680px]">
+            <thead>
+              <tr className="border-b border-zinc-800">
+                <th className="p-4 text-left w-[20%]" />
+                {/* Client */}
+                <th className="p-4 text-center border-l border-zinc-800 w-[18%]">
+                  <p className="font-semibold text-sm text-zinc-100">Client</p>
+                  <p className="font-mono text-[10px] text-zinc-500 mt-0.5 font-normal">Hire AI talent or agents</p>
+                </th>
+                {/* Freelancers */}
+                <th className="p-4 text-center border-l border-zinc-800 w-[20%] bg-amber-500/5">
+                  <span className="inline-block mb-1.5 px-2 py-0.5 bg-amber-500 rounded-sm font-mono text-[10px] text-zinc-950 font-semibold uppercase tracking-widest">
+                    Most common
+                  </span>
+                  <p className="font-semibold text-sm text-amber-400">Freelancers</p>
+                  <p className="font-mono text-[10px] text-zinc-500 mt-0.5 font-normal">Build, sell &amp; deploy agents</p>
+                </th>
+                {/* Agency */}
+                <th className="p-4 text-center border-l border-zinc-800 w-[20%]">
+                  <p className="font-semibold text-sm text-zinc-100">Agency</p>
+                  <p className="font-mono text-[10px] text-zinc-500 mt-0.5 font-normal">Manage teams of AI workers</p>
+                </th>
+                {/* AI Robot Rental */}
+                <th className="p-4 text-center border-l border-zinc-800 w-[22%]">
+                  <p className="font-semibold text-sm text-zinc-100">AI Robot Rental</p>
+                  <p className="font-mono text-[10px] text-zinc-500 mt-0.5 font-normal">Physical hardware + logistics</p>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {PRICING_ROWS.map((row, i) => (
+                <tr key={row.label} className={`border-b last:border-b-0 border-zinc-800 ${i % 2 === 1 ? "bg-zinc-900/20" : ""}`}>
+                  {/* Label */}
+                  <td className="p-4 border-r border-zinc-800">
+                    <span className="font-mono text-xs text-zinc-400">{row.label}</span>
+                  </td>
+                  {/* Client */}
+                  <td className="p-4 text-center border-r border-zinc-800">
+                    <span className={`font-mono text-xs ${row.clientHighlight ? "text-amber-400 font-semibold" : row.client === "—" ? "text-zinc-700" : row.label === "You receive" || row.label === "Pricing model" ? "text-zinc-300 font-medium" : "text-emerald-400"}`}>
+                      {row.client}
+                    </span>
+                  </td>
+                  {/* Freelancers */}
+                  <td className="p-4 text-center border-r border-zinc-800 bg-amber-500/[0.03]">
+                    <span className={`font-mono text-xs ${row.freelancerHighlight ? "text-amber-400 font-semibold" : row.freelancer === "Nothing extra" ? "text-emerald-400" : row.freelancer === "—" ? "text-zinc-700" : "text-zinc-300"}`}>
+                      {row.freelancer}
+                    </span>
+                  </td>
+                  {/* Agency */}
+                  <td className="p-4 text-center border-r border-zinc-800">
+                    <span className={`font-mono text-xs ${row.agencyHighlight ? "text-amber-400 font-semibold" : row.agency === "12% of contract" ? "text-amber-400 font-semibold" : row.agency === "Configurable %" ? "text-sky-400 font-semibold" : row.agency === "—" ? "text-zinc-700" : "text-zinc-300"}`}>
+                      {row.agency}
+                    </span>
+                  </td>
+                  {/* AI Robot Rental */}
+                  <td className="p-4 text-center">
+                    <span className={`font-mono text-xs ${row.robot === "Contact for pricing" ? "text-amber-400 font-semibold" : row.robot === "—" ? "text-zinc-700" : "text-emerald-400"}`}>
+                      {row.robot}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Solo note */}
+        <div className="mt-4 flex items-start gap-2 px-1">
+          <span className="font-mono text-[10px] text-amber-400 mt-0.5 flex-shrink-0">★</span>
+          <p className="font-mono text-[11px] text-zinc-500">
+            <span className="text-zinc-300">Solo operator?</span> If you build the agent AND do the installation yourself, you earn both shares — <span className="text-amber-400 font-semibold">85% of net</span> ($85 on every $100 paid). The 15% platform fee is the only deduction.
+          </p>
+        </div>
+
+        {/* Commission explainer */}
+        <div className="mt-5 border border-zinc-800 rounded-sm p-5 bg-zinc-900/30 space-y-4">
+          {/* Freelancer path */}
+          <div>
+            <p className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest mb-2">Freelancer — 15% platform fee</p>
+            <div className="flex flex-wrap gap-4 items-center">
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-sm text-zinc-300">Client pays</span>
+                <span className="font-mono text-sm font-semibold text-zinc-50">$100</span>
+              </div>
+              <ChevronRight size={14} className="text-zinc-600" />
+              <div className="flex flex-wrap gap-3">
+                <span className="px-2.5 py-1 rounded-sm border border-amber-800/60 bg-amber-950/30 font-mono text-xs text-amber-400">Platform $15</span>
+                <span className="px-2.5 py-1 rounded-sm border border-zinc-700 bg-zinc-800/40 font-mono text-xs text-zinc-300">Developer $59.50</span>
+                <span className="px-2.5 py-1 rounded-sm border border-zinc-700 bg-zinc-800/40 font-mono text-xs text-zinc-300">Talent $25.50</span>
+              </div>
+            </div>
+          </div>
+          {/* Agency path */}
+          <div>
+            <p className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest mb-2">Agency — 12% platform fee + configurable agency margin</p>
+            <div className="flex flex-wrap gap-4 items-center">
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-sm text-zinc-300">Client pays</span>
+                <span className="font-mono text-sm font-semibold text-zinc-50">$100</span>
+              </div>
+              <ChevronRight size={14} className="text-zinc-600" />
+              <div className="flex flex-wrap gap-3">
+                <span className="px-2.5 py-1 rounded-sm border border-amber-800/60 bg-amber-950/30 font-mono text-xs text-amber-400">Platform $12</span>
+                <span className="px-2.5 py-1 rounded-sm border border-sky-800/60 bg-sky-950/30 font-mono text-xs text-sky-400">Agency cut (e.g. 10%)</span>
+                <span className="px-2.5 py-1 rounded-sm border border-zinc-700 bg-zinc-800/40 font-mono text-xs text-zinc-300">Dev 70% · Talent 30% of net</span>
+              </div>
+            </div>
+          </div>
+          <p className="font-mono text-[10px] text-zinc-600">
+            All splits distributed atomically by the platform — workers are paid directly, never via the agency. Funds held in escrow until work is verified, identity confirmed, and the 30-second human veto window clears.
+          </p>
+        </div>
+
+        {/* Robot rental note */}
+        <div className="mt-4 border border-zinc-800/60 rounded-sm p-4 bg-zinc-900/20 flex items-start gap-3">
+          <Cpu size={14} className="text-zinc-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="font-mono text-xs text-zinc-300 font-medium mb-1">AI Robot Rental — Custom Pricing</p>
+            <p className="font-mono text-[11px] text-zinc-500">
+              Robot rentals involve logistics, insurance, maintenance, and variable rental durations. Pricing is negotiated per engagement. <Link href="/marketplace" className="text-amber-400 hover:text-amber-300 transition-colors">Contact us</Link> for a custom quote.
+            </p>
           </div>
         </div>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {plans.map((plan) => (
-            <div key={plan.name}
-              className={`relative rounded-lg p-6 flex flex-col transition-all duration-200 ${
-                plan.highlight
-                  ? "border-2 border-amber-500/60 bg-gradient-to-b from-amber-500/5 to-transparent shadow-xl shadow-amber-500/10"
-                  : "border border-zinc-800 bg-zinc-900/30 hover:border-zinc-700 hover:bg-zinc-900/50"
-              }`}>
-              {plan.highlight && (
-                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-amber-500 rounded-sm font-mono text-xs text-zinc-950 font-semibold uppercase tracking-widest whitespace-nowrap">
-                  Most Popular
-                </div>
-              )}
-
-              <div className="mb-5">
-                <h3 className="font-semibold text-zinc-100 text-base mb-1">{plan.name}</h3>
-                <div className="flex items-baseline gap-1 mb-2">
-                  <span className="font-mono text-3xl font-semibold text-zinc-50">{plan.label}</span>
-                  {plan.sub && <span className="font-mono text-xs text-zinc-500">{plan.sub}</span>}
-                </div>
-                <p className="text-xs text-zinc-500">{plan.desc}</p>
-              </div>
-
-              <ul className="space-y-2.5 flex-1 mb-6">
-                {plan.features.map((f) => (
-                  <li key={f} className="flex items-start gap-2 text-xs text-zinc-400">
-                    <Check className="w-3.5 h-3.5 text-green-500 flex-shrink-0 mt-0.5" />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-
-              <Link href="/marketplace"
-                className={`w-full h-10 flex items-center justify-center rounded-sm font-mono text-xs font-medium uppercase tracking-widest transition-all ${
-                  plan.highlight
-                    ? "bg-amber-500 hover:bg-amber-400 text-zinc-950 shadow-md shadow-amber-500/20"
-                    : "border border-zinc-700 hover:border-zinc-500 text-zinc-300 hover:text-zinc-100"
-                }`}>
-                {plan.cta}
-              </Link>
-            </div>
-          ))}
+        {/* CTA row */}
+        <div className="mt-6 grid sm:grid-cols-4 gap-3">
+          <Link href="/marketplace"
+            className="h-10 flex items-center justify-center rounded-sm border border-zinc-700 hover:border-zinc-500 font-mono text-xs text-zinc-300 hover:text-zinc-100 transition-all uppercase tracking-widest">
+            Hire talent
+          </Link>
+          <Link href="/marketplace"
+            className="h-10 flex items-center justify-center rounded-sm bg-amber-500 hover:bg-amber-400 font-mono text-xs text-zinc-950 font-semibold transition-all uppercase tracking-widest">
+            List your agent
+          </Link>
+          <Link href="/marketplace"
+            className="h-10 flex items-center justify-center rounded-sm border border-zinc-700 hover:border-zinc-500 font-mono text-xs text-zinc-300 hover:text-zinc-100 transition-all uppercase tracking-widest">
+            Apply as talent
+          </Link>
+          <Link href="/enterprise"
+            className="h-10 flex items-center justify-center rounded-sm border border-sky-800 hover:border-sky-600 font-mono text-xs text-sky-400 hover:text-sky-200 transition-all uppercase tracking-widest">
+            Register agency
+          </Link>
         </div>
+
       </div>
     </section>
   );
@@ -636,7 +737,7 @@ function CtaBanner() {
 
 // ── Footer ────────────────────────────────────────────────────────────────────
 
-const FOOTER_LINKS: Record<string, { label: string; href: string }[]> = {
+const FOOTER_LINKS: Record<string, { label: string; href: string; external?: boolean }[]> = {
   Platform: [
     { label: "AiTalent",    href: "/marketplace" },
     { label: "AiStaff",     href: "/marketplace" },
@@ -644,21 +745,21 @@ const FOOTER_LINKS: Record<string, { label: string; href: string }[]> = {
     { label: "Leaderboard", href: "/leaderboard" },
   ],
   Product: [
-    { label: "Dashboard",   href: "/dashboard"   },
-    { label: "Marketplace", href: "/marketplace" },
-    { label: "Pricing",     href: "#"            },
+    { label: "Dashboard",   href: "/dashboard"         },
+    { label: "Marketplace", href: "/marketplace"        },
+    { label: "Pricing",     href: "/pricing-tool"       },
   ],
   Trust: [
-    { label: "Escrow Model",  href: "#" },
-    { label: "ZK Identity",   href: "#" },
-    { label: "Warranty",      href: "#" },
-    { label: "Audit Trail",   href: "#" },
+    { label: "Escrow Model",  href: "/marketplace"      },
+    { label: "ZK Identity",   href: "/proof-of-human"   },
+    { label: "Warranty",      href: "/marketplace"      },
+    { label: "Audit Trail",   href: "/transparency"     },
   ],
   Company: [
-    { label: "About",   href: "#" },
-    { label: "Blog",    href: "#" },
-    { label: "Careers", href: "#" },
-    { label: "Privacy", href: "#" },
+    { label: "About",   href: "https://github.com/breakdisk/AiStaff", external: true },
+    { label: "Blog",    href: "/blog"                                                  },
+    { label: "Careers", href: "https://github.com/breakdisk/AiStaff", external: true },
+    { label: "Privacy", href: "/privacy"                                               },
   ],
 };
 
@@ -669,20 +770,19 @@ function Footer() {
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-8 mb-10">
           {/* Brand */}
           <div className="col-span-2 sm:col-span-3 lg:col-span-1">
-            <Link href="/" className="flex items-center gap-2 mb-3">
-              <div className="w-6 h-6 rounded-sm bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center">
-                <Bot className="w-3.5 h-3.5 text-zinc-950" />
-              </div>
-              <span className="font-mono text-sm font-medium text-zinc-100">
-                AiStaff<span className="text-amber-400">App</span>
-              </span>
+            <Link href="/" className="flex items-center mb-3">
+              <img src="/logo.png" alt="AiStaff" className="h-28 w-auto" />
             </Link>
             <p className="text-xs text-zinc-500 leading-relaxed mb-4">
               Human-on-the-Loop AI deployment marketplace. Trust built in.
             </p>
             <div className="flex gap-2">
-              {[Github, Twitter, Linkedin].map((Icon, i) => (
-                <a key={i} href="#"
+              {([
+                { Icon: Github,   href: "https://github.com/breakdisk/AiStaff"            },
+                { Icon: Twitter,  href: "https://twitter.com/aistaff"                      },
+                { Icon: Linkedin, href: "https://www.linkedin.com/company/aistaff"         },
+              ] as const).map(({ Icon, href }) => (
+                <a key={href} href={href} target="_blank" rel="noopener noreferrer"
                   className="w-8 h-8 rounded-sm border border-zinc-800 hover:border-zinc-600 flex items-center justify-center text-zinc-500 hover:text-zinc-300 transition-all">
                   <Icon className="w-3.5 h-3.5" />
                 </a>
@@ -697,9 +797,15 @@ function Footer() {
               <ul className="space-y-2">
                 {links.map((l) => (
                   <li key={l.label}>
-                    <Link href={l.href} className="text-xs text-zinc-400 hover:text-zinc-200 transition-colors">
-                      {l.label}
-                    </Link>
+                    {l.external ? (
+                      <a href={l.href} target="_blank" rel="noopener noreferrer" className="text-xs text-zinc-400 hover:text-zinc-200 transition-colors">
+                        {l.label}
+                      </a>
+                    ) : (
+                      <Link href={l.href} className="text-xs text-zinc-400 hover:text-zinc-200 transition-colors">
+                        {l.label}
+                      </Link>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -711,8 +817,12 @@ function Footer() {
         <div className="border-t border-zinc-900 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="font-mono text-xs text-zinc-600">© 2026 AiStaffApp. All rights reserved.</p>
           <div className="flex items-center gap-4">
-            {["Terms", "Privacy", "Security"].map((l) => (
-              <a key={l} href="#" className="font-mono text-xs text-zinc-600 hover:text-zinc-400 transition-colors">{l}</a>
+            {([
+              { label: "Terms",    href: "/terms"         },
+              { label: "Privacy",  href: "/privacy"       },
+              { label: "Security", href: "/transparency"  },
+            ] as const).map(({ label, href }) => (
+              <Link key={label} href={href} className="font-mono text-xs text-zinc-600 hover:text-zinc-400 transition-colors">{label}</Link>
             ))}
           </div>
         </div>
@@ -721,11 +831,118 @@ function Footer() {
   );
 }
 
+// ── JSON-LD ───────────────────────────────────────────────────────────────────
+
+const JSON_LD = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://aistaffglobal.com/#software",
+      "name": "AiStaff",
+      "url": "https://aistaffglobal.com",
+      "description": "AI-native B2B marketplace for AI talent, autonomous AI agents, and AI robotics. Escrow-backed deployments with ZK biometric identity and a 30-second human veto window.",
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "Web",
+      "offers": {
+        "@type": "AggregateOffer",
+        "priceCurrency": "USD",
+        "lowPrice": "0",
+        "highPrice": "199",
+        "offerCount": "3",
+      },
+    },
+    {
+      "@type": "OfferCatalog",
+      "@id": "https://aistaffglobal.com/#catalog",
+      "name": "AiStaff Marketplace Catalog",
+      "description": "Three product verticals: AI Talent (vetted engineers), AI Agents (deployable digital workers), AI Robotics (hardware-integrated AI).",
+      "itemListElement": [
+        {
+          "@type": "Offer",
+          "name": "AiTalent — Vetted AI Engineers",
+          "description": "Hire ZK-verified AI engineers and prompt specialists. Trust score: GitHub 30% + LinkedIn 30% + ZK Biometric 40%. Escrow-backed, 7-day warranty.",
+          "url": "https://aistaffglobal.com/marketplace",
+          "category": "AI Talent",
+        },
+        {
+          "@type": "Offer",
+          "name": "AiStaff — Autonomous AI Agents",
+          "description": "Deploy Wasmtime-sandboxed AI agents for finance, legal, HR, and infrastructure. Jurisdiction-locked licenses, deterministic audit trail, drift detection.",
+          "url": "https://aistaffglobal.com/marketplace",
+          "category": "AI Agents",
+        },
+        {
+          "@type": "Offer",
+          "name": "AiRobot — AI Robotics Rental",
+          "description": "Rent hardware-integrated AI solutions for manufacturing, logistics, and inspection. Real-time telemetry, remote veto control, hardware-in-loop testing.",
+          "url": "https://aistaffglobal.com/marketplace",
+          "category": "AI Robotics",
+        },
+      ],
+    },
+    {
+      "@type": "Organization",
+      "@id": "https://aistaffglobal.com/#org",
+      "name": "AiStaff",
+      "url": "https://aistaffglobal.com",
+      "logo": "https://aistaffglobal.com/logo.png",
+      "sameAs": [
+        "https://github.com/breakdisk/AiStaff",
+        "https://www.linkedin.com/company/aistaff",
+        "https://twitter.com/aistaff",
+      ],
+      "description": "AiStaff operates AI Talent, AI Agent, and AI Robotics marketplaces with escrow-backed deployments, ZK biometric identity, and human-in-the-loop veto controls.",
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "How does AiStaff escrow work?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Every deployment on AiStaff uses a 70/30 escrow split: 70% to the developer, 30% to the talent. Funds release only after the DoD checklist is finalized, both parties hold identity tier ≥ 1, and a mandatory 30-second human veto window elapses without cancellation.",
+          },
+        },
+        {
+          "@type": "Question",
+          "name": "How does AiStaff verify AI talent identity?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "AiStaff uses a three-tier identity system: Unverified, SocialVerified, and BiometricVerified. Trust scores combine GitHub activity (30%), LinkedIn profile (30%), and Zero-Knowledge Proof biometric verification (40%). Biometric data is never stored — only a cryptographic commitment is persisted.",
+          },
+        },
+        {
+          "@type": "Question",
+          "name": "What is the Mechanic's Warranty on AI agent deployments?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Every AI agent deployment on AiStaff includes a 7-day Mechanic's Warranty. If the deployed agent's artifact hash diverges from its original (artifact drift), a warranty claim is automatically triggered and escrow is frozen until resolution: REMEDIATED, REFUNDED, or REJECTED.",
+          },
+        },
+        {
+          "@type": "Question",
+          "name": "What is the 30-second veto window?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Before any escrow release, AiStaff enforces a mandatory 30-second pause. A human operator can cancel the payout during this window. This Human-in-the-Loop (HITL) control prevents autonomous AI agents from releasing funds without human oversight.",
+          },
+        },
+      ],
+    },
+  ],
+};
+
 // ── Root Page ─────────────────────────────────────────────────────────────────
 
 export default function LandingPage() {
   return (
     <main className="min-h-screen bg-zinc-950 overflow-x-hidden">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }}
+      />
       <Nav />
       <Hero />
       <Categories />

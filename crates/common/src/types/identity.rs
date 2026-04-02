@@ -52,12 +52,10 @@ pub enum IdentityTier {
 /// Canonical identity record — written to DB, embedded in auth tokens.
 /// PRIVACY: raw biometric data is NEVER stored in this struct or the DB.
 ///
-/// NOTE: After running migration 0016 + `cargo sqlx prepare --workspace`,
-/// `github_uid` must be changed to `Option<String>` to match the nullable column.
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct UnifiedProfile {
     pub id: Uuid,
-    pub github_uid: String,
+    pub github_uid: Option<String>,
     pub linkedin_uid: Option<String>,
     pub display_name: String,
     pub email: String,
@@ -74,11 +72,21 @@ pub struct UnifiedProfile {
 
 /// Which OAuth provider initiated the login or connect request.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
 pub enum OAuthProvider {
+    #[serde(rename = "github")]
     GitHub,
+    #[serde(rename = "google")]
     Google,
+    #[serde(rename = "linkedin")]
     LinkedIn,
+    #[serde(rename = "facebook")]
+    Facebook,
+    /// Azure Active Directory / Microsoft Entra ID
+    #[serde(rename = "microsoft-entra-id")]
+    MicrosoftEntraId,
+    /// Email magic link (NextAuth nodemailer provider)
+    #[serde(rename = "nodemailer")]
+    Email,
 }
 
 /// Payload sent from Next.js → identity_service after any OAuth callback.
@@ -93,6 +101,10 @@ pub struct OAuthCallbackPayload {
     pub github_repos: Option<u32>,
     /// GitHub account creation ISO-8601 timestamp — present only for GitHub provider.
     pub github_created_at: Option<DateTime<Utc>>,
+    /// GitHub follower count — present only for GitHub provider.
+    pub github_followers: Option<u32>,
+    /// GitHub public repos count (used as star-count proxy) — present only for GitHub provider.
+    pub github_stars: Option<u32>,
     /// Whether the provider verified the email address.
     pub email_verified: Option<bool>,
     /// For connect-provider flow: existing profile to update.
@@ -110,4 +122,32 @@ pub struct OAuthCallbackResponse {
     pub account_type: String,
     /// "talent" | "client" | "agent-owner" | null (null = new user, not yet through onboarding)
     pub role: Option<String>,
+    /// Platform-owner admin flag — true only for designated admins
+    #[serde(default)]
+    pub is_admin: bool,
+    /// True when this login resolved an existing profile by email match
+    /// (new OAuth provider linked to an existing account).
+    #[serde(default)]
+    pub is_linked_account: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn oauth_callback_response_is_linked_account_defaults_false() {
+        // Deserialising a payload that omits is_linked_account must default to false
+        // (existing callers don't send it yet — serde default is required)
+        let json = r#"{
+            "profile_id": "00000000-0000-0000-0000-000000000001",
+            "identity_tier": "UNVERIFIED",
+            "trust_score": 0,
+            "account_type": "individual",
+            "role": null,
+            "is_admin": false
+        }"#;
+        let r: OAuthCallbackResponse = serde_json::from_str(json).unwrap();
+        assert!(!r.is_linked_account);
+    }
 }

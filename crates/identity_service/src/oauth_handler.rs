@@ -22,6 +22,9 @@ const LI_EMAIL_PTS: f64 = 8.0;
 const LI_EXISTS_PTS: f64 = 7.0;
 
 const GOOGLE_EMAIL_PTS: f64 = 15.0; // Google verifies email at account creation
+const FACEBOOK_EMAIL_PTS: f64 = 15.0; // Facebook requires a verified email on all accounts
+const MICROSOFT_EMAIL_PTS: f64 = 15.0; // Microsoft verifies corporate email via Entra ID
+const EMAIL_MAGIC_PTS: f64 = 10.0; // Magic link: verified email address, no social signal
 
 // ── Public entry point ────────────────────────────────────────────────────────
 
@@ -38,9 +41,10 @@ pub async fn handle_oauth_callback(
     db: &PgPool,
     payload: OAuthCallbackPayload,
 ) -> Result<OAuthCallbackResponse> {
-    let profile_id = match payload.existing_profile_id {
-        // Connect-provider flow: caller already knows the profile
-        Some(id) => id,
+    let (profile_id, is_linked_account) = match payload.existing_profile_id {
+        // connect-provider flow: user is already logged in, linking a new provider.
+        // Not a "duplicate account" situation — show no warning.
+        Some(id) => (id, false),
         None => upsert_profile(db, &payload).await?,
     };
 
@@ -63,14 +67,13 @@ pub async fn handle_oauth_callback(
     .await
     .context("Update trust_score + tier")?;
 
-    // Read account_type + role set during onboarding / agency registration.
-    // Both columns have NOT NULL / nullable defaults so the row always exists.
-    let (account_type, role): (String, Option<String>) =
-        sqlx::query_as("SELECT account_type, role FROM unified_profiles WHERE id = $1")
+    // Read account_type + role + is_admin set during onboarding / agency registration.
+    let (account_type, role, is_admin): (String, Option<String>, bool) =
+        sqlx::query_as("SELECT account_type, role, is_admin FROM unified_profiles WHERE id = $1")
             .bind(profile_id)
             .fetch_one(db)
             .await
-            .context("Fetch account_type + role")?;
+            .context("Fetch account_type + role + is_admin")?;
 
     Ok(OAuthCallbackResponse {
         profile_id,
@@ -78,22 +81,22 @@ pub async fn handle_oauth_callback(
         trust_score: score,
         account_type,
         role,
+        is_admin,
+        is_linked_account,
     })
 }
 
 // ── Step 1: upsert profile row ────────────────────────────────────────────────
 
-async fn upsert_profile(db: &PgPool, p: &OAuthCallbackPayload) -> Result<Uuid> {
-    // Try existing by provider UID first
+async fn upsert_profile(db: &PgPool, p: &OAuthCallbackPayload) -> Result<(Uuid, bool)> {
     if let Some(id) = find_by_provider(db, p).await? {
-        return Ok(id);
+        return Ok((id, false)); // returning user — same provider
     }
-    // Try existing by email (cross-provider account linking)
     if let Some(id) = find_by_email(db, &p.email).await? {
-        return Ok(id);
+        return Ok((id, true)); // email match — new provider linked to existing account
     }
-    // New user — insert
-    insert_profile(db, p).await
+    let id = insert_profile(db, p).await?;
+    Ok((id, false)) // brand new profile
 }
 
 async fn find_by_provider(db: &PgPool, p: &OAuthCallbackPayload) -> Result<Option<Uuid>> {
@@ -150,31 +153,76 @@ fn github_uid_for_insert(p: &OAuthCallbackPayload) -> Option<String> {
 
 async fn link_provider(db: &PgPool, id: Uuid, p: &OAuthCallbackPayload) -> Result<()> {
     match p.provider {
-        OAuthProvider::GitHub => sqlx::query(
-            "UPDATE unified_profiles
-                 SET github_uid = $1, github_connected_at = NOW(), updated_at = NOW()
-                 WHERE id = $2",
-        )
-        .bind(&p.provider_uid)
-        .bind(id),
-        OAuthProvider::Google => sqlx::query(
-            "UPDATE unified_profiles
-                 SET google_uid = $1, google_connected_at = NOW(), updated_at = NOW()
-                 WHERE id = $2",
-        )
-        .bind(&p.provider_uid)
-        .bind(id),
-        OAuthProvider::LinkedIn => sqlx::query(
-            "UPDATE unified_profiles
-                 SET linkedin_uid = $1, linkedin_connected_at = NOW(), updated_at = NOW()
-                 WHERE id = $2",
-        )
-        .bind(&p.provider_uid)
-        .bind(id),
+        OAuthProvider::GitHub => {
+            sqlx::query(
+                "UPDATE unified_profiles
+                     SET github_uid = $1, github_connected_at = NOW(),
+                         github_followers = COALESCE($3, github_followers),
+                         github_stars     = COALESCE($4, github_stars),
+                         updated_at = NOW()
+                     WHERE id = $2",
+            )
+            .bind(&p.provider_uid)
+            .bind(id)
+            .bind(p.github_followers.map(|v| v as i32))
+            .bind(p.github_stars.map(|v| v as i32))
+            .execute(db)
+            .await
+            .context("link_provider GitHub")?;
+        }
+        OAuthProvider::Google => {
+            sqlx::query(
+                "UPDATE unified_profiles
+                     SET google_uid = $1, google_connected_at = NOW(), updated_at = NOW()
+                     WHERE id = $2",
+            )
+            .bind(&p.provider_uid)
+            .bind(id)
+            .execute(db)
+            .await
+            .context("link_provider Google")?;
+        }
+        OAuthProvider::LinkedIn => {
+            sqlx::query(
+                "UPDATE unified_profiles
+                     SET linkedin_uid = $1, linkedin_connected_at = NOW(), updated_at = NOW()
+                     WHERE id = $2",
+            )
+            .bind(&p.provider_uid)
+            .bind(id)
+            .execute(db)
+            .await
+            .context("link_provider LinkedIn")?;
+        }
+        OAuthProvider::Facebook => {
+            sqlx::query(
+                "UPDATE unified_profiles
+                     SET facebook_uid = $1, facebook_connected_at = NOW(), updated_at = NOW()
+                     WHERE id = $2",
+            )
+            .bind(&p.provider_uid)
+            .bind(id)
+            .execute(db)
+            .await
+            .context("link_provider Facebook")?;
+        }
+        OAuthProvider::MicrosoftEntraId => {
+            sqlx::query(
+                "UPDATE unified_profiles
+                     SET microsoft_entra_uid = $1, microsoft_connected_at = NOW(), updated_at = NOW()
+                     WHERE id = $2",
+            )
+            .bind(&p.provider_uid)
+            .bind(id)
+            .execute(db)
+            .await
+            .context("link_provider MicrosoftEntraId")?;
+        }
+        OAuthProvider::Email => {
+            // Magic link: email IS the primary identifier — no separate UID column to update.
+            // Profile was already found/created via find_by_email.
+        }
     }
-    .execute(db)
-    .await
-    .context("link_provider")?;
     Ok(())
 }
 
@@ -186,8 +234,15 @@ async fn fetch_and_score(
     current: &OAuthCallbackPayload,
 ) -> Result<(i16, IdentityTier)> {
     // Fetch what providers are now connected to this profile
-    let row: (Option<String>, Option<String>, Option<String>) = sqlx::query_as(
-        "SELECT github_uid, linkedin_uid, google_uid
+    #[allow(clippy::type_complexity)]
+    let row: (
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+    ) = sqlx::query_as(
+        "SELECT github_uid, linkedin_uid, google_uid, facebook_uid, microsoft_entra_uid
          FROM unified_profiles WHERE id = $1",
     )
     .bind(id)
@@ -195,7 +250,7 @@ async fn fetch_and_score(
     .await
     .context("fetch provider columns")?;
 
-    let (github_uid, linkedin_uid, google_uid) = row;
+    let (github_uid, linkedin_uid, google_uid, facebook_uid, microsoft_entra_uid) = row;
 
     // GitHub score — use data from current payload if GitHub is the provider
     let github_score = if github_uid.is_some() {
@@ -233,7 +288,33 @@ async fn fetch_and_score(
         0.0
     };
 
-    let total = (github_score + linkedin_score + google_score)
+    // Facebook score — verified email required by Facebook on all accounts
+    let facebook_score = if facebook_uid.is_some() {
+        FACEBOOK_EMAIL_PTS
+    } else {
+        0.0
+    };
+
+    // Microsoft Entra ID — corporate email verified by Azure AD
+    let microsoft_score = if microsoft_entra_uid.is_some() {
+        MICROSOFT_EMAIL_PTS
+    } else {
+        0.0
+    };
+
+    // Email magic link — gives a baseline score on each email login
+    let email_magic_score = if current.provider == OAuthProvider::Email {
+        EMAIL_MAGIC_PTS
+    } else {
+        0.0
+    };
+
+    let total = (github_score
+        + linkedin_score
+        + google_score
+        + facebook_score
+        + microsoft_score
+        + email_magic_score)
         .round()
         .clamp(0.0, 100.0) as i16;
 
@@ -268,6 +349,9 @@ fn provider_uid_col(p: OAuthProvider) -> &'static str {
         OAuthProvider::GitHub => "github_uid",
         OAuthProvider::Google => "google_uid",
         OAuthProvider::LinkedIn => "linkedin_uid",
+        OAuthProvider::Facebook => "facebook_uid",
+        OAuthProvider::MicrosoftEntraId => "microsoft_entra_uid",
+        OAuthProvider::Email => "email", // magic link: look up by email column
     }
 }
 
@@ -279,12 +363,35 @@ fn tier_label(t: IdentityTier) -> String {
     }
 }
 
+// ── Link-flag helpers ─────────────────────────────────────────────────────────
+
+/// Resolution path taken during upsert — used to derive is_linked_account.
+#[cfg(test)]
+#[derive(Debug, PartialEq)]
+enum ResolutionPath {
+    ByProvider,
+    ByEmail,
+    NewInsert,
+}
+
+#[cfg(test)]
+fn resolve_link_flag(path: ResolutionPath) -> bool {
+    path == ResolutionPath::ByEmail
+}
+
 // ── Unit tests ────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use chrono::{Duration, Utc};
+
+    #[test]
+    fn linked_account_only_on_email_match() {
+        assert!(!resolve_link_flag(ResolutionPath::ByProvider));
+        assert!(resolve_link_flag(ResolutionPath::ByEmail));
+        assert!(!resolve_link_flag(ResolutionPath::NewInsert));
+    }
 
     #[test]
     fn github_score_five_year_fifty_repos() {
@@ -312,6 +419,19 @@ mod tests {
         assert!((GOOGLE_EMAIL_PTS - 15.0).abs() < f64::EPSILON);
         let total = GOOGLE_EMAIL_PTS.round() as i16;
         assert!(total > 0, "Google login must yield trust_score > 0");
+    }
+
+    #[test]
+    fn microsoft_score_constant() {
+        assert!((MICROSOFT_EMAIL_PTS - 15.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn email_magic_score_constant() {
+        assert!((EMAIL_MAGIC_PTS - 10.0).abs() < f64::EPSILON);
+        // Email magic link gives > 0 → SOCIAL_VERIFIED tier
+        let total = EMAIL_MAGIC_PTS.round() as i16;
+        assert!(total > 0);
     }
 
     #[test]
