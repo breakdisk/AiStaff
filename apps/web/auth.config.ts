@@ -147,7 +147,10 @@ export const authConfig: NextAuthConfig = {
       clientSecret: process.env.FACEBOOK_CLIENT_SECRET!,
       checks: ["state"],
       // @auth/core hardcodes v19.0 which was deprecated Feb 2026 — override to v21.0
-      authorization: "https://www.facebook.com/v21.0/dialog/oauth?scope=email",
+      authorization: {
+        url:    "https://www.facebook.com/v21.0/dialog/oauth",
+        params: { scope: "email" },
+      },
     }),
     GitHub({
       clientId:     process.env.GITHUB_CLIENT_ID!,
